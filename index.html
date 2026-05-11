@@ -423,13 +423,19 @@
 
     <div class="pane" id="pHist">
       <div style="margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-        <p style="color:var(--text2);font-size:13px;flex:1">Cada jornada se guarda como archivo JSON. Carga un archivo anterior para ver su información.</p>
-        <label style="padding:9px 16px;background:var(--text);color:#fff;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer">
-          📂 Cargar jornada anterior
-          <input type="file" accept=".json" id="fileInput" style="display:none" onchange="cargarArchivo(event)">
-        </label>
+        <p style="color:var(--text2);font-size:13px;flex:1">Consulta jornadas anteriores desde la nube o carga un archivo JSON local.</p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <div style="display:flex;gap:4px;align-items:center">
+            <input type="date" id="histFechaCloud" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--sans);background:var(--surface)">
+            <button onclick="cargarDesdeNube()" style="padding:9px 14px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">☁ Cargar desde nube</button>
+          </div>
+          <label style="padding:9px 16px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer">
+            📂 Cargar JSON local
+            <input type="file" accept=".json" id="fileInput" style="display:none" onchange="cargarArchivo(event)">
+          </label>
+        </div>
       </div>
-      <div id="histContainer"><div class="empty"><div class="empty-ico">📁</div><div>Carga un archivo de jornada anterior para ver su historial.</div></div></div>
+      <div id="histContainer"><div class="empty"><div class="empty-ico">☁</div><div style="font-size:15px;font-weight:600;color:var(--text2);margin-bottom:6px">Consulta jornadas anteriores</div><div style="font-size:13px;color:var(--text3)">Selecciona una fecha y haz clic en "Cargar desde nube", o carga un archivo JSON local.</div></div></div>
     </div>
 
     <div class="pane" id="pCaja">
@@ -655,6 +661,53 @@ function descargarJSON(){
   toast('Jornada guardada como archivo JSON');
 }
 
+function cargarDesdeNube(){
+  if(!API_URL){ toast('Configura primero la URL de Railway en ⚙ Configuración'); return; }
+  var input = document.getElementById('histFechaCloud');
+  var fecha = input ? input.value : '';
+  if(!fecha){ toast('Selecciona una fecha'); return; }
+  // fecha viene como YYYY-MM-DD
+  toast('Cargando jornada del '+fecha+' desde la nube…');
+  fetch(API_URL+'/registros/dia?fecha='+fecha)
+    .then(function(r){ return r.json(); })
+    .then(function(json){
+      if(!json.ok){ toast('Error: '+(json.error||'sin datos')); return; }
+      if(!json.registros || json.registros.length===0){
+        document.getElementById('histContainer').innerHTML=
+          '<div class="empty"><div class="empty-ico">📭</div><div>Sin registros para el '+fecha+'</div></div>';
+        return;
+      }
+      // Convertir formato API → formato interno
+      var recs = json.registros.map(function(r){
+        return {
+          id:r.id, bid:r.bid, bnom:r.bnom,
+          sid:r.sid||'custom', snom:r.snom,
+          precio:parseInt(r.precio), pago:r.pago,
+          com:parseFloat(r.com), bb:parseInt(r.bb),
+          neg:parseInt(r.neg), propina:parseInt(r.propina||0),
+          fecha:r.fecha_display||fecha, hora:r.hora||'--',
+          ts:parseInt(r.ts||0)
+        };
+      });
+      // También cargar gastos del día
+      fetch(API_URL+'/resumen?fecha='+fecha)
+        .then(function(r2){ return r2.json(); })
+        .then(function(resumen){
+          var gastosHist = [];
+          if(resumen.ok && resumen.data && resumen.data.listaGastos){
+            gastosHist = resumen.data.listaGastos;
+          }
+          mostrarJornadaCargada(fecha, recs, gastosHist);
+          toast('✓ Jornada del '+fecha+' cargada ('+recs.length+' registros)');
+        })
+        .catch(function(){
+          mostrarJornadaCargada(fecha, recs, []);
+          toast('✓ '+recs.length+' registros cargados');
+        });
+    })
+    .catch(function(e){ toast('Error de conexión: '+e.message); });
+}
+
 function cargarArchivo(evt){
   var f=evt.target.files[0];
   if(!f)return;
@@ -786,6 +839,13 @@ function init(){
   tick();setInterval(tick,30000);
   buildBarbers();buildServices();
   cargarSheetsUrl();cargarConfigKpi();cargar();cargarGastos();cargarLiquidaciones();cargarHorarios();cargarKpiEvals();renderAll();
+  // Poner ayer como fecha default en el selector histórico
+  try{
+    var ayer=new Date();ayer.setDate(ayer.getDate()-1);
+    var ayerStr=ayer.getFullYear()+'-'+pad(ayer.getMonth()+1)+'-'+pad(ayer.getDate());
+    var inp=document.getElementById('histFechaCloud');
+    if(inp) inp.value=ayerStr;
+  }catch(e){}
 }
 
 function tick(){
@@ -3285,63 +3345,3 @@ function renderKpis(){
 
 function setKpiStarEl(el){
   var bid = el.dataset.bid;
-  var kid = el.dataset.kid;
-  var val = parseInt(el.dataset.val)||0;
-  setKpiStar(bid, kid, val);
-}
-
-function setKpiStar(bid, kid, val){
-  cargarKpiEvals();
-  var ev = getEval(kpiPeriodo, bid);
-  ev.cuali[kid] = val;
-  guardarKpiEvals();
-  renderKpis();
-}
-
-function toggleDisq(bid, checked){
-  cargarKpiEvals();
-  var ev = getEval(kpiPeriodo, bid);
-  ev.disq = checked;
-  if(!checked) ev.disqMotivo = '';
-  else if(!ev.disqMotivo) ev.disqMotivo = DISQ_CAUSALES[0];
-  guardarKpiEvals();
-  renderKpis();
-}
-
-function setDisqMotivo(bid, motivo){
-  cargarKpiEvals();
-  var ev = getEval(kpiPeriodo, bid);
-  ev.disqMotivo = motivo;
-  guardarKpiEvals();
-}
-
-function cambiarPeriodoKpi(val){
-  kpiPeriodo = val;
-  renderKpis();
-}
-
-function generarPeriodos(){
-  var result = [];
-  var now = new Date();
-  var meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-  for(var i=0;i<6;i++){
-    var d = new Date(now.getFullYear(), now.getMonth()-i, 1);
-    var val = d.getFullYear()+'-'+pad(d.getMonth()+1);
-    var label = meses[d.getMonth()]+' '+d.getFullYear();
-    result.push({val:val, label:label});
-  }
-  return result;
-}
-
-// ═══ TOAST ═══════════════════════════════════════════════
-function toast(msg){
-  var el=document.getElementById('toastel');
-  el.textContent=msg;el.classList.add('on');
-  setTimeout(function(){el.classList.remove('on');},2600);
-}
-
-// ═══ ARRANCAR ════════════════════════════════════════════
-init();
-</script>
-</body>
-</html>
