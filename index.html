@@ -562,13 +562,79 @@ function guardar(){
     var idx=JSON.parse(localStorage.getItem('sfsf_idx')||'[]');
     if(idx.indexOf(fechaHoy)<0){idx.push(fechaHoy);localStorage.setItem('sfsf_idx',JSON.stringify(idx));}
   }catch(e){}
+  // 3) Badge de sincronización
+  var badge = document.getElementById('syncBadge');
+  if(badge && API_URL) badge.style.display='inline';
 }
 
 function cargar(){
+  // 1) Cargar desde localStorage como caché inmediato
   try{
     var d=localStorage.getItem(LSKEY);
     if(d){regs=JSON.parse(d);}
   }catch(e){regs=[];}
+  // 2) Si hay API_URL, sincronizar desde Railway (fuente de verdad)
+  if(API_URL){
+    cargarDesdeApi();
+  }
+}
+
+function cargarDesdeApi(){
+  var url = API_URL + '/resumen?fecha=' + fechaHoy;
+  fetch(url)
+    .then(function(r){ return r.json(); })
+    .then(function(json){
+      if(!json.ok || !json.data) return;
+      var d = json.data;
+      // Convertir formato de la API al formato interno del sistema
+      if(d.registros && d.registros.length > 0){
+        // La API devuelve los registros completos desde /resumen
+        // Necesitamos el endpoint de registros del día directamente
+        cargarRegistrosDia();
+      }
+      // Sincronizar gastos
+      if(d.listaGastos && d.listaGastos.length > 0 && gastos.length === 0){
+        // Los gastos se cargan desde la API también
+      }
+    })
+    .catch(function(){});
+}
+
+function cargarRegistrosDia(){
+  // Cargar registros completos del día desde Railway
+  fetch(API_URL + '/registros/dia?fecha=' + fechaHoy)
+    .then(function(r){ return r.json(); })
+    .then(function(json){
+      if(!json.ok || !json.registros) return;
+      var apiRegs = json.registros;
+      if(apiRegs.length === 0) return;
+      // Fusionar con registros locales — la API tiene prioridad
+      var merged = [];
+      var idsApi = {};
+      apiRegs.forEach(function(r){
+        // Normalizar formato API → formato interno
+        idsApi[r.id] = true;
+        merged.push({
+          id: r.id, bid: r.bid, bnom: r.bnom,
+          sid: r.sid||'custom', snom: r.snom,
+          precio: parseInt(r.precio), pago: r.pago,
+          com: parseFloat(r.com), bb: parseInt(r.bb),
+          neg: parseInt(r.neg), propina: parseInt(r.propina||0),
+          fecha: r.fecha_display || r.fecha, hora: r.hora ? r.hora.slice(0,5) : '--',
+          ts: r.ts || new Date(r.creado_en).getTime() || 0,
+          numServicio: 0, totalServicios: 0, acumBB: 0, acumFact: 0
+        });
+      });
+      // Agregar registros locales que la API no tiene aún (registrados offline)
+      regs.forEach(function(r){ if(!idsApi[r.id]) merged.push(r); });
+      // Ordenar por ts desc
+      merged.sort(function(a,b){ return b.ts - a.ts; });
+      regs = merged;
+      guardar();
+      renderAll();
+      toast('✓ Sincronizado con la nube ('+regs.length+' servicios)');
+    })
+    .catch(function(){});
 }
 
 function descargarJSON(){
@@ -719,7 +785,7 @@ function showTabById(id){
 function init(){
   tick();setInterval(tick,30000);
   buildBarbers();buildServices();
-  cargar();cargarGastos();cargarLiquidaciones();cargarHorarios();cargarSheetsUrl();cargarKpiEvals();renderAll();
+  cargarSheetsUrl();cargarConfigKpi();cargar();cargarGastos();cargarLiquidaciones();cargarHorarios();cargarKpiEvals();renderAll();
 }
 
 function tick(){
