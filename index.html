@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Sistema de Control · Salon Men Saúl Fino</title>
 <style>
   /* fuentes del sistema — sin dependencia de red */
@@ -31,10 +31,32 @@
   .hdr-hist:hover{opacity:1}
 
   /* LAYOUT */
-  .layout{display:grid;grid-template-columns:360px 1fr;min-height:calc(100vh - 62px)}
+  .layout{display:grid;grid-template-columns:340px 1fr;min-height:calc(100vh - 62px)}
+  @media(max-width:900px){
+    .layout{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+    .pl{height:auto;position:static;max-height:none;overflow-y:visible;border-right:none;border-bottom:1px solid var(--border)}
+    .pr-panel{max-height:none}
+    .hdr{flex-wrap:wrap;gap:6px}
+    .hdr-title{font-size:13px}
+    .hdr-sub{font-size:10px}
+    .tab{font-size:11px;padding:10px 8px}
+  }
+  @media(max-width:600px){
+    .layout{grid-template-columns:1fr}
+    .pl{padding:10px}
+    .bgrid{grid-template-columns:repeat(3,1fr)}
+    .slist{max-height:200px}
+    .pgrid{grid-template-columns:repeat(3,1fr)}
+    .tabs-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+    .tabs-wrap::-webkit-scrollbar{display:none}
+    .tabs{flex-wrap:nowrap;min-width:max-content}
+    .tab{white-space:nowrap;font-size:11px;padding:10px 8px}
+    .pr-panel{padding:10px}
+    .kpi-bb-grid{grid-template-columns:1fr}
+  }
 
   /* PANEL IZQUIERDO */
-  .pl{background:var(--surface);border-right:1px solid var(--border);padding:16px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;height:calc(100vh - 62px);position:sticky;top:62px}
+  .pl{background:var(--surface);border-right:1px solid var(--border);padding:16px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;height:calc(100vh - 62px);position:sticky;top:62px;min-width:0}
   .slbl{font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:7px}
 
   .bgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px}
@@ -45,7 +67,7 @@
   .bbtn .bc{font-size:10px;margin-top:2px;opacity:.6;font-family:var(--mono)}
   .bbtn.on .bc{opacity:.75}
 
-  .slist{display:flex;flex-direction:column;gap:3px}
+  .slist{display:flex;flex-direction:column;gap:3px;overflow-y:auto}
   .sitem{display:flex;align-items:center;justify-content:space-between;padding:8px 11px;border:1px solid var(--border);border-radius:var(--r);cursor:pointer;background:var(--surface2);transition:all .12s;user-select:none}
   .sitem:hover{border-color:var(--text);background:var(--soft)}
   .sitem.on{border-color:var(--text);background:var(--text);color:#fff}
@@ -134,6 +156,11 @@
      ESTILOS DE IMPRESIÓN — TICKET 58mm
   ═══════════════════════════════════════ */
   #printArea{display:none}
+
+  /* HISTÓRICO PERÍODOS */
+  .hist-periodo-btn{padding:7px 14px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);font-family:var(--sans);font-size:12px;cursor:pointer;font-weight:500;transition:all .12s}
+  .hist-periodo-btn:hover{border-color:var(--text);background:var(--surface2)}
+  .hist-periodo-btn.on{background:var(--text);color:#fff;border-color:var(--text)}
 
   /* CAJA */
   .caja-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
@@ -422,20 +449,43 @@
     </div>
 
     <div class="pane" id="pHist">
-      <div style="margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-        <p style="color:var(--text2);font-size:13px;flex:1">Consulta jornadas anteriores desde la nube o carga un archivo JSON local.</p>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <div style="display:flex;gap:4px;align-items:center">
-            <input type="date" id="histFechaCloud" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--sans);background:var(--surface)">
-            <button onclick="cargarDesdeNube()" style="padding:9px 14px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">☁ Cargar desde nube</button>
-          </div>
-          <label style="padding:9px 16px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer">
-            📂 Cargar JSON local
+      <div style="margin-bottom:14px">
+        <!-- Pestañas de período -->
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+          <button class="hist-periodo-btn on" data-periodo="dia"    onclick="selHistPeriodo(this)">📅 Día</button>
+          <button class="hist-periodo-btn"    data-periodo="semana" onclick="selHistPeriodo(this)">📆 Semana</button>
+          <button class="hist-periodo-btn"    data-periodo="mes"    onclick="selHistPeriodo(this)">🗓 Mes</button>
+          <button class="hist-periodo-btn"    data-periodo="custom" onclick="selHistPeriodo(this)">🔍 Personalizado</button>
+          <label style="padding:7px 12px;background:var(--surface);color:var(--text2);border:1px solid var(--border);border-radius:var(--r);font-size:12px;font-weight:600;cursor:pointer;margin-left:auto">
+            📂 JSON local
             <input type="file" accept=".json" id="fileInput" style="display:none" onchange="cargarArchivo(event)">
           </label>
         </div>
+        <!-- Panel día -->
+        <div id="histPanelDia" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <input type="date" id="histFechaCloud" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--surface)">
+          <button onclick="cargarDesdeNube()" style="padding:8px 16px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer">☁ Cargar día</button>
+        </div>
+        <!-- Panel semana -->
+        <div id="histPanelSemana" style="display:none;gap:6px;align-items:center;flex-wrap:wrap">
+          <input type="date" id="histFechaSem" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--surface)">
+          <button onclick="cargarSemana()" style="padding:8px 16px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer">☁ Cargar semana</button>
+          <span style="font-size:12px;color:var(--text3)">Selecciona cualquier día de la semana</span>
+        </div>
+        <!-- Panel mes -->
+        <div id="histPanelMes" style="display:none;gap:6px;align-items:center;flex-wrap:wrap">
+          <input type="month" id="histMes" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--surface)">
+          <button onclick="cargarMes()" style="padding:8px 16px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer">☁ Cargar mes</button>
+        </div>
+        <!-- Panel custom -->
+        <div id="histPanelCustom" style="display:none;gap:6px;align-items:center;flex-wrap:wrap">
+          <input type="date" id="histDesde" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--surface)">
+          <span style="color:var(--text3)">→</span>
+          <input type="date" id="histHasta" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--surface)">
+          <button onclick="cargarPeriodo()" style="padding:8px 16px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer">☁ Cargar período</button>
+        </div>
       </div>
-      <div id="histContainer"><div class="empty"><div class="empty-ico">☁</div><div style="font-size:15px;font-weight:600;color:var(--text2);margin-bottom:6px">Consulta jornadas anteriores</div><div style="font-size:13px;color:var(--text3)">Selecciona una fecha y haz clic en "Cargar desde nube", o carga un archivo JSON local.</div></div></div>
+      <div id="histContainer"><div class="empty"><div class="empty-ico">☁</div><div style="font-size:15px;font-weight:600;color:var(--text2);margin-bottom:6px">Consulta el histórico</div><div style="font-size:13px;color:var(--text3)">Selecciona un período y carga desde la nube.</div></div></div>
     </div>
 
     <div class="pane" id="pCaja">
@@ -661,6 +711,101 @@ function descargarJSON(){
   toast('Jornada guardada como archivo JSON');
 }
 
+function selHistPeriodo(el){
+  document.querySelectorAll('.hist-periodo-btn').forEach(function(b){b.classList.remove('on');});
+  el.classList.add('on');
+  var p = el.dataset.periodo;
+  document.getElementById('histPanelDia').style.display    = p==='dia'    ? 'flex':'none';
+  document.getElementById('histPanelSemana').style.display = p==='semana' ? 'flex':'none';
+  document.getElementById('histPanelMes').style.display    = p==='mes'    ? 'flex':'none';
+  document.getElementById('histPanelCustom').style.display = p==='custom' ? 'flex':'none';
+}
+
+function cargarSemana(){
+  if(!API_URL){ toast('Conecta Railway en ⚙ Config primero'); return; }
+  var inp = document.getElementById('histFechaSem');
+  if(!inp || !inp.value){ toast('Selecciona un día de la semana'); return; }
+  var d = new Date(inp.value + 'T12:00:00');
+  var dow = d.getDay(); // 0=dom
+  var lunes = new Date(d); lunes.setDate(d.getDate() - (dow===0?6:dow-1));
+  var domingo = new Date(lunes); domingo.setDate(lunes.getDate()+6);
+  var desde = lunes.toISOString().slice(0,10);
+  var hasta = domingo.toISOString().slice(0,10);
+  toast('Cargando semana '+desde+' → '+hasta+'…');
+  cargarRangoFechas(desde, hasta);
+}
+
+function cargarMes(){
+  if(!API_URL){ toast('Conecta Railway en ⚙ Config primero'); return; }
+  var inp = document.getElementById('histMes');
+  if(!inp || !inp.value){ toast('Selecciona un mes'); return; }
+  var desde = inp.value + '-01';
+  var d = new Date(inp.value + '-01T12:00:00');
+  var ultimo = new Date(d.getFullYear(), d.getMonth()+1, 0);
+  var hasta = ultimo.toISOString().slice(0,10);
+  toast('Cargando '+inp.value+'…');
+  cargarRangoFechas(desde, hasta);
+}
+
+function cargarPeriodo(){
+  if(!API_URL){ toast('Conecta Railway en ⚙ Config primero'); return; }
+  var desde = document.getElementById('histDesde').value;
+  var hasta = document.getElementById('histHasta').value;
+  if(!desde || !hasta){ toast('Selecciona fecha inicio y fin'); return; }
+  toast('Cargando '+desde+' → '+hasta+'…');
+  cargarRangoFechas(desde, hasta);
+}
+
+function cargarRangoFechas(desde, hasta){
+  // Obtener todos los días del rango
+  var dias = [];
+  var cur = new Date(desde+'T12:00:00');
+  var fin = new Date(hasta+'T12:00:00');
+  while(cur <= fin){
+    dias.push(cur.toISOString().slice(0,10));
+    cur.setDate(cur.getDate()+1);
+  }
+  if(dias.length > 31){ toast('Máximo 31 días por consulta'); return; }
+
+  // Cargar todos los días en paralelo
+  var promises = dias.map(function(fecha){
+    return fetch(API_URL+'/registros/dia?fecha='+fecha)
+      .then(function(r){ return r.json(); })
+      .catch(function(){ return {ok:false,registros:[]}; });
+  });
+
+  Promise.all(promises).then(function(results){
+    var todosRegs = [];
+    var totalGastos = [];
+    results.forEach(function(json){
+      if(json.ok && json.registros){
+        json.registros.forEach(function(r){
+          todosRegs.push({
+            id:r.id, bid:r.bid, bnom:r.bnom,
+            sid:r.sid||'custom', snom:r.snom,
+            precio:parseInt(r.precio), pago:r.pago,
+            com:parseFloat(r.com), bb:parseInt(r.bb),
+            neg:parseInt(r.neg), propina:parseInt(r.propina||0),
+            fecha:r.fecha_display||r.fecha, hora:r.hora||'--',
+            ts:parseInt(r.ts||0)
+          });
+        });
+      }
+    });
+    todosRegs.sort(function(a,b){ return b.ts-a.ts; });
+
+    if(todosRegs.length===0){
+      document.getElementById('histContainer').innerHTML =
+        '<div class="empty"><div class="empty-ico">📭</div><div>Sin registros en ese período</div></div>';
+      return;
+    }
+
+    // Mostrar resumen del período + registros
+    mostrarJornadaCargada(desde+(hasta!==desde?' → '+hasta:''), todosRegs, []);
+    toast('✓ '+todosRegs.length+' registros cargados');
+  });
+}
+
 function cargarDesdeNube(){
   if(!API_URL){ toast('Configura primero la URL de Railway en ⚙ Configuración'); return; }
   var input = document.getElementById('histFechaCloud');
@@ -838,13 +983,18 @@ function showTabById(id){
 function init(){
   tick();setInterval(tick,30000);
   buildBarbers();buildServices();
-  cargarSheetsUrl();cargarConfigKpi();cargar();cargarGastos();cargarLiquidaciones();cargarHorarios();cargarKpiEvals();renderAll();
-  // Poner ayer como fecha default en el selector histórico
+  cargarSheetsUrl();cargar();cargarGastos();cargarLiquidaciones();cargarHorarios();cargarKpiEvals();renderAll();
+  // Fechas default en selectores histórico
   try{
-    var ayer=new Date();ayer.setDate(ayer.getDate()-1);
-    var ayerStr=ayer.getFullYear()+'-'+pad(ayer.getMonth()+1)+'-'+pad(ayer.getDate());
-    var inp=document.getElementById('histFechaCloud');
-    if(inp) inp.value=ayerStr;
+    var hoyD=new Date();
+    var ayerD=new Date(hoyD); ayerD.setDate(hoyD.getDate()-1);
+    function toISO(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+    var mesActual=hoyD.getFullYear()+'-'+pad(hoyD.getMonth()+1);
+    var inp1=document.getElementById('histFechaCloud'); if(inp1) inp1.value=toISO(ayerD);
+    var inp2=document.getElementById('histFechaSem');   if(inp2) inp2.value=toISO(ayerD);
+    var inp3=document.getElementById('histMes');        if(inp3) inp3.value=mesActual;
+    var inp4=document.getElementById('histDesde');      if(inp4) inp4.value=toISO(ayerD);
+    var inp5=document.getElementById('histHasta');      if(inp5) inp5.value=toISO(hoyD);
   }catch(e){}
 }
 
@@ -3345,3 +3495,63 @@ function renderKpis(){
 
 function setKpiStarEl(el){
   var bid = el.dataset.bid;
+  var kid = el.dataset.kid;
+  var val = parseInt(el.dataset.val)||0;
+  setKpiStar(bid, kid, val);
+}
+
+function setKpiStar(bid, kid, val){
+  cargarKpiEvals();
+  var ev = getEval(kpiPeriodo, bid);
+  ev.cuali[kid] = val;
+  guardarKpiEvals();
+  renderKpis();
+}
+
+function toggleDisq(bid, checked){
+  cargarKpiEvals();
+  var ev = getEval(kpiPeriodo, bid);
+  ev.disq = checked;
+  if(!checked) ev.disqMotivo = '';
+  else if(!ev.disqMotivo) ev.disqMotivo = DISQ_CAUSALES[0];
+  guardarKpiEvals();
+  renderKpis();
+}
+
+function setDisqMotivo(bid, motivo){
+  cargarKpiEvals();
+  var ev = getEval(kpiPeriodo, bid);
+  ev.disqMotivo = motivo;
+  guardarKpiEvals();
+}
+
+function cambiarPeriodoKpi(val){
+  kpiPeriodo = val;
+  renderKpis();
+}
+
+function generarPeriodos(){
+  var result = [];
+  var now = new Date();
+  var meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  for(var i=0;i<6;i++){
+    var d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    var val = d.getFullYear()+'-'+pad(d.getMonth()+1);
+    var label = meses[d.getMonth()]+' '+d.getFullYear();
+    result.push({val:val, label:label});
+  }
+  return result;
+}
+
+// ═══ TOAST ═══════════════════════════════════════════════
+function toast(msg){
+  var el=document.getElementById('toastel');
+  el.textContent=msg;el.classList.add('on');
+  setTimeout(function(){el.classList.remove('on');},2600);
+}
+
+// ═══ ARRANCAR ════════════════════════════════════════════
+init();
+</script>
+</body>
+</html>
