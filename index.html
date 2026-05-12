@@ -571,30 +571,47 @@ function enviarAApi(r){
 var enviarASheets = enviarAApi;
 
 function eliminarDeSheets(id) {
-  if (!SHEETS_URL) return;
-  fetch(SHEETS_URL, {
-    method: 'POST',
-    mode: 'no-cors',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ accion: 'eliminar', id: id })
-  }).catch(function(e) { console.warn('Sheets delete error:', e); });
+  if (API_URL) {
+    // Railway: DELETE real
+    fetch(API_URL + '/registros/' + encodeURIComponent(id), {
+      method: 'DELETE'
+    }).then(function(r){ return r.json(); })
+    .then(function(d){ if(!d.ok) console.warn('Delete API error:', d); })
+    .catch(function(e){ console.warn('Delete error:', e); });
+  } else if (SHEETS_URL) {
+    fetch(SHEETS_URL, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accion: 'eliminar', id: id })
+    }).catch(function(e){ console.warn('Sheets delete error:', e); });
+  }
 }
 
 function sincronizarGastoSheets(g, accion) {
-  if (!SHEETS_URL) return;
-  fetch(SHEETS_URL, {
-    method: 'POST',
-    mode: 'no-cors',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      accion:      accion === 'gasto' ? 'gasto' : 'eliminar_gasto',
-      id:          g.id,
-      fecha:       g.fecha,
-      hora:        g.hora,
-      descripcion: g.desc,
-      monto:       g.monto
-    })
-  }).catch(function(e) { console.warn('Sheets gasto error:', e); });
+  if (API_URL) {
+    if (accion === 'gasto') {
+      // Crear gasto en Railway
+      fetch(API_URL + '/gastos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: g.id, fecha: g.fecha, hora: g.hora, desc: g.desc, monto: g.monto })
+      }).catch(function(e){ console.warn('Gasto API error:', e); });
+    } else {
+      // Eliminar gasto de Railway
+      fetch(API_URL + '/gastos/' + encodeURIComponent(g.id), {
+        method: 'DELETE'
+      }).catch(function(e){ console.warn('Delete gasto error:', e); });
+    }
+  } else if (SHEETS_URL) {
+    fetch(SHEETS_URL, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        accion: accion === 'gasto' ? 'gasto' : 'eliminar_gasto',
+        id: g.id, fecha: g.fecha, hora: g.hora, descripcion: g.desc, monto: g.monto
+      })
+    }).catch(function(e){ console.warn('Sheets gasto error:', e); });
+  }
 }
 
 // ═══ ESTADO ══════════════════════════════════════════════
@@ -1738,15 +1755,26 @@ function imprimirA4Hist(fecha,recs){
 
 // ═══ ACCIONES ════════════════════════════════════════════
 function del(id){
-  if(!window.confirm('¿Eliminar este registro?'))return;
+  if(!window.confirm('¿Eliminar este registro?\n\nEsto lo borrará también de la base de datos en la nube.'))return;
   var nr=[];for(var i=0;i<regs.length;i++)if(regs[i].id!==id)nr.push(regs[i]);
-  regs=nr;guardar();eliminarDeSheets(id);renderAll();toast('Registro eliminado');
+  regs=nr;
+  guardar();
+  eliminarDeSheets(id);
+  renderAll();
+  toast('Registro eliminado ✓' + (API_URL ? ' — BD actualizada' : ''));
 }
 
 function limpiarHoy(){
   if(regs.length===0){toast('No hay registros');return;}
-  if(!window.confirm('¿Limpiar todos los registros de hoy? Esto no se puede deshacer.\n\nTip: descarga primero el JSON como respaldo.'))return;
-  regs=[];guardar();renderAll();toast('Registros del día limpiados');
+  if(!window.confirm('¿Limpiar todos los registros de hoy?\n\n⚠ Esto los eliminará también de la base de datos en la nube.\n\nTip: descarga primero el JSON como respaldo.'))return;
+  // Eliminar cada registro de la BD
+  if(API_URL){
+    regs.forEach(function(r){
+      fetch(API_URL+'/registros/'+encodeURIComponent(r.id), {method:'DELETE'})
+        .catch(function(e){console.warn('Delete error:',e);});
+    });
+  }
+  regs=[];guardar();renderAll();toast('Registros eliminados ✓' + (API_URL ? ' — BD actualizada' : ''));
 }
 
 function descargarJornadaHoy(){
