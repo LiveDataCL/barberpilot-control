@@ -674,18 +674,16 @@ function cargarDesdeApi(){
 }
 
 function cargarRegistrosDia(){
-  // Cargar registros completos del día desde Railway
+  if(!API_URL) return;
   fetch(API_URL + '/registros/dia?fecha=' + fechaHoy)
     .then(function(r){ return r.json(); })
     .then(function(json){
       if(!json.ok || !json.registros) return;
       var apiRegs = json.registros;
-      if(apiRegs.length === 0) return;
-      // Fusionar con registros locales — la API tiene prioridad
+      // Fusionar: API tiene prioridad, agregar locales offline
       var merged = [];
       var idsApi = {};
       apiRegs.forEach(function(r){
-        // Normalizar formato API → formato interno
         idsApi[r.id] = true;
         merged.push({
           id: r.id, bid: r.bid, bnom: r.bnom,
@@ -693,21 +691,32 @@ function cargarRegistrosDia(){
           precio: parseInt(r.precio), pago: r.pago,
           com: parseFloat(r.com), bb: parseInt(r.bb),
           neg: parseInt(r.neg), propina: parseInt(r.propina||0),
-          fecha: r.fecha_display || r.fecha, hora: r.hora ? r.hora.slice(0,5) : '--',
-          ts: r.ts || new Date(r.creado_en).getTime() || 0,
+          fecha: r.fecha_display || fechaHoy,
+          hora: r.hora ? r.hora.slice(0,5) : '--',
+          ts: parseInt(r.ts) || Date.now(),
           numServicio: 0, totalServicios: 0, acumBB: 0, acumFact: 0
         });
       });
-      // Agregar registros locales que la API no tiene aún (registrados offline)
+      // Agregar registros locales que la API aún no tiene (offline)
       regs.forEach(function(r){ if(!idsApi[r.id]) merged.push(r); });
-      // Ordenar por ts desc
       merged.sort(function(a,b){ return b.ts - a.ts; });
-      regs = merged;
-      guardar();
-      renderAll();
-      toast('✓ Sincronizado con la nube ('+regs.length+' servicios)');
+      if(merged.length > 0 || apiRegs.length === 0){
+        regs = merged;
+        guardar();
+        renderAll();
+        updCnts();
+        // Actualizar contadores de barberos en el header
+        BB.forEach(function(b){
+          var cnt = regs.filter(function(r){return r.bid===b.id;}).length;
+          var el = document.querySelector('[data-bid="'+b.id+'"] .bcnt');
+          if(el) el.textContent = cnt+' svc';
+        });
+        if(apiRegs.length > 0){
+          toast('☁ '+apiRegs.length+' servicios cargados desde la nube');
+        }
+      }
     })
-    .catch(function(){});
+    .catch(function(e){ console.warn('Sync error:', e.message); });
 }
 
 function descargarJSON(){
@@ -924,11 +933,16 @@ function mostrarJornadaCargada(fecha,recs){
   }
   h+='</tbody></table>'
     +'<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">'
-    +'<button onclick="imprimirA4Hist(\''+fecha+'\','+JSON.stringify(recs).replace(/'/g,"\\'")+' )" style="padding:8px 14px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-family:var(--sans);font-size:12px;cursor:pointer">📄 Imprimir A4</button>'
+    +'<button id="btnA4Hist" style="padding:8px 14px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-family:var(--sans);font-size:12px;cursor:pointer">📄 Imprimir A4</button>'
     +'</div>'
     +'</div>';
 
   c.innerHTML=h;
+  // Asignar evento al botón A4 usando closure
+  var _btnA4 = document.getElementById('btnA4Hist');
+  if(_btnA4){
+    (function(f,r){ _btnA4.onclick = function(){ imprimirA4Hist(f,r); }; })(fecha, recs);
+  }
 }
 
 // ═══ HISTÓRICO MODAL ═════════════════════════════════════
@@ -1001,6 +1015,12 @@ function init(){
   tick();setInterval(tick,30000);
   buildBarbers();buildServices();
   cargarSheetsUrl();cargar();cargarGastos();cargarLiquidaciones();cargarHorarios();cargarKpiEvals();renderAll();
+  // Auto-refresh cada 60 segundos si la página está activa
+  setInterval(function(){
+    if(document.visibilityState==='visible' && API_URL){
+      cargarRegistrosDia();
+    }
+  }, 60000);
   // Fechas default en selectores histórico
   try{
     var hoyD=new Date();
