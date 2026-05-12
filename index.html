@@ -546,7 +546,7 @@ var COM={efectivo:.5,debito:.43,transferencia:.5};
 
 // ═══ GOOGLE SHEETS INTEGRATION ═══════════════════════════
 // Pega aquí la URL de tu Apps Script Web App deployment
-var API_URL    = ''; // URL de Railway — configurar en ⚙ Configuración
+var API_URL    = 'https://barberpilot-api-production.up.railway.app'; // Railway — preconfigurado
 var SHEETS_URL = ''; // legacy — ya no se usa
 
 function enviarAApi(r){
@@ -993,7 +993,7 @@ function init(){
     var inp1=document.getElementById('histFechaCloud'); if(inp1) inp1.value=toISO(ayerD);
     var inp2=document.getElementById('histFechaSem');   if(inp2) inp2.value=toISO(ayerD);
     var inp3=document.getElementById('histMes');        if(inp3) inp3.value=mesActual;
-    var inp4=document.getElementById('histDesde');      if(inp4) inp4.value=toISO(ayerD);
+    var inp4=document.getElementById('histDesde');      if(inp4) inp4.value='2026-05-05';
     var inp5=document.getElementById('histHasta');      if(inp5) inp5.value=toISO(hoyD);
   }catch(e){}
 }
@@ -2273,6 +2273,8 @@ function cargarSheetsUrl(){
     var sheetsUrl = localStorage.getItem('sfsf_sheets_url')||'';
     if(apiUrl){ API_URL = apiUrl; SHEETS_URL = ''; }
     else if(sheetsUrl){ SHEETS_URL = sheetsUrl; API_URL = ''; }
+    // Si no hay nada guardado, mantener la URL preconfigurada en el código
+    // API_URL ya tiene el valor por defecto al declararse
     var input = document.getElementById('sheetsUrlInput');
     if(input && SHEETS_URL) input.value = SHEETS_URL;
     if(SHEETS_URL) actualizarEstadoSheets(true);
@@ -2300,7 +2302,7 @@ function guardarSheetsUrl(){
   if(val){
     if(statusEl){ statusEl.textContent = '✓ URL guardada correctamente'; statusEl.style.color = 'var(--ok)'; }
     actualizarEstadoSheets(true);
-    toast('URL guardada ✓ — conectando con Sheets');
+    toast(API_URL ? 'Railway conectado ✓' : 'URL guardada ✓ — conectando con Sheets');
   } else {
     if(statusEl){ statusEl.textContent = 'Sin configurar'; statusEl.style.color = 'var(--text3)'; }
     actualizarEstadoSheets(false);
@@ -2310,12 +2312,15 @@ function guardarSheetsUrl(){
 function previewSheetsUrl(val){
   var el = document.getElementById('sheetsUrlStatus');
   if(!el) return;
-  if(val.indexOf('script.google.com') > -1){
-    el.textContent = '✓ Formato válido — haz clic en Guardar';
+  if(val.indexOf('railway') > -1){
+    el.textContent = '✓ URL de Railway detectada';
+    el.style.color = 'var(--ok)';
+  } else if(val.indexOf('script.google.com') > -1){
+    el.textContent = '✓ Formato Apps Script válido — haz clic en Guardar';
     el.style.color = 'var(--ok)';
   } else if(val.length > 10){
-    el.textContent = '⚠ Verifica que sea una URL de Apps Script';
-    el.style.color = 'var(--warn)';
+    el.textContent = '✓ URL detectada — haz clic en Guardar';
+    el.style.color = 'var(--ok)';
   } else {
     el.textContent = 'Sin configurar';
     el.style.color = 'var(--text3)';
@@ -2337,7 +2342,14 @@ function actualizarEstadoSheets(activo){
 }
 
 function testSheetsConnection(){
-  if(!SHEETS_URL){ toast('Primero guarda una URL válida'); return; }
+  var url = API_URL || SHEETS_URL;
+  if(!url){ toast('Primero guarda una URL válida'); return; }
+  if(API_URL){
+    fetch(API_URL+'/health').then(function(r){return r.json();}).then(function(d){
+      toast(d.ok && d.db==='connected' ? '✓ Railway conectado · DB online' : '⚠ '+JSON.stringify(d));
+    }).catch(function(e){ toast('Error: '+e.message); });
+    return;
+  }
   var btn = document.querySelector('[onclick="testSheetsConnection()"]');
   var statusEl = document.getElementById('sheetsUrlStatus');
   if(btn) btn.textContent = '⏳ Probando…';
