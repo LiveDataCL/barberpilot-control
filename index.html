@@ -3111,43 +3111,55 @@ function getEval(periodo, bid){
 
 // ─── Calcula KPIs cuantitativos para un barbero en un período ────
 function calcKpiCuanti(bid, periodo){
-  // periodo = 'YYYY-MM' o 'YYYY-WNN' (no implementado aún; usamos mes)
-  var regsB = regs.filter(function(r){
-    return r.bid===bid && r.fecha && r.fecha.split('/').reverse().join('-').substring(0,7)===periodo;
-  });
-  // También revisar si hay datos del día actual (fecha en formato YYYY-MM-DD)
-  var regsB2 = regs.filter(function(r){
-    return r.bid===bid && fechaHoy.substring(0,7)===periodo;
-  });
-  // Usar todos los registros del día si coincide el mes
-  var allRegs = [];
-  var ids = {};
-  regsB.concat(regsB2).forEach(function(r){if(!ids[r.id]){ids[r.id]=1;allRegs.push(r);}});
+  // Recoger TODOS los registros del período desde localStorage + memoria
+  var todosRegs = [];
+  var seen = {};
 
-  var nSvc = allRegs.length;
-  var totalFacturado = 0, totalPropinas = 0;
-  for(var i=0;i<allRegs.length;i++){
-    totalFacturado += allRegs[i].precio;
-    totalPropinas  += (allRegs[i].propina||0);
+  // 1. localStorage: clave sfsf_YYYY-MM-DD por cada día del mes
+  try{
+    for(var i=0; i<localStorage.length; i++){
+      var k = localStorage.key(i);
+      if(!k || k.indexOf('sfsf_')!==0 || k.length!==15) continue;
+      var fechaKey = k.replace('sfsf_',''); // YYYY-MM-DD
+      if(fechaKey.substring(0,7) !== periodo) continue;
+      var arr = JSON.parse(localStorage.getItem(k)||'[]');
+      arr.forEach(function(r){
+        if(r.bid===bid && !seen[r.id]){seen[r.id]=1; todosRegs.push(r);}
+      });
+    }
+  }catch(e){}
+
+  // 2. Registros en memoria del día actual (evitar duplicados)
+  if(fechaHoy.substring(0,7)===periodo){
+    regs.forEach(function(r){
+      if(r.bid===bid && !seen[r.id]){seen[r.id]=1; todosRegs.push(r);}
+    });
   }
-  var ticketProm = nSvc>0 ? Math.round(totalFacturado/nSvc) : 0;
 
-  // Propinas: puntaje extra (0-10) sobre ticket promedio
-  // Si propinas > 5% de facturación → +5pts, >10% → +10pts
-  var propPct = totalFacturado>0 ? totalPropinas/totalFacturado : 0;
-  var propScore = propPct>=.10 ? 10 : propPct>=.05 ? 5 : propPct>0 ? 3 : 0;
-
-  // Horarios: leer de horarios[]
-  var horB = (horarios[fechaHoy]||[]).filter(function(h){return h.bid===bid;})[0]||null;
+  var nSvc = todosRegs.length;
+  var totalFacturado = 0, totalPropinas = 0, upselling = 0;
+  for(var i=0;i<todosRegs.length;i++){
+    totalFacturado += (todosRegs[i].precio||0);
+    totalPropinas  += (todosRegs[i].propina||0);
+    if((todosRegs[i].precio||0) > 12000) upselling++;
+  }
+  var tk         = nSvc>0 ? Math.round(totalFacturado/nSvc) : 0;
+  var propPct    = totalFacturado>0 ? totalPropinas/totalFacturado : 0;
+  var propScore  = propPct>=.10 ? 10 : propPct>=.05 ? 5 : propPct>0 ? 3 : 0;
 
   return {
-    nSvc: nSvc,
-    ticketProm: ticketProm,
+    nSvc:           nSvc,
+    tk:             tk,
+    ticketProm:     tk,       // alias para compatibilidad
     totalFacturado: totalFacturado,
-    totalPropinas: totalPropinas,
-    propPct: propPct,
-    propScore: propScore,
-    horB: horB,
+    totalPropinas:  totalPropinas,
+    propPct:        propPct,
+    propScore:      propScore,
+    upselling:      upselling,
+    n:              nSvc,     // alias calcKpiCuantiLocal
+    tot:            totalFacturado,
+    upsCnt:         upselling,
+    propMonto:      totalPropinas,
   };
 }
 
@@ -3337,8 +3349,63 @@ function calcKpiCuantiLocal(bid, periodo){
   return {n:n, tot:tot, bb:bb, tk:tk, propCnt:prop, propMonto:propMonto, upsCnt:ups};
 }
 
+function sincronizarMesDesdeApi(periodo, callback){
+  // Descarga todos los registros del mes desde Railway y los guarda en localStorage
+  if(!API_URL){ if(callback) callback(); return; }
+  var desde = periodo + '-01';
+  var hoy   = fechaHoy;
+  var dias  = [];
+  var cur   = new Date(desde + 'T12:00:00');
+  var fin   = new Date(hoy   + 'T12:00:00');
+  while(cur <= fin){
+    var d = cur.toISOString().slice(0,10);
+    if(d.substring(0,7) === periodo) dias.push(d);
+    cur.setDate(cur.getDate()+1);
+  }
+  var promesas = dias.map(function(fecha){
+    return fetch(API_URL+'/registros/dia?fecha='+fecha)
+      .then(function(r){ return r.json(); })
+      .catch(function(){ return {ok:false,registros:[]}; });
+  });
+  Promise.all(promesas).then(function(results){
+    results.forEach(function(json){
+      if(!json.ok || !json.registros || !json.registros.length) return;
+      var fecha = json.fecha;
+      var recs  = json.registros.map(function(r){
+        return {
+          id:r.id, bid:r.bid, bnom:r.bnom, sid:r.sid||'custom', snom:r.snom,
+          precio:parseInt(r.precio), pago:r.pago, com:parseFloat(r.com),
+          bb:parseInt(r.bb), neg:parseInt(r.neg), propina:parseInt(r.propina||0),
+          fecha:r.fecha_display||fecha, hora:r.hora||'--', ts:parseInt(r.ts||0)
+        };
+      });
+      try{
+        var key = 'sfsf_'+fecha;
+        // Fusionar con lo que ya haya en localStorage
+        var existing = JSON.parse(localStorage.getItem(key)||'[]');
+        var seen = {}; existing.forEach(function(r){seen[r.id]=1;});
+        var nuevos = recs.filter(function(r){return !seen[r.id];});
+        localStorage.setItem(key, JSON.stringify(existing.concat(nuevos)));
+      }catch(e){}
+    });
+    if(callback) callback();
+  });
+}
+
 function renderKpis(){
   cargarKpiEvals();
+  // Sincronizar mes desde Railway si hay API_URL (para que KPIs sean del mes completo)
+  if(API_URL && !window._kpiSynced){
+    window._kpiSynced = true;
+    sincronizarMesDesdeApi(kpiPeriodo, function(){
+      renderKpisInner();
+    });
+    return; // renderKpisInner se llama en el callback
+  }
+  renderKpisInner();
+}
+
+function renderKpisInner(){
   // Actualizar automáticamente apertura/cierre para todos los barberos
   var periodoActual = kpiPeriodo;
   BB.forEach(function(b){ syncEstrellaHorarioAuto(b.id, periodoActual); });
