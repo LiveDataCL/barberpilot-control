@@ -374,6 +374,7 @@
     <div class="tabs">
       <div class="tab on" onclick="showTab('pReg',this)">Registros del día</div>
       <div class="tab" onclick="showTab('pSum',this)">Resumen</div>
+      <div class="tab" id="tabAprob" onclick="showTab('pAprob',this)">✅ Aprobar <span id="badgeAprob" style="display:none;background:#d4a843;color:#0a0908;border-radius:20px;font-size:10px;font-weight:700;padding:1px 7px;margin-left:4px">0</span></div>
       <div class="tab" onclick="showTab('pCaja',this)">💰 Cierre de caja</div>
       <div class="tab" onclick="showTab('pKpis',this)">🏆 KPIs</div>
       <div class="tab" onclick="showTab('pHorarios',this)">🕐 Horarios</div>
@@ -393,6 +394,12 @@
         <button class="fb" style="color:var(--err)" onclick="limpiarHoy()">Limpiar día</button>
       </div>
       <div id="rCont"><div class="empty"><div class="empty-ico">✂</div><div>Sin registros. Registra el primer servicio del día.</div></div></div>
+    </div>
+
+    <div class="pane" id="pAprob">
+      <div id="aprobContent">
+        <div class="empty"><div class="empty-ico">⟳</div><div>Cargando pendientes…</div></div>
+      </div>
     </div>
 
     <div class="pane" id="pSum">
@@ -1023,8 +1030,14 @@ function init(){
   setInterval(function(){
     if(document.visibilityState==='visible' && API_URL){
       cargarRegistrosDia();
+      cargarPendientes(); // revisar nuevos pendientes
     }
   }, 60000);
+  // Verificar pendientes más frecuente (cada 30s)
+  setInterval(function(){
+    if(document.visibilityState==='visible' && API_URL) cargarPendientes();
+  }, 30000);
+  cargarPendientes(); // al abrir
   // Fechas default en selectores histórico
   try{
     var hoyD=new Date();
@@ -1420,6 +1433,119 @@ function renderCierre(){
 }
 
 // ═══ TABS & FILTROS ══════════════════════════════════════
+function cargarPendientes(){
+  if(!API_URL) return;
+  fetch(API_URL+'/pendientes')
+    .then(function(r){return r.json();})
+    .then(function(json){
+      var pend = json.pendientes||[];
+      // Actualizar badge en el tab
+      var badge = document.getElementById('badgeAprob');
+      if(badge){
+        badge.style.display = pend.length>0 ? 'inline' : 'none';
+        badge.textContent = pend.length;
+      }
+      // Si el pane está visible, renderizar
+      var pane = document.getElementById('pAprob');
+      if(pane && pane.classList.contains('on')){
+        renderAprobaciones(pend);
+      }
+    })
+    .catch(function(){});
+}
+
+function renderAprobaciones(pend){
+  var el = document.getElementById('aprobContent');
+  if(!el) return;
+
+  if(pend.length===0){
+    el.innerHTML='<div class="empty"><div class="empty-ico">✅</div><div style="font-size:15px;font-weight:600;margin-bottom:6px">Todo al día</div><div style="font-size:13px;color:var(--text3)">No hay servicios pendientes de aprobación</div></div>';
+    return;
+  }
+
+  var h = '<div style="margin-bottom:14px;display:flex;align-items:center;justify-content:space-between">';
+  h += '<div style="font-size:13px;color:var(--text2)"><strong style="color:var(--text)">'+pend.length+'</strong> servicio'+(pend.length!==1?'s':'')+' pendiente'+(pend.length!==1?'s':'')+' de aprobación</div>';
+  h += '<button onclick="aprobarTodos()" style="padding:7px 14px;background:var(--ok, #4db87a);color:#fff;border:none;border-radius:var(--r);font-size:12px;font-weight:600;cursor:pointer">✓ Aprobar todos</button>';
+  h += '</div>';
+
+  // Agrupar por barbero
+  var byBarbero = {};
+  pend.forEach(function(r){
+    if(!byBarbero[r.bnom]) byBarbero[r.bnom]=[];
+    byBarbero[r.bnom].push(r);
+  });
+
+  Object.keys(byBarbero).forEach(function(bnom){
+    var regs = byBarbero[bnom];
+    h += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:14px;overflow:hidden">';
+    h += '<div style="background:var(--surface2);padding:10px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)">';
+    h += '<div style="font-weight:600;font-size:14px">'+bnom+'</div>';
+    h += '<div style="font-size:12px;color:var(--text3)">'+regs.length+' pendiente'+(regs.length!==1?'s':'')+'</div>';
+    h += '</div>';
+
+    regs.forEach(function(r){
+      var bb = parseInt(r.bb)+(parseInt(r.propina)||0);
+      h += '<div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px" id="row_'+r.id+'">';
+      h += '<div style="flex:1">';
+      h += '<div style="font-size:13px;font-weight:500">'+r.snom+'</div>';
+      h += '<div style="font-size:11px;color:var(--text3);margin-top:2px">'+r.hora+' · '+r.pago+' · $'+Math.round(r.precio).toLocaleString('es-CL')+'</div>';
+      h += '</div>';
+      h += '<div style="font-family:var(--mono);font-size:13px;color:var(--ok);min-width:70px;text-align:right">$'+bb.toLocaleString('es-CL')+'</div>';
+      h += '<div style="display:flex;gap:6px;flex-shrink:0">';
+      h += '<button onclick="aprobar(\'' + r.id + '\')" style="padding:6px 12px;background:rgba(77,184,122,.15);color:#4db87a;border:1px solid rgba(77,184,122,.3);border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">✓ OK</button>';
+      h += '<button onclick="rechazar(\'' + r.id + '\')" style="padding:6px 12px;background:rgba(224,85,85,.1);color:#e05555;border:1px solid rgba(224,85,85,.25);border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">✗</button>';
+      h += '</div></div>';
+    });
+    h += '</div>';
+  });
+
+  el.innerHTML = h;
+}
+
+function aprobar(id){
+  var row = document.getElementById('row_'+id);
+  if(row) row.style.opacity='.4';
+  fetch(API_URL+'/registros/'+id+'/estado',{
+    method:'PATCH',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({estado:'confirmado'})
+  }).then(function(){
+    toast('✓ Servicio aprobado');
+    cargarPendientes();
+    setTimeout(function(){ cargarRegistrosDia(); },500);
+  }).catch(function(){ toast('Error al aprobar'); });
+}
+
+function rechazar(id){
+  var row = document.getElementById('row_'+id);
+  if(row) row.style.opacity='.4';
+  fetch(API_URL+'/registros/'+id+'/estado',{
+    method:'PATCH',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({estado:'rechazado'})
+  }).then(function(){
+    toast('Registro rechazado');
+    cargarPendientes();
+  }).catch(function(){ toast('Error'); });
+}
+
+function aprobarTodos(){
+  if(!window.confirm('¿Aprobar todos los servicios pendientes?')) return;
+  var rows = document.querySelectorAll('[id^="row_"]');
+  var ids = Array.from(rows).map(function(r){ return r.id.replace('row_',''); });
+  Promise.all(ids.map(function(id){
+    return fetch(API_URL+'/registros/'+id+'/estado',{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({estado:'confirmado'})
+    });
+  })).then(function(){
+    toast('✓ '+ids.length+' servicios aprobados');
+    cargarPendientes();
+    setTimeout(function(){ cargarRegistrosDia(); },500);
+  });
+}
+
 function showTab(id,el){
   var all;
   all=document.querySelectorAll('.tab');for(var i=0;i<all.length;i++)all[i].classList.remove('on');
@@ -1430,6 +1556,16 @@ function showTab(id,el){
   if(id==='pCaja')renderCaja();
   if(id==='pHorarios')renderHorarios();
   if(id==='pHistorico')renderIngresarHistorico();
+  if(id==='pAprob'){
+    cargarPendientes();
+    var el=document.getElementById('aprobContent');
+    if(el) el.innerHTML='<div class="empty"><div class="empty-ico">⟳</div><div>Cargando…</div></div>';
+    setTimeout(function(){
+      fetch(API_URL+'/pendientes').then(function(r){return r.json();})
+        .then(function(j){ renderAprobaciones(j.pendientes||[]); })
+        .catch(function(){});
+    },100);
+  }
   if(id==='pKpis')renderKpis();
 }
 function filtrar(f,el){
