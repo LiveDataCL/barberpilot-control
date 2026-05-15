@@ -1486,14 +1486,21 @@ function renderAprobaciones(pend){
     regs.forEach(function(r){
       var bb = parseInt(r.bb)+(parseInt(r.propina)||0);
       h += '<div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px" id="row_'+r.id+'">';
+      var pagoColor = r.pago==='efectivo'?'#4db87a':r.pago==='debito'?'#5580d4':'#c9a84c';
       h += '<div style="flex:1">';
-      h += '<div style="font-size:13px;font-weight:500">'+r.snom+'</div>';
-      h += '<div style="font-size:11px;color:var(--text3);margin-top:2px">'+r.hora+' · '+r.pago+' · $'+Math.round(r.precio).toLocaleString('es-CL')+'</div>';
+      h += '<div style="font-size:14px;font-weight:600">'+r.snom+'</div>';
+      h += '<div style="font-size:12px;color:var(--text3);margin-top:3px">'+r.hora+' · <span style="color:'+pagoColor+'">'+r.pago+'</span> · $'+Math.round(r.precio).toLocaleString('es-CL')+'</div>';
+      // Foto comprobante si es transferencia
+      if(r.pago === 'transferencia'){
+        h += '<div style="margin-top:8px">';
+        h += '<button onclick="verComprobante(\'' + r.id + '\')" style="padding:4px 10px;background:rgba(201,168,76,.12);color:#c9a84c;border:1px solid rgba(201,168,76,.3);border-radius:6px;font-size:11px;cursor:pointer">📷 Ver comprobante</button>';
+        h += '</div>';
+      }
       h += '</div>';
-      h += '<div style="font-family:var(--mono);font-size:13px;color:var(--ok);min-width:70px;text-align:right">$'+bb.toLocaleString('es-CL')+'</div>';
-      h += '<div style="display:flex;gap:6px;flex-shrink:0">';
-      h += '<button onclick="aprobar(\'' + r.id + '\')" style="padding:6px 12px;background:rgba(77,184,122,.15);color:#4db87a;border:1px solid rgba(77,184,122,.3);border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">✓ OK</button>';
-      h += '<button onclick="rechazar(\'' + r.id + '\')" style="padding:6px 12px;background:rgba(224,85,85,.1);color:#e05555;border:1px solid rgba(224,85,85,.25);border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">✗</button>';
+      h += '<div style="font-family:var(--mono);font-size:14px;font-weight:600;color:var(--ok);min-width:70px;text-align:right">$'+bb.toLocaleString('es-CL')+'</div>';
+      h += '<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">';
+      h += '<button onclick="aprobar(\'' + r.id + '\')" style="padding:8px 14px;background:rgba(77,184,122,.15);color:#4db87a;border:1px solid rgba(77,184,122,.3);border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">✓ OK</button>';
+      h += '<button onclick="rechazar(\'' + r.id + '\')" style="padding:8px 14px;background:rgba(224,85,85,.1);color:#e05555;border:1px solid rgba(224,85,85,.25);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">✗ No</button>';
       h += '</div></div>';
     });
     h += '</div>';
@@ -1527,6 +1534,34 @@ function rechazar(id){
     toast('Registro rechazado');
     cargarPendientes();
   }).catch(function(){ toast('Error'); });
+}
+
+function verComprobante(regId){
+  fetch(API_URL+'/comprobantes/'+regId)
+    .then(function(r){return r.json();})
+    .then(function(json){
+      if(!json.ok || !json.comprobante){
+        toast('Sin comprobante adjunto para este servicio');
+        return;
+      }
+      var img = json.comprobante.imagen;
+      var mime = json.comprobante.mime_type || 'image/jpeg';
+      var src = img.startsWith('data:') ? img : 'data:'+mime+';base64,'+img;
+      // Crear modal
+      var modal = document.createElement('div');
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+      modal.innerHTML = '<div style="background:var(--surface);border-radius:12px;padding:20px;max-width:500px;width:100%;max-height:90vh;overflow-y:auto">'
+        +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
+        +'<div style="font-weight:600;font-size:15px">📷 Comprobante de transferencia</div>'
+        +'<button id="btnCerrarComp" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text2)">✕</button>'
+        +'</div>'
+        +'<img src="'+src+'" style="width:100%;border-radius:8px;object-fit:contain;max-height:70vh">'
+        +'</div>';
+      document.body.appendChild(modal);
+      document.getElementById('btnCerrarComp').addEventListener('click', function(){ modal.remove(); });
+      modal.addEventListener('click', function(e){ if(e.target===modal) modal.remove(); });
+    })
+    .catch(function(){ toast('Error al cargar el comprobante'); });
 }
 
 function aprobarTodos(){
