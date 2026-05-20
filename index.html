@@ -703,6 +703,44 @@ function cargarDesdeApi(){
     .catch(function(){});
 }
 
+function cargarHorariosDesdeRailway(){
+  var hc = document.getElementById('horariosContent');
+  if(hc) hc.innerHTML = '<div class="empty"><div class="empty-ico">⟳</div><div>Cargando...</div></div>';
+  if(!API_URL){ renderHorarios(); return; }
+  fetch(API_URL + '/registros/dia?fecha=' + fechaHoy)
+    .then(function(r){ return r.json(); })
+    .then(function(json){
+      if(json.ok && json.registros){
+        var apiRegs = json.registros;
+        var merged = [];
+        var idsApi = {};
+        apiRegs.forEach(function(r){
+          idsApi[r.id] = true;
+          merged.push({
+            id:r.id, bid:r.bid, bnom:r.bnom, sid:r.sid||'custom', snom:r.snom,
+            precio:parseInt(r.precio)||0, pago:r.pago,
+            com:parseFloat(r.com)||0.5, bb:parseInt(r.bb)||0,
+            neg:parseInt(r.neg)||0, propina:parseInt(r.propina||0),
+            fecha:r.fecha_display||fechaHoy,
+            hora:r.hora?r.hora.slice(0,5):'--',
+            ts:parseInt(r.ts)||Date.now(),
+            numServicio:0, totalServicios:0, acumBB:0, acumFact:0
+          });
+        });
+        regs.forEach(function(r){ if(!idsApi[r.id]) merged.push(r); });
+        merged.sort(function(a,b){ return b.ts-a.ts; });
+        regs = merged;
+        guardar();
+        updCnts();
+      }
+      renderHorarios();
+    })
+    .catch(function(e){
+      console.warn('Error:', e);
+      renderHorarios();
+    });
+}
+
 function cargarRegistrosDia(callback){
   // Si no hay API, usar datos locales y llamar callback
   if(!API_URL){
@@ -1723,14 +1761,13 @@ function showTab(id,el){
   if(id==='pCierre')renderCierre();
   if(id==='pCaja')renderCaja();
   if(id==='pHorarios'){
-    // Primero cargar registros del día, luego renderizar horarios
-    if(API_URL){
-      var hc = document.getElementById('horariosContent');
-      if(hc) hc.innerHTML='<div class="empty"><div class="empty-ico">⟳</div><div>Cargando...</div></div>';
-      cargarRegistrosDia(function(){ renderHorarios(); });
-    } else {
-      renderHorarios();
-    }
+    var hc = document.getElementById('horariosContent');
+    if(hc) hc.innerHTML = '<div style="text-align:center;padding:30px 20px">'
+      + '<button onclick="cargarHorariosDesdeRailway()" style="padding:12px 28px;'
+      + 'background:var(--gold,#c9a84c);color:#0a0806;border:none;border-radius:8px;'
+      + 'font-size:14px;font-weight:700;cursor:pointer">☁ Cargar Horarios</button>'
+      + '<p style="font-size:12px;color:var(--text3);margin-top:12px">Trae los servicios del día</p>'
+      + '</div>';
   }
   if(id==='pHistorico')renderIngresarHistorico();
   if(id==='pClientes'){
@@ -3785,15 +3822,24 @@ function sincronizarMesDesdeApi(periodo, callback){
 function renderKpis(){
   cargarKpiEvals();
   var c = document.getElementById('kpisContent');
-  if(c) c.innerHTML='<div class="empty"><div class="empty-ico">⟳</div><div>Cargando KPIs desde Railway...</div></div>';
-  if(API_URL){
-    // Siempre re-sincronizar al abrir la pestaña
-    sincronizarMesDesdeApi(kpiPeriodo, function(){
-      renderKpisInner();
-    });
-  } else {
+  if(!c) return;
+  // Mostrar botón de carga manual
+  c.innerHTML = '<div style="text-align:center;padding:30px 20px">'
+    + '<button onclick="cargarKpisDesdeRailway()" style="padding:12px 28px;'
+    + 'background:var(--gold,#c9a84c);color:#0a0806;border:none;border-radius:8px;'
+    + 'font-size:14px;font-weight:700;cursor:pointer">☁ Cargar KPIs desde Railway</button>'
+    + '<p style="font-size:12px;color:var(--text3);margin-top:12px">Trae los datos del mes completo</p>'
+    + '</div>';
+}
+
+function cargarKpisDesdeRailway(){
+  var c = document.getElementById('kpisContent');
+  if(c) c.innerHTML = '<div class="empty"><div class="empty-ico">⟳</div><div>Descargando datos...</div></div>';
+  cargarKpiEvals();
+  if(!API_URL){ renderKpisInner(); return; }
+  sincronizarMesDesdeApi(kpiPeriodo, function(){
     renderKpisInner();
-  }
+  });
 }
 
 function renderKpisInner(){
