@@ -704,49 +704,54 @@ function cargarDesdeApi(){
 }
 
 function cargarRegistrosDia(callback){
-  if(!API_URL) return;
+  // Si no hay API, usar datos locales y llamar callback
+  if(!API_URL){
+    renderAll();
+    if(callback) callback();
+    return;
+  }
   fetch(API_URL + '/registros/dia?fecha=' + fechaHoy)
     .then(function(r){ return r.json(); })
     .then(function(json){
-      if(!json.ok || !json.registros) return;
-      var apiRegs = json.registros;
-      // Fusionar: API tiene prioridad, agregar locales offline
-      var merged = [];
-      var idsApi = {};
-      apiRegs.forEach(function(r){
-        idsApi[r.id] = true;
-        merged.push({
-          id: r.id, bid: r.bid, bnom: r.bnom,
-          sid: r.sid||'custom', snom: r.snom,
-          precio: parseInt(r.precio), pago: r.pago,
-          com: parseFloat(r.com), bb: parseInt(r.bb),
-          neg: parseInt(r.neg), propina: parseInt(r.propina||0),
-          fecha: r.fecha_display || fechaHoy,
-          hora: r.hora ? r.hora.slice(0,5) : '--',
-          ts: parseInt(r.ts) || Date.now(),
-          numServicio: 0, totalServicios: 0, acumBB: 0, acumFact: 0
+      if(json.ok && json.registros){
+        var apiRegs = json.registros;
+        var merged  = [];
+        var idsApi  = {};
+        apiRegs.forEach(function(r){
+          idsApi[r.id] = true;
+          merged.push({
+            id: r.id, bid: r.bid, bnom: r.bnom,
+            sid: r.sid||'custom', snom: r.snom,
+            precio: parseInt(r.precio)||0, pago: r.pago,
+            com: parseFloat(r.com)||0.5, bb: parseInt(r.bb)||0,
+            neg: parseInt(r.neg)||0, propina: parseInt(r.propina||0),
+            fecha: r.fecha_display || fechaHoy,
+            hora: r.hora ? r.hora.slice(0,5) : '--',
+            ts: parseInt(r.ts) || Date.now(),
+            numServicio: 0, totalServicios: 0, acumBB: 0, acumFact: 0
+          });
         });
-      });
-      // Agregar registros locales que la API aún no tiene (offline)
-      regs.forEach(function(r){ if(!idsApi[r.id]) merged.push(r); });
-      merged.sort(function(a,b){ return b.ts - a.ts; });
-      if(merged.length > 0 || apiRegs.length === 0){
+        // Agregar locales offline que la API aún no tiene
+        regs.forEach(function(r){ if(!idsApi[r.id]) merged.push(r); });
+        merged.sort(function(a,b){ return b.ts - a.ts; });
         regs = merged;
         guardar();
         renderAll();
         updCnts();
-        // Actualizar contadores de barberos en el header
         BB.forEach(function(b){
           var cnt = regs.filter(function(r){return r.bid===b.id;}).length;
           var el = document.querySelector('[data-bid="'+b.id+'"] .bcnt');
           if(el) el.textContent = cnt+' svc';
         });
-        if(apiRegs.length > 0){
-          toast('☁ '+apiRegs.length+' servicios cargados desde la nube');
-        }
       }
+      // SIEMPRE llamar callback al terminar, con o sin datos
+      if(callback) callback();
     })
-    .catch(function(e){ console.warn('Sync error:', e.message); });
+    .catch(function(e){
+      console.warn('cargarRegistrosDia error:', e.message);
+      // También llamar callback en caso de error para no quedar colgado
+      if(callback) callback();
+    });
 }
 
 function descargarJSON(){
@@ -3770,6 +3775,9 @@ function sincronizarMesDesdeApi(periodo, callback){
         localStorage.setItem(key, JSON.stringify(existing.concat(nuevos)));
       }catch(e){}
     });
+    if(callback) callback();
+  }).catch(function(e){
+    console.warn('sync error:', e);
     if(callback) callback();
   });
 }
