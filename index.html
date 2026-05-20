@@ -1045,6 +1045,8 @@ function init(){
   tick();setInterval(tick,30000);
   buildBarbers();buildServices();
   cargarSheetsUrl();cargar();cargarGastos();cargarLiquidaciones();cargarHorarios();cargarKpiEvals();renderAll();
+  // Cargar registros del día desde Railway al iniciar
+  if(API_URL) cargarRegistrosDia();
   // Auto-refresh cada 60s cuando la página está visible
   setInterval(function(){
     if(document.visibilityState==='visible' && API_URL) cargarRegistrosDia();
@@ -1711,10 +1713,11 @@ function showTab(id,el){
   all=document.querySelectorAll('.tab');for(var i=0;i<all.length;i++)all[i].classList.remove('on');
   all=document.querySelectorAll('.pane');for(var i=0;i<all.length;i++)all[i].classList.remove('on');
   el.classList.add('on');document.getElementById(id).classList.add('on');
+  if(id==='pReg')cargarRegistrosDia();
   if(id==='pSum')renderSum();
   if(id==='pCierre')renderCierre();
   if(id==='pCaja')renderCaja();
-  if(id==='pHorarios')renderHorarios();
+  if(id==='pHorarios'){renderHorarios();cargarRegistrosDia();}
   if(id==='pHistorico')renderIngresarHistorico();
   if(id==='pClientes'){
     cargarClientes();
