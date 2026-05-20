@@ -1304,11 +1304,15 @@ function registrar(){
   var acumFact = 0;
   for(var i=0;i<mismosBarbero.length;i++) acumFact += mismosBarbero[i].precio;
   r.acumFact = acumFact;
+  regs.push(r);          // Agregar inmediatamente a la lista local
   guardar();
-  enviarASheets(r);
+  enviarASheets(r);      // legacy
+  enviarAApi(r);         // Railway + IDB offline-first
   resetForm();
-  renderAll();
-  toast('Servicio registrado ✓' + (SHEETS_URL ? ' · Sincronizando…' : ''));
+  renderAll();           // Render inmediato con el nuevo registro
+  // Recargar desde Railway para confirmar sync (diferido)
+  setTimeout(function(){ cargarRegistrosDia(); }, 1500);
+  toast('Servicio registrado correctamente');
   printTicket62(r);
 }
 
