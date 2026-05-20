@@ -598,30 +598,13 @@ function enviarASheets(r){
 }
 
 function enviarAApi(r){
-  // Guardar siempre en IDB primero (offline-first)
-  idbPut(Object.assign({},r)).then(function(){ actualizarBadgeSync(); });
-
-  var url = API_URL || SHEETS_URL;
-  if(!url) return;
-  if(API_URL){
-    fetch(API_URL+'/registros', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(r)
-    }).then(function(res){ return res.json(); })
-    .then(function(json){ if(json.ok) idbMarkSynced(r.id); actualizarBadgeSync(); })
-    .catch(function(){ toast('Sin conexión — guardado localmente'); });
-  } else {
-    // Compatibilidad Apps Script legacy
-    var payload = {accion:'registrar',id:r.id,fecha:r.fecha,hora:r.hora,
-      bid:r.bid,bnom:r.bnom,sid:r.sid,snom:r.snom,precio:r.precio,
-      pago:r.pago,com:r.com,bb:r.bb,neg:r.neg,propina:r.propina||0};
-    fetch(SHEETS_URL, {method:'POST',mode:'no-cors',
-      headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)
-    }).catch(function(){});
-  }
+  if(!API_URL) return;
+  fetch(API_URL+'/registros', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(r)
+  }).catch(function(e){ console.warn('enviarAApi error:', e.message); });
 }
-var enviarASheets = enviarAApi;
 
 function eliminarDeSheets(id) {
   if (API_URL) {
@@ -670,7 +653,6 @@ function sincronizarGastoSheets(g, accion) {
 // ═══ ESTADO ══════════════════════════════════════════════
 var sel={b:null,s:null,p:null,propina:0,propinaTipo:'0'};
 var regs=[];
-var regsMes=[];
 
 var filtro='todos';
 var fechaHoy=fechaStr(new Date());
@@ -679,45 +661,6 @@ var fechaHoy=fechaStr(new Date());
 var LSKEY='sfsf_'+fechaHoy;
 
 // ── CARGA MES EN MEMORIA (reemplaza sincronizarMesDesdeApi) ──
-function cargarMesEnMemoria(periodo, callback){
-  if(!API_URL){ if(callback) callback(); return; }
-  var desde = periodo + '-01';
-  var dias  = [];
-  var cur   = new Date(desde + 'T12:00:00');
-  var fin   = new Date(fechaHoy + 'T12:00:00');
-  while(cur <= fin){
-    var d = cur.toISOString().slice(0,10);
-    if(d.substring(0,7) === periodo) dias.push(d);
-    cur.setDate(cur.getDate()+1);
-  }
-  Promise.all(dias.map(function(fecha){
-    return fetch(API_URL+'/registros/dia?fecha='+fecha)
-      .then(function(r){ return r.json(); })
-      .catch(function(){ return {ok:false,registros:[]}; });
-  })).then(function(results){
-    var todos = [];
-    results.forEach(function(json){
-      if(!json.ok || !json.registros) return;
-      json.registros.forEach(function(r){
-        todos.push({
-          id:r.id, bid:r.bid, bnom:r.bnom, snom:r.snom,
-          precio:parseInt(r.precio)||0, pago:r.pago,
-          bb:parseInt(r.bb)||0, neg:parseInt(r.neg)||0,
-          propina:parseInt(r.propina||0),
-          fecha:r.fecha||r.fecha_display||'',
-          hora:r.hora||'--'
-        });
-      });
-    });
-    regsMes = todos;
-    console.log('regsMes cargado:', todos.length, 'registros para', periodo);
-    if(callback) callback();
-  }).catch(function(e){
-    console.warn('cargarMesEnMemoria error:', e);
-    if(callback) callback();
-  });
-}
-
 
 function fechaStr(d){
   return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
@@ -769,95 +712,45 @@ function cargarDesdeApi(){
     .catch(function(){});
 }
 
-function cargarHorariosDesdeRailway(){
-  var hc = document.getElementById('horariosContent');
-  if(!hc) return;
-  hc.innerHTML = '<div class="empty"><div class="empty-ico">⟳</div>'
-    + '<div>Cargando registros de ' + fechaHoy + '...</div></div>';
-  if(!API_URL){ renderHorarios(); return; }
-  fetch(API_URL + '/registros/dia?fecha=' + fechaHoy)
-    .then(function(r){ return r.json(); })
-    .then(function(json){
-      if(json.ok && json.registros){
-        var apiRegs = json.registros;
-        var merged = [];
-        var idsApi = {};
-        apiRegs.forEach(function(r){
-          idsApi[r.id] = true;
-          merged.push({
-            id:r.id, bid:r.bid, bnom:r.bnom, sid:r.sid||'custom', snom:r.snom,
-            precio:parseInt(r.precio)||0, pago:r.pago,
-            com:parseFloat(r.com)||0.5, bb:parseInt(r.bb)||0,
-            neg:parseInt(r.neg)||0, propina:parseInt(r.propina||0),
-            fecha:r.fecha_display||fechaHoy,
-            hora:r.hora?r.hora.slice(0,5):'--',
-            ts:parseInt(r.ts)||Date.now(),
-            numServicio:0, totalServicios:0, acumBB:0, acumFact:0
-          });
-        });
-        regs.forEach(function(r){ if(!idsApi[r.id]) merged.push(r); });
-        merged.sort(function(a,b){ return b.ts-a.ts; });
-        regs = merged;
-        guardar();
-        updCnts();
-      }
-      renderHorarios();
-    })
-    .catch(function(e){
-      console.warn('Error:', e);
-      renderHorarios();
-    });
-}
 
-function cargarRegistrosDia(callback){
-  // Si no hay API, usar datos locales y llamar callback
-  if(!API_URL){
-    renderAll();
-    if(callback) callback();
-    return;
-  }
+function cargarRegistrosDia(){
+  if(!API_URL) return;
   fetch(API_URL + '/registros/dia?fecha=' + fechaHoy)
     .then(function(r){ return r.json(); })
     .then(function(json){
-      if(json.ok && json.registros){
-        var apiRegs = json.registros;
-        var merged  = [];
-        var idsApi  = {};
-        apiRegs.forEach(function(r){
-          idsApi[r.id] = true;
-          merged.push({
-            id: r.id, bid: r.bid, bnom: r.bnom,
-            sid: r.sid||'custom', snom: r.snom,
-            precio: parseInt(r.precio)||0, pago: r.pago,
-            com: parseFloat(r.com)||0.5, bb: parseInt(r.bb)||0,
-            neg: parseInt(r.neg)||0, propina: parseInt(r.propina||0),
-            fecha: r.fecha_display || fechaHoy,
-            hora: r.hora ? r.hora.slice(0,5) : '--',
-            ts: parseInt(r.ts) || Date.now(),
-            numServicio: 0, totalServicios: 0, acumBB: 0, acumFact: 0
-          });
+      if(!json.ok || !json.registros) return;
+      var apiRegs = json.registros;
+      var merged = [];
+      var idsApi = {};
+      apiRegs.forEach(function(r){
+        idsApi[r.id] = true;
+        merged.push({
+          id:r.id, bid:r.bid, bnom:r.bnom,
+          sid:r.sid||'custom', snom:r.snom,
+          precio:parseInt(r.precio), pago:r.pago,
+          com:parseFloat(r.com), bb:parseInt(r.bb),
+          neg:parseInt(r.neg), propina:parseInt(r.propina||0),
+          fecha:r.fecha_display||fechaHoy,
+          hora:r.hora?r.hora.slice(0,5):'--',
+          ts:parseInt(r.ts)||Date.now(),
+          numServicio:0, totalServicios:0, acumBB:0, acumFact:0
         });
-        // Agregar locales offline que la API aún no tiene
-        regs.forEach(function(r){ if(!idsApi[r.id]) merged.push(r); });
-        merged.sort(function(a,b){ return b.ts - a.ts; });
+      });
+      regs.forEach(function(r){ if(!idsApi[r.id]) merged.push(r); });
+      merged.sort(function(a,b){ return b.ts-a.ts; });
+      if(merged.length > 0){
         regs = merged;
         guardar();
         renderAll();
         updCnts();
         BB.forEach(function(b){
-          var cnt = regs.filter(function(r){return r.bid===b.id;}).length;
-          var el = document.querySelector('[data-bid="'+b.id+'"] .bcnt');
-          if(el) el.textContent = cnt+' svc';
+          var cnt=regs.filter(function(r){return r.bid===b.id;}).length;
+          var el=document.querySelector('[data-bid="'+b.id+'"] .bcnt');
+          if(el) el.textContent=cnt+' svc';
         });
       }
-      // SIEMPRE llamar callback al terminar, con o sin datos
-      if(callback) callback();
     })
-    .catch(function(e){
-      console.warn('cargarRegistrosDia error:', e.message);
-      // También llamar callback en caso de error para no quedar colgado
-      if(callback) callback();
-    });
+    .catch(function(e){ console.warn('Sync error:', e.message); });
 }
 
 function descargarJSON(){
@@ -1417,15 +1310,13 @@ function registrar(){
   var acumFact = 0;
   for(var i=0;i<mismosBarbero.length;i++) acumFact += mismosBarbero[i].precio;
   r.acumFact = acumFact;
-  regs.push(r);          // Agregar inmediatamente a la lista local
+  regs.push(r);
   guardar();
-  enviarASheets(r);      // Google Sheets backup automático
-  enviarAApi(r);         // Railway principal
+  enviarASheets(r);
+  enviarAApi(r);
   resetForm();
-  renderAll();           // Render inmediato con el nuevo registro
-  // Recargar desde Railway para confirmar sync (diferido)
-  setTimeout(function(){ cargarRegistrosDia(); }, 1500);
-  toast('Servicio registrado correctamente');
+  renderAll();
+  toast('Servicio registrado ✓');
   printTicket62(r);
 }
 
@@ -1828,15 +1719,7 @@ function showTab(id,el){
   if(id==='pSum')renderSum();
   if(id==='pCierre')renderCierre();
   if(id==='pCaja')renderCaja();
-  if(id==='pHorarios'){
-    var hc = document.getElementById('horariosContent');
-    if(hc) hc.innerHTML = '<div style="text-align:center;padding:30px 20px">'
-      + '<button onclick="cargarHorariosDesdeRailway()" style="padding:12px 28px;'
-      + 'background:var(--gold,#c9a84c);color:#0a0806;border:none;border-radius:8px;'
-      + 'font-size:14px;font-weight:700;cursor:pointer">☁ Cargar Horarios</button>'
-      + '<p style="font-size:12px;color:var(--text3);margin-top:12px">Trae los servicios del día</p>'
-      + '</div>';
-  }
+  if(id==='pHorarios')renderHorarios();
   if(id==='pHistorico')renderIngresarHistorico();
   if(id==='pClientes'){
     cargarClientes();
@@ -2958,34 +2841,65 @@ function printCajaA4(){
 
   // Columna derecha: tabla contable flujo de caja
   w.document.write('<div>');
-  w.document.write('<div class="stitle">Flujo de caja — Tabla contable</div>');
-  w.document.write('<table class="conta">');
-  w.document.write('<tbody>');
-  // Base inicial
-  w.document.write('<tr><td>Base inicial en caja</td><td class="base" style="text-align:right">$'+fmt(BASE_CAJA)+'</td></tr>');
-  w.document.write('<tr><td colspan="2" style="padding:3px 10px;font-size:8pt;color:#9c9a93;background:#fafaf8">INGRESOS</td></tr>');
-  // Ingresos
-  if(totE>0) w.document.write('<tr><td>+ Efectivo ('+cntE+' svc)</td><td class="ing" style="text-align:right">+ $'+fmt(totE)+'</td></tr>');
-  if(totD>0) w.document.write('<tr><td>+ Débito ('+cntD+' svc)</td><td class="ing" style="text-align:right">+ $'+fmt(totD)+'</td></tr>');
-  if(totT>0) w.document.write('<tr><td>+ Transferencia ('+cntT+' svc)</td><td class="ing" style="text-align:right">+ $'+fmt(totT)+'</td></tr>');
-  w.document.write('<tr><td colspan="2" style="padding:3px 10px;font-size:8pt;color:#9c9a93;background:#fafaf8">EGRESOS</td></tr>');
-  // Egresos — barberos
-  w.document.write('<tr><td>− Pago barberos</td><td class="egr" style="text-align:right">− $'+fmt(totalCorresponde)+'</td></tr>');
-  // Egresos — gastos
+  // ── CAJA EFECTIVO (único dinero físico) ──
+  var cajaEfectivoFinal = BASE_CAJA + totE - totalPagoEf - totalGastosPrint;
+  var saldoEfectivo     = cajaEfectivoFinal - BASE_CAJA;
+
+  w.document.write('<div class="stitle">Flujo de caja</div>');
+  w.document.write('<table class="conta"><tbody>');
+
+  // ── EFECTIVO ──────────────────────────────────────
+  w.document.write('<tr><td colspan="2" style="padding:4px 10px;font-size:8pt;font-weight:700;color:#1a6b3a;background:#f0faf4;letter-spacing:.06em">💵 EFECTIVO (dinero físico en caja)</td></tr>');
+  w.document.write('<tr><td>Base inicial</td><td class="base" style="text-align:right">$'+fmt(BASE_CAJA)+'</td></tr>');
+  if(totE>0) w.document.write('<tr><td>+ Cobros efectivo ('+cntE+' svc)</td><td class="ing" style="text-align:right">+ $'+fmt(totE)+'</td></tr>');
+  w.document.write('<tr><td>− Pago barberos en efectivo</td><td class="egr" style="text-align:right">− $'+fmt(totalPagoEf)+'</td></tr>');
   for(var i=0;i<gastos.length;i++){
     w.document.write('<tr><td>− '+gastos[i].desc+'</td><td class="egr" style="text-align:right">− $'+fmt(gastos[i].monto)+'</td></tr>');
   }
-  // Separador
   w.document.write('<tr><td colspan="2" class="sep"></td></tr>');
-  // Saldo final
-  var saldoCls = cajaFinal>=BASE_CAJA?'saldo-pos':'saldo-neg';
-  w.document.write('<tr><td style="font-weight:700">Saldo en caja</td><td class="'+saldoCls+'" style="text-align:right">$'+fmt(cajaFinal)+'</td></tr>');
-  w.document.write('<tr><td style="font-size:9pt;color:#5c5a54">Base requerida</td><td style="text-align:right;font-family:monospace;color:#5c5a54;font-size:9pt">$'+fmt(BASE_CAJA)+'</td></tr>');
-  var depCls = saldoDepositar>=0?'saldo-pos':'saldo-neg';
-  var depLabel = saldoDepositar>=0?'A depositar / retirar':'A reponer';
-  w.document.write('<tr><td style="font-weight:700;font-size:10.5pt">'+depLabel+'</td><td class="'+depCls+'" style="text-align:right;font-size:11pt">'+(saldoDepositar>=0?'':'− ')+'$'+fmt(Math.abs(saldoDepositar))+'</td></tr>');
+  var clsEf = cajaEfectivoFinal>=BASE_CAJA?'saldo-pos':'saldo-neg';
+  w.document.write('<tr><td style="font-weight:700">Saldo físico en caja</td><td class="'+clsEf+'" style="text-align:right">$'+fmt(cajaEfectivoFinal)+'</td></tr>');
+  w.document.write('<tr><td style="font-size:9pt;color:#5c5a54">Base requerida</td><td style="text-align:right;font-family:monospace;color:#5c5a54">$'+fmt(BASE_CAJA)+'</td></tr>');
+  var clsDep = saldoEfectivo>=0?'saldo-pos':'saldo-neg';
+  var lblDep = saldoEfectivo>=0?'Retirar y depositar':'Reponer caja';
+  w.document.write('<tr><td style="font-weight:700;font-size:10.5pt">'+lblDep+'</td><td class="'+clsDep+'" style="text-align:right;font-size:11pt">'+(saldoEfectivo<0?'− ':'')+'$'+fmt(Math.abs(saldoEfectivo))+'</td></tr>');
+
+  // ── DÉBITO ────────────────────────────────────────
+  if(totD>0){
+    w.document.write('<tr><td colspan="2" style="padding:4px 10px;font-size:8pt;font-weight:700;color:#1a4b8b;background:#f0f4ff;letter-spacing:.06em;margin-top:6px">💳 DÉBITO (pagos con tarjeta)</td></tr>');
+    w.document.write('<tr><td>Cobros por débito ('+cntD+' svc)</td><td style="text-align:right;font-family:monospace;color:#1a4b8b;font-weight:700">$'+fmt(totD)+'</td></tr>');
+    w.document.write('<tr><td style="font-size:9pt;color:#5c5a54">Comisión terminal (~7%)</td><td style="text-align:right;font-family:monospace;color:#c0392b">− $'+fmt(Math.round(totD*0.07))+'</td></tr>');
+    w.document.write('<tr><td style="font-weight:600">Neto a depositar</td><td style="text-align:right;font-family:monospace;font-weight:700;color:#1a4b8b">$'+fmt(totD-Math.round(totD*0.07))+'</td></tr>');
+  }
+
+  // ── TRANSFERENCIAS ────────────────────────────────
+  if(totT>0){
+    w.document.write('<tr><td colspan="2" style="padding:4px 10px;font-size:8pt;font-weight:700;color:#8b5e00;background:#fffbf0;letter-spacing:.06em">📲 TRANSFERENCIAS</td></tr>');
+    w.document.write('<tr><td>Cobros por transferencia ('+cntT+' svc)</td><td style="text-align:right;font-family:monospace;color:#8b5e00;font-weight:700">$'+fmt(totT)+'</td></tr>');
+    var pendTransf = totT - totalPagoTr;
+    if(pendTransf>0) w.document.write('<tr><td style="color:#c0392b">Pendiente por pagar barberos</td><td style="text-align:right;font-family:monospace;color:#c0392b">− $'+fmt(pendTransf)+'</td></tr>');
+  }
+
   w.document.write('</tbody></table>');
-  w.document.write(saldoDescripcion);
+
+  // Descripción acción de efectivo
+  var saldoDescripcionEf='';
+  if(saldoEfectivo>0){
+    saldoDescripcionEf='<div style="background:#e8f5e9;border:1px solid #4caf50;border-radius:6px;padding:10px 14px;margin-top:10px">'
+      +'<span style="font-weight:700;color:#1a6b3a;font-size:11pt">✓ Retirar $'+fmt(saldoEfectivo)+' del cajón y depositar</span>'
+      +'<div style="font-size:9.5pt;color:#2e7d32;margin-top:3px">Dejar solo $'+fmt(BASE_CAJA)+' como base para el día siguiente.</div>'
+      +'</div>';
+  } else if(saldoEfectivo<0){
+    saldoDescripcionEf='<div style="background:#fde8e8;border:1px solid #e53935;border-radius:6px;padding:10px 14px;margin-top:10px">'
+      +'<span style="font-weight:700;color:#c0392b;font-size:11pt">⚠ Reponer $'+fmt(Math.abs(saldoEfectivo))+' en caja</span>'
+      +'<div style="font-size:9.5pt;color:#b71c1c;margin-top:3px">Los egresos en efectivo superaron los ingresos.</div>'
+      +'</div>';
+  } else {
+    saldoDescripcionEf='<div style="background:#fff8e1;border:1px solid #ffc107;border-radius:6px;padding:10px 14px;margin-top:10px">'
+      +'<span style="font-weight:700;color:#8b5e00;font-size:11pt">= Caja en equilibrio exacto</span>'
+      +'</div>';
+  }
+  w.document.write(saldoDescripcionEf);
   w.document.write('</div>'); // fin col der
   w.document.write('</div>'); // fin two-col
 
@@ -3734,19 +3648,7 @@ function cargarKpiCuantiDesdeApi(periodo, callback){
 // Calcular cuantitativos directamente desde registros del localStorage/memoria
 function calcKpiCuantiLocal(bid, periodo){
   var todosRegs = [];
-  // Usar regsMes si está cargado
-  if(regsMes.length > 0){
-    regsMes.forEach(function(r){
-      if(r.bid===bid && r.fecha && r.fecha.substring(0,7)===periodo) todosRegs.push(r);
-    });
-    // También regs[] del día actual
-    if(fechaHoy.substring(0,7)===periodo){
-      var ids={}; regsMes.forEach(function(r){ids[r.id]=1;});
-      regs.forEach(function(r){ if(r.bid===bid && !ids[r.id]) todosRegs.push(r); });
-    }
-  } else {
-    // Fallback localStorage
-    try{
+  try{
       for(var i=0;i<localStorage.length;i++){
         var k=localStorage.key(i);
         if(!k||k.indexOf('sfsf_')!==0||k.length!==15) continue;
@@ -3754,8 +3656,7 @@ function calcKpiCuantiLocal(bid, periodo){
         JSON.parse(localStorage.getItem(k)||'[]').forEach(function(r){if(r.bid===bid)todosRegs.push(r);});
       }
     }catch(e){}
-    if(fechaHoy.substring(0,7)===periodo) regs.forEach(function(r){if(r.bid===bid)todosRegs.push(r);});
-  }
+  if(fechaHoy.substring(0,7)===periodo) regs.forEach(function(r){if(r.bid===bid)todosRegs.push(r);});
   // Deduplicar
   var seen={}, uniq=[];
   todosRegs.forEach(function(r){if(!seen[r.id]){seen[r.id]=true;uniq.push(r);}});
@@ -3820,28 +3721,16 @@ function sincronizarMesDesdeApi(periodo, callback){
 
 function renderKpis(){
   cargarKpiEvals();
-  var c = document.getElementById('kpisContent');
-  if(!c) return;
-  // Mostrar botón de carga manual
-  c.innerHTML = '<div style="text-align:center;padding:30px 20px">'
-    + '<button onclick="cargarKpisDesdeRailway()" style="padding:12px 28px;'
-    + 'background:var(--gold,#c9a84c);color:#0a0806;border:none;border-radius:8px;'
-    + 'font-size:14px;font-weight:700;cursor:pointer">☁ Cargar KPIs desde Railway</button>'
-    + '<p style="font-size:12px;color:var(--text3);margin-top:12px">Trae los datos del mes completo</p>'
-    + '</div>';
+  if(API_URL && !window._kpiSynced){
+    window._kpiSynced = true;
+    sincronizarMesDesdeApi(kpiPeriodo, function(){
+      renderKpisInner();
+    });
+    return;
+  }
+  renderKpisInner();
 }
 
-function cargarKpisDesdeRailway(){
-  var c = document.getElementById('kpisContent');
-  if(c) c.innerHTML = '<div class="empty"><div class="empty-ico">⟳</div>'
-    + '<div>Descargando ' + kpiPeriodo + '...</div></div>';
-  cargarKpiEvals();
-  if(!API_URL){ renderKpisInner(); return; }
-  // Usar la nueva función que carga en memoria (sin localStorage)
-  cargarMesEnMemoria(kpiPeriodo, function(){
-    renderKpisInner();
-  });
-}
 
 function renderKpisInner(){
   // Actualizar automáticamente apertura/cierre para todos los barberos
@@ -4186,147 +4075,6 @@ function toast(msg){
 // ═══ ARRANCAR ════════════════════════════════════════════
 init();
 
-// ═══════════════════════════════════════════════════════════════
-//  OFFLINE-FIRST — IndexedDB + Sync con Railway
-// ═══════════════════════════════════════════════════════════════
-var _idb = null;
-
-function abrirIDB(){
-  return new Promise(function(res,rej){
-    var r = indexedDB.open('barberpilot_v1',1);
-    r.onupgradeneeded = function(e){
-      var db = e.target.result;
-      if(!db.objectStoreNames.contains('regs_offline')){
-        var s = db.createObjectStore('regs_offline',{keyPath:'id'});
-        s.createIndex('synced','synced',{unique:false});
-      }
-    };
-    r.onsuccess  = function(e){ _idb=e.target.result; res(_idb); };
-    r.onerror    = function(e){ rej(e.target.error); };
-  });
-}
-
-function idbPut(reg){
-  return new Promise(function(res){
-    if(!_idb){res(false);return;}
-    reg.synced = false;
-    var tx = _idb.transaction('regs_offline','readwrite');
-    tx.objectStore('regs_offline').put(reg);
-    tx.oncomplete=function(){res(true);};
-    tx.onerror=function(){res(false);};
-  });
-}
-
-function idbMarkSynced(id){
-  if(!_idb) return;
-  var tx = _idb.transaction('regs_offline','readwrite');
-  var s  = tx.objectStore('regs_offline');
-  var r  = s.get(id);
-  r.onsuccess=function(){ var d=r.result; if(d){d.synced=true;s.put(d);} };
-}
-
-function idbGetPendientes(){
-  return new Promise(function(res){
-    if(!_idb){res([]);return;}
-    var tx = _idb.transaction('regs_offline','readonly');
-    var r  = tx.objectStore('regs_offline').index('synced').getAll(false);
-    r.onsuccess=function(){res(r.result||[]);};
-    r.onerror=function(){res([]);};
-  });
-}
-
-function idbGetAll(){
-  return new Promise(function(res){
-    if(!_idb){res([]);return;}
-    var tx = _idb.transaction('regs_offline','readonly');
-    var r  = tx.objectStore('regs_offline').getAll();
-    r.onsuccess=function(){res(r.result||[]);};
-    r.onerror=function(){res([]);};
-  });
-}
-
-async function syncConRailway(){
-  if(!API_URL) return;
-  var pend = await idbGetPendientes();
-  if(pend.length===0) return;
-  var ok=0;
-  for(var i=0;i<pend.length;i++){
-    try{
-      var res = await fetch(API_URL+'/registros',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify(pend[i])
-      }).then(function(r){return r.json();});
-      if(res.ok||res.error==='duplicate'){ idbMarkSynced(pend[i].id); ok++; }
-    } catch(e){ break; }
-  }
-  if(ok>0){ toast('Sincronizados '+ok+' registro(s) con Railway'); actualizarBadgeSync(); }
-}
-
-async function actualizarBadgeSync(){
-  var pend = await idbGetPendientes();
-  var b = document.getElementById('badgeSync');
-  if(!b) return;
-  if(pend.length>0){ b.style.display='inline'; b.textContent=pend.length+' sin sync'; }
-  else { b.style.display='none'; }
-}
-
-var _railwayOnline=true;
-async function checkRailway(){
-  if(!API_URL) return;
-  try{
-    await fetch(API_URL+'/ping',{signal:AbortSignal.timeout(3000)});
-    if(!_railwayOnline){
-      _railwayOnline=true;
-      var al=document.getElementById('alertaOffline');
-      if(al) al.style.display='none';
-      toast('Railway reconectado — sincronizando...');
-      syncConRailway();
-    }
-    _railwayOnline=true;
-  } catch(e){
-    if(_railwayOnline){
-      _railwayOnline=false;
-      var al=document.getElementById('alertaOffline');
-      if(al) al.style.display='flex';
-    }
-  }
-  actualizarBadgeSync();
-}
-
-async function exportarBackup(){
-  var todos = await idbGetAll();
-  var blob=new Blob([JSON.stringify({exportado:new Date().toISOString(),registros:todos},null,2)],
-    {type:'application/json'});
-  var a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download='barberpilot_backup_'+new Date().toISOString().slice(0,10)+'.json';
-  a.click(); URL.revokeObjectURL(a.href);
-  toast('Backup descargado');
-}
-
-function importarBackup(file){
-  var fr=new FileReader();
-  fr.onload=async function(e){
-    try{
-      var d=JSON.parse(e.target.result);
-      var regs=d.registros||[];
-      var tx=_idb.transaction('regs_offline','readwrite');
-      var s=tx.objectStore('regs_offline');
-      regs.forEach(function(r){s.put(r);});
-      tx.oncomplete=function(){ toast('Importados '+regs.length+' registros'); actualizarBadgeSync(); };
-    } catch(e){ toast('Error: archivo inválido'); }
-  };
-  fr.readAsText(file);
-}
-
-// Inicializar al cargar
-document.addEventListener('DOMContentLoaded', async function(){
-  await abrirIDB();
-  actualizarBadgeSync();
-  checkRailway();
-  setInterval(function(){ checkRailway(); if(_railwayOnline) syncConRailway(); },30000);
-});
 
 </script>
 </body>
