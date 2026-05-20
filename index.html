@@ -2736,7 +2736,7 @@ function printCajaA4(){
     else if(regs[i].pago==='debito'){totD+=regs[i].precio;cntD++;}
     else if(regs[i].pago==='transferencia'){totT+=regs[i].precio;cntT++;}
   }
-  var totalFact = totE+totD+totT;
+  var totalFact=totE+totD+totT;
   var totalGastosPrint=0;
   for(var i=0;i<gastos.length;i++) totalGastosPrint+=gastos[i].monto;
 
@@ -2754,126 +2754,192 @@ function printCajaA4(){
     bbRows+='<tr>'
       +'<td style="padding:7px 10px;font-weight:600">'+b.nombre+'<br><span style="font-weight:400;font-size:11px;color:#9c9a93">'+br.length+' servicio'+(br.length!==1?'s':'')+'</span></td>'
       +'<td style="padding:7px 10px;text-align:right;font-family:monospace;font-weight:700">$'+fmt(cor)+'</td>'
-      +'<td style="padding:7px 10px;text-align:right;font-family:monospace;color:#8b5e00">'+( liq.efectivo>0?'$'+fmt(liq.efectivo):'-')+'</td>'
-      +'<td style="padding:7px 10px;text-align:right;font-family:monospace;color:#1a4b8b">'+( liq.transferencia>0?'$'+fmt(liq.transferencia):'-')+'</td>'
+      +'<td style="padding:7px 10px;text-align:right;font-family:monospace;color:#8b5e00">'+(liq.efectivo>0?'$'+fmt(liq.efectivo):'-')+'</td>'
+      +'<td style="padding:7px 10px;text-align:right;font-family:monospace;color:#1a4b8b">'+(liq.transferencia>0?'$'+fmt(liq.transferencia):'-')+'</td>'
       +'<td style="padding:7px 10px;text-align:right;font-family:monospace;'+pendStyle+';font-weight:700">'+(pend===0?'✓ Pagado':pend>0?'$'+fmt(pend)+' pend.':'-')+'</td>'
       +'</tr>';
   }
 
-  var cajaFinal = BASE_CAJA+totE-totalPagoEf-totalGastosPrint;
-  var negocioTotal = totalFact - totalCorresponde;
-  var utilidad = negocioTotal - totalGastosPrint;
+  var cajaFinal=BASE_CAJA+totE-totalPagoEf-totalGastosPrint;
+  var negocioTotal=totalFact-totalCorresponde;
+  var utilidad=negocioTotal-totalGastosPrint;
+  var saldoDepositar=cajaFinal-BASE_CAJA; // Lo que hay que depositar o reponer
 
-  var gastosHTML='';
-  if(gastos.length>0){
-    gastosHTML='<div style="margin-top:20px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#9c9a93;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #1a1916">Gastos del día</div>'
-      +'<table style="width:100%;border-collapse:collapse;font-size:13px">'
-      +'<thead><tr style="border-bottom:1px solid #e2e0d8"><th style="text-align:left;padding:5px 8px;font-size:10px;color:#9c9a93;text-transform:uppercase">Hora</th><th style="text-align:left;padding:5px 8px;font-size:10px;color:#9c9a93;text-transform:uppercase">Descripción</th><th style="text-align:right;padding:5px 8px;font-size:10px;color:#9c9a93;text-transform:uppercase">Monto</th></tr></thead><tbody>';
-    for(var i=0;i<gastos.length;i++){
-      gastosHTML+='<tr style="border-bottom:1px solid #e2e0d8"><td style="padding:6px 8px;color:#5c5a54">'+gastos[i].hora+'</td><td style="padding:6px 8px">'+gastos[i].desc+'</td><td style="padding:6px 8px;text-align:right;font-family:monospace;color:#c0392b">−$'+fmt(gastos[i].monto)+'</td></tr>';
-    }
-    gastosHTML+='<tr><td colspan="2" style="padding:7px 8px;font-weight:700">Total gastos</td><td style="padding:7px 8px;text-align:right;font-family:monospace;font-weight:700;color:#c0392b">−$'+fmt(totalGastosPrint)+'</td></tr></tbody></table></div>';
+  // ── TABLA CONTABLE FLUJO DE CAJA ──
+  var gastosFilas='';
+  for(var i=0;i<gastos.length;i++){
+    gastosFilas+='<tr>'
+      +'<td style="padding:6px 10px;color:#5c5a54">'+gastos[i].hora+'</td>'
+      +'<td style="padding:6px 10px">'+gastos[i].desc+'</td>'
+      +'<td style="padding:6px 10px;text-align:right;font-family:monospace;font-weight:700;color:#c0392b">− $'+fmt(gastos[i].monto)+'</td>'
+      +'</tr>';
   }
 
-  var html='<!DOCTYPE html><html><head><meta charset="UTF-8">'
-    +'<style>'
-    +'@page{size:A4;margin:18mm 16mm}'
-    +'@media print{.no-print{display:none}}'
-    +'*{box-sizing:border-box;margin:0;padding:0}'
-    +'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;font-size:10pt;color:#1a1916;background:#fff}'
-    +'.page{max-width:176mm;margin:0 auto}'
-    +'.hdr{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:12px;border-bottom:2px solid #1a1916;margin-bottom:16px}'
-    +'.brand{font-size:18pt;font-weight:700;letter-spacing:-.02em}'
-    +'.brand-sub{font-size:9pt;color:#5c5a54;margin-top:3px}'
-    +'.doc-meta{text-align:right;font-size:9pt;color:#5c5a54;line-height:1.7}'
-    +'.doc-title{font-size:13pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:16px}'
-    +'.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}'
-    +'.kpi{border:1px solid #e2e0d8;border-radius:6px;padding:12px}'
-    +'.kpi-l{font-size:8pt;color:#9c9a93;margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em}'
-    +'.kpi-v{font-size:18pt;font-weight:700;font-family:"Courier New",monospace}'
-    +'.stitle{font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#9c9a93;margin:18px 0 8px;padding-bottom:6px;border-bottom:1px solid #1a1916}'
-    +'table{width:100%;border-collapse:collapse}'    +'.hor-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px}'    +'.hor-card{border:1px solid #e2e0d8;border-radius:6px;overflow:hidden}'    +'.hor-head{background:#1a1916;color:#fff;padding:8px 11px;display:flex;justify-content:space-between;align-items:center}'    +'.hor-body{padding:9px 11px}'    +'.hor-row{display:flex;justify-content:space-between;font-size:9pt;padding:3px 0;border-bottom:1px solid #f0ede6}'    +'.hor-row:last-child{border-bottom:none}'    +'.hor-row .l{color:#5c5a54}.hor-row .v{font-family:monospace;font-weight:600}'    +'.hor-row .v.g{color:#1a6b3a}.hor-row .v.b{color:#1a4b8b}'
-    +'th{font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#9c9a93;padding:6px 10px;text-align:left;border-bottom:1px solid #1a1916}'
-    +'td{padding:7px 10px;border-bottom:1px solid #e2e0d8;font-size:10pt}'
-    +'.tot-row td{background:#1a1916;color:#fff;font-weight:700;font-family:"Courier New",monospace;font-size:10pt}'
-    +'.firmas{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:28px}'
-    +'.firma{border:1px solid #e2e0d8;border-radius:6px;padding:12px}'
-    +'.firma-name{font-weight:700;font-size:11pt;margin-bottom:4px}'
-    +'.firma-det{font-size:9pt;color:#5c5a54;margin-bottom:20px;line-height:1.6}'
-    +'.firma-line{border-bottom:1px solid #1a1916;height:28px;margin-bottom:4px}'
-    +'.firma-lbl{font-size:8pt;color:#9c9a93}'
-    +'.footer{margin-top:20px;padding-top:8px;border-top:1px solid #e2e0d8;display:flex;justify-content:space-between;font-size:8pt;color:#9c9a93}'
-    +'</style></head><body>'
-    +'<button class="no-print" onclick="window.print()" style="position:fixed;top:16px;right:16px;padding:10px 22px;background:#1a1916;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;z-index:100">Imprimir / Guardar PDF</button>'
-    +'<div class="page">'
-    +'<div class="hdr">'
-    +'<div><div class="brand">Salon Men Saúl Fino</div><div class="brand-sub">Galería Santiago Centro · Local 222 · Línea 1 Metro</div></div>'
-    +'<div class="doc-meta"><strong>Cierre de Caja</strong><br>'+fecha+'<br>'+hora+'</div>'
-    +'</div>'
-    +'<div class="doc-title">Cierre de jornada · '+fecha+'</div>'
-    +'<div class="kpis">'
-    +'<div class="kpi"><div class="kpi-l">Facturación total</div><div class="kpi-v" style="color:#8b5e00">$'+fmt(totalFact)+'</div></div>'
-    +'<div class="kpi"><div class="kpi-l">Para el negocio</div><div class="kpi-v" style="color:#1a6b3a">$'+fmt(negocioTotal)+'</div></div>'
-    +'<div class="kpi"><div class="kpi-l">Pago barberos</div><div class="kpi-v" style="color:#1a4b8b">$'+fmt(totalCorresponde)+'</div></div>'
-    +'<div class="kpi"><div class="kpi-l">Utilidad neta</div><div class="kpi-v" style="color:'+(utilidad>=0?'#1a6b3a':'#c0392b')+'">$'+fmt(utilidad)+'</div></div>'
-    +'</div>'
-    +'<div class="stitle">Cobros del día</div>'
-    +'<table><thead><tr><th>Canal</th><th>Servicios</th><th style="text-align:right">Monto bruto</th></tr></thead><tbody>'
-    +'<tr><td>💵 Efectivo</td><td>'+cntE+' servicios</td><td style="text-align:right;font-family:monospace;font-weight:600">$'+fmt(totE)+'</td></tr>'
-    +'<tr><td>💳 POS Mercado Pago (débito)</td><td>'+cntD+' servicios</td><td style="text-align:right;font-family:monospace;font-weight:600">$'+fmt(totD)+'</td></tr>'
-    +'<tr><td>📲 Transferencia</td><td>'+cntT+' servicios</td><td style="text-align:right;font-family:monospace;font-weight:600">$'+fmt(totT)+'</td></tr>'
-    +'<tr class="tot-row"><td colspan="2">TOTAL FACTURADO</td><td style="text-align:right">$'+fmt(totalFact)+'</td></tr>'
-    +'</tbody></table>'
-    +'<div class="stitle">Liquidación de barberos</div>'
-    +'<table><thead><tr><th>Barbero</th><th style="text-align:right">Le corresponde</th><th style="text-align:right">Pagado efectivo</th><th style="text-align:right">Pagado transf.</th><th style="text-align:right">Pendiente</th></tr></thead>'
-    +'<tbody>'+bbRows
-    +'<tr class="tot-row"><td>TOTALES</td><td style="text-align:right">$'+fmt(totalCorresponde)+'</td><td style="text-align:right">$'+fmt(totalPagoEf)+'</td><td style="text-align:right">$'+fmt(totalPagoTr)+'</td><td style="text-align:right">'+(totalPend===0?'✓ Al día':'$'+fmt(totalPend)+' pendiente')+'</td></tr>'
-    +'</tbody></table>'
-    +gastosHTML
-    +'<div class="stitle">Resumen de caja efectivo</div>'
-    +'<table><tbody>'
-    +'<tr><td>Base inicial del día</td><td style="text-align:right;font-family:monospace">$'+fmt(BASE_CAJA)+'</td></tr>'
-    +'<tr><td>+ Cobros en efectivo</td><td style="text-align:right;font-family:monospace">$'+fmt(totE)+'</td></tr>'
-    +'<tr><td>− Pagos efectivo a barberos</td><td style="text-align:right;font-family:monospace">−$'+fmt(totalPagoEf)+'</td></tr>'
-    +(totalGastosPrint>0?'<tr><td>− Gastos del día</td><td style="text-align:right;font-family:monospace">−$'+fmt(totalGastosPrint)+'</td></tr>':'')
-    +'<tr><td>Total físico en caja</td><td style="text-align:right;font-family:monospace">$'+fmt(cajaFinal)+'</td></tr>'
-    +'<tr><td style="color:#9c9a93">Base que queda en caja</td><td style="text-align:right;font-family:monospace;color:#9c9a93">$'+fmt(BASE_CAJA)+'</td></tr>'
-    +'<tr class="tot-row"><td>🏦 A DEPOSITAR HOY</td><td style="text-align:right">$'+fmt(cajaFinal-BASE_CAJA)+'</td></tr>'
-    +'</tbody></table>'
-    +(totalPend>0?'<div style="margin-top:10px;background:#fef9e7;border:1px solid #e8d08a;border-radius:6px;padding:10px 14px;font-size:10pt;color:#8b5e00">⚠ Quedan <strong>$'+fmt(totalPend)+'</strong> por transferir a barberos.</div>':'<div style="margin-top:10px;background:#e6f4ea;border:1px solid #c0dd97;border-radius:6px;padding:10px 14px;font-size:10pt;color:#1a6b3a">✓ Todos los barberos fueron pagados.</div>')
-  html+=''
-    +'<div class="footer">'
-    +'<span>Salon Men Saúl Fino · Local 222 · Galería Santiago Centro</span>'
-    +'<span>Documento interno · Generado '+fecha+' '+hora+'</span>'
-    +'</div>'
-    +'</div></body></html>';
+  // Descripción del saldo final
+  var saldoDescripcion='';
+  if(saldoDepositar>0){
+    saldoDescripcion='<div style="background:#e8f5e9;border:1px solid #4caf50;border-radius:6px;padding:12px 16px;margin-top:12px">'
+      +'<span style="font-weight:700;color:#1a6b3a;font-size:12pt">✓ Depositar $'+fmt(saldoDepositar)+'</span>'
+      +'<div style="font-size:10pt;color:#2e7d32;margin-top:4px">Retire del cajón el excedente sobre la base y deposítelo o entrégueselo al administrador.</div>'
+      +'</div>';
+  } else if(saldoDepositar<0){
+    saldoDescripcion='<div style="background:#fde8e8;border:1px solid #e53935;border-radius:6px;padding:12px 16px;margin-top:12px">'
+      +'<span style="font-weight:700;color:#c0392b;font-size:12pt">⚠ Reponer $'+fmt(Math.abs(saldoDepositar))+'</span>'
+      +'<div style="font-size:10pt;color:#b71c1c;margin-top:4px">Los egresos superaron los ingresos en efectivo. Se debe reponer este monto para mantener la base.</div>'
+      +'</div>';
+  } else {
+    saldoDescripcion='<div style="background:#fff8e1;border:1px solid #ffc107;border-radius:6px;padding:12px 16px;margin-top:12px">'
+      +'<span style="font-weight:700;color:#8b5e00;font-size:12pt">= Caja en equilibrio</span>'
+      +'<div style="font-size:10pt;color:#5c5a54;margin-top:4px">El saldo en caja coincide exactamente con la base inicial.</div>'
+      +'</div>';
+  }
 
-  // Nombre de archivo con fecha
-  var diasES=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
-  var mesesES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-  var mesesMAY=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
-  var ahora=new Date();
-  var dia=String(ahora.getDate()).padStart(2,'0');
-  var mes=mesesMAY[ahora.getMonth()];
-  var anio=ahora.getFullYear();
-  var diaSemana=diasES[ahora.getDay()];
-  var nombreArchivo=diaSemana+'_'+dia+mes+anio;
+  var w=window.open('','_blank');
+  w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8">');
+  w.document.write('<style>');
+  w.document.write('@page{size:legal;margin:14mm 14mm}'); // Hoja oficio (legal)
+  w.document.write('@media print{.no-print{display:none}body{font-size:9.5pt}}');
+  w.document.write('*{box-sizing:border-box;margin:0;padding:0}');
+  w.document.write('body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;font-size:10pt;color:#1a1916;background:#fff}');
+  w.document.write('.page{max-width:190mm;margin:0 auto}');
+  w.document.write('.hdr{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:10px;border-bottom:2px solid #1a1916;margin-bottom:14px}');
+  w.document.write('.brand{font-size:16pt;font-weight:700}.brand-sub{font-size:8pt;color:#5c5a54;margin-top:2px}');
+  w.document.write('.doc-meta{text-align:right;font-size:8.5pt;color:#5c5a54;line-height:1.6}');
+  w.document.write('.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}');
+  w.document.write('.kpi{border:1px solid #e2e0d8;border-radius:5px;padding:10px}');
+  w.document.write('.kpi-l{font-size:7.5pt;color:#9c9a93;margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em}');
+  w.document.write('.kpi-v{font-size:16pt;font-weight:700;font-family:"Courier New",monospace}');
+  w.document.write('.stitle{font-size:8.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#9c9a93;margin:14px 0 7px;padding-bottom:5px;border-bottom:1px solid #1a1916}');
+  w.document.write('table{width:100%;border-collapse:collapse;font-size:9.5pt}');
+  w.document.write('th{font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#9c9a93;padding:5px 8px;border-bottom:1px solid #1a1916;text-align:left}');
+  w.document.write('td{padding:6px 8px;border-bottom:1px solid #e2e0d8}');
+  w.document.write('.tot-row td{background:#1a1916;color:#fff;font-weight:700;font-family:"Courier New",monospace}');
+  // ── ESTILOS TABLA CONTABLE ──
+  w.document.write('.conta{width:100%;border-collapse:collapse;margin-bottom:6px}');
+  w.document.write('.conta td{padding:5px 10px;font-size:10pt;border-bottom:1px solid #f0ede6}');
+  w.document.write('.conta .ing{color:#1a6b3a;font-weight:700;font-family:monospace}');
+  w.document.write('.conta .egr{color:#c0392b;font-weight:700;font-family:monospace}');
+  w.document.write('.conta .base{color:#5c5a54;font-family:monospace;font-weight:600}');
+  w.document.write('.conta .sep{border-top:2px solid #1a1916;border-bottom:none}');
+  w.document.write('.conta .saldo-pos{background:#e8f5e9;color:#1a6b3a;font-weight:700;font-size:11pt;font-family:monospace}');
+  w.document.write('.conta .saldo-neg{background:#fde8e8;color:#c0392b;font-weight:700;font-size:11pt;font-family:monospace}');
+  w.document.write('.firmas{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:20px}');
+  w.document.write('.firma{border:1px solid #e2e0d8;border-radius:5px;padding:10px}');
+  w.document.write('.firma-name{font-weight:700;font-size:10pt;margin-bottom:3px}');
+  w.document.write('.firma-det{font-size:8.5pt;color:#5c5a54;margin-bottom:16px;line-height:1.5}');
+  w.document.write('.firma-line{border-bottom:1px solid #1a1916;height:24px;margin-bottom:3px}');
+  w.document.write('.firma-lbl{font-size:7.5pt;color:#9c9a93}');
+  w.document.write('.footer{margin-top:14px;padding-top:7px;border-top:1px solid #e2e0d8;display:flex;justify-content:space-between;font-size:7.5pt;color:#9c9a93}');
+  w.document.write('.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}');
+  w.document.write('</style></head><body>');
+  w.document.write('<button class="no-print" onclick="window.print()" style="position:fixed;top:16px;right:16px;padding:9px 20px;background:#1a1916;color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;z-index:100">Imprimir / Guardar PDF</button>');
+  w.document.write('<div class="page">');
 
-  // Agregar meta title y botón de descarga con nombre correcto al HTML
-  html=html.replace('<title>Cierre Caja</title>','<title>'+nombreArchivo+'</title>');
+  // ── ENCABEZADO ──
+  w.document.write('<div class="hdr">');
+  w.document.write('<div><div class="brand">Salon Men Saúl Fino</div><div class="brand-sub">Galería Santiago Centro · Local 222 · Línea 1 Metro</div></div>');
+  w.document.write('<div class="doc-meta"><strong>Cierre de Caja</strong><br>'+fecha+'<br>'+hora+'</div>');
+  w.document.write('</div>');
 
-  html=html.replace('</head>','<title>'+nombreArchivo+'</title></head>');
+  // ── KPIs ──
+  w.document.write('<div class="kpis">');
+  w.document.write('<div class="kpi"><div class="kpi-l">Facturación total</div><div class="kpi-v" style="color:#8b5e00">$'+fmt(totalFact)+'</div></div>');
+  w.document.write('<div class="kpi"><div class="kpi-l">Para el negocio</div><div class="kpi-v" style="color:#1a6b3a">$'+fmt(negocioTotal)+'</div></div>');
+  w.document.write('<div class="kpi"><div class="kpi-l">Pago barberos</div><div class="kpi-v" style="color:#1a4b8b">$'+fmt(totalCorresponde)+'</div></div>');
+  w.document.write('<div class="kpi"><div class="kpi-l">Utilidad neta</div><div class="kpi-v" style="color:'+(utilidad>=0?'#1a6b3a':'#c0392b')+'">$'+fmt(utilidad)+'</div></div>');
+  w.document.write('</div>');
 
-  var win=window.open('','_blank','width=900,height=700,toolbar=0,menubar=0,scrollbars=1');
-  if(!win){ toast('Activa los pop-ups para abrir el A4'); return; }
-  win.document.write(html);
-  win.document.close();
-  // El título de la ventana define el nombre del PDF al guardar
-  setTimeout(function(){ try{ win.document.title = nombreArchivo; }catch(e){} }, 300);
+  // ── DOS COLUMNAS: servicios + tabla contable ──
+  w.document.write('<div class="two-col">');
+
+  // Columna izquierda: cobros y servicios
+  w.document.write('<div>');
+  w.document.write('<div class="stitle">Cobros del día</div>');
+  w.document.write('<table><thead><tr><th>Canal</th><th>Svc</th><th style="text-align:right">Monto</th></tr></thead><tbody>');
+  w.document.write('<tr><td>💵 Efectivo</td><td>'+cntE+'</td><td style="text-align:right;font-family:monospace;color:#1a6b3a;font-weight:700">$'+fmt(totE)+'</td></tr>');
+  w.document.write('<tr><td>💳 Débito</td><td>'+cntD+'</td><td style="text-align:right;font-family:monospace;color:#1a4b8b;font-weight:700">$'+fmt(totD)+'</td></tr>');
+  w.document.write('<tr><td>📲 Transferencia</td><td>'+cntT+'</td><td style="text-align:right;font-family:monospace;color:#8b5e00;font-weight:700">$'+fmt(totT)+'</td></tr>');
+  w.document.write('<tr class="tot-row"><td colspan="2">TOTAL</td><td style="text-align:right">$'+fmt(totalFact)+'</td></tr>');
+  w.document.write('</tbody></table>');
+
+  // Liquidación barberos
+  w.document.write('<div class="stitle">Liquidación barberos</div>');
+  w.document.write('<table><thead><tr><th>Barbero</th><th style="text-align:right">Corresponde</th><th style="text-align:right">Ef.</th><th style="text-align:right">Transf.</th><th style="text-align:right">Estado</th></tr></thead><tbody>');
+  w.document.write(bbRows);
+  w.document.write('<tr class="tot-row"><td>TOTAL</td><td style="text-align:right">$'+fmt(totalCorresponde)+'</td><td style="text-align:right">$'+fmt(totalPagoEf)+'</td><td style="text-align:right">$'+fmt(totalPagoTr)+'</td><td style="text-align:right">'+(totalPend===0?'✓ OK':'$'+fmt(totalPend)+' pend.')+'</td></tr>');
+  w.document.write('</tbody></table>');
+  w.document.write('</div>'); // fin col izq
+
+  // Columna derecha: tabla contable flujo de caja
+  w.document.write('<div>');
+  w.document.write('<div class="stitle">Flujo de caja — Tabla contable</div>');
+  w.document.write('<table class="conta">');
+  w.document.write('<tbody>');
+  // Base inicial
+  w.document.write('<tr><td>Base inicial en caja</td><td class="base" style="text-align:right">$'+fmt(BASE_CAJA)+'</td></tr>');
+  w.document.write('<tr><td colspan="2" style="padding:3px 10px;font-size:8pt;color:#9c9a93;background:#fafaf8">INGRESOS</td></tr>');
+  // Ingresos
+  if(totE>0) w.document.write('<tr><td>+ Efectivo ('+cntE+' svc)</td><td class="ing" style="text-align:right">+ $'+fmt(totE)+'</td></tr>');
+  if(totD>0) w.document.write('<tr><td>+ Débito ('+cntD+' svc)</td><td class="ing" style="text-align:right">+ $'+fmt(totD)+'</td></tr>');
+  if(totT>0) w.document.write('<tr><td>+ Transferencia ('+cntT+' svc)</td><td class="ing" style="text-align:right">+ $'+fmt(totT)+'</td></tr>');
+  w.document.write('<tr><td colspan="2" style="padding:3px 10px;font-size:8pt;color:#9c9a93;background:#fafaf8">EGRESOS</td></tr>');
+  // Egresos — barberos
+  w.document.write('<tr><td>− Pago barberos</td><td class="egr" style="text-align:right">− $'+fmt(totalCorresponde)+'</td></tr>');
+  // Egresos — gastos
+  for(var i=0;i<gastos.length;i++){
+    w.document.write('<tr><td>− '+gastos[i].desc+'</td><td class="egr" style="text-align:right">− $'+fmt(gastos[i].monto)+'</td></tr>');
+  }
+  // Separador
+  w.document.write('<tr><td colspan="2" class="sep"></td></tr>');
+  // Saldo final
+  var saldoCls = cajaFinal>=BASE_CAJA?'saldo-pos':'saldo-neg';
+  w.document.write('<tr><td style="font-weight:700">Saldo en caja</td><td class="'+saldoCls+'" style="text-align:right">$'+fmt(cajaFinal)+'</td></tr>');
+  w.document.write('<tr><td style="font-size:9pt;color:#5c5a54">Base requerida</td><td style="text-align:right;font-family:monospace;color:#5c5a54;font-size:9pt">$'+fmt(BASE_CAJA)+'</td></tr>');
+  var depCls = saldoDepositar>=0?'saldo-pos':'saldo-neg';
+  var depLabel = saldoDepositar>=0?'A depositar / retirar':'A reponer';
+  w.document.write('<tr><td style="font-weight:700;font-size:10.5pt">'+depLabel+'</td><td class="'+depCls+'" style="text-align:right;font-size:11pt">'+(saldoDepositar>=0?'':'− ')+'$'+fmt(Math.abs(saldoDepositar))+'</td></tr>');
+  w.document.write('</tbody></table>');
+  w.document.write(saldoDescripcion);
+  w.document.write('</div>'); // fin col der
+  w.document.write('</div>'); // fin two-col
+
+  // ── SERVICIOS DEL DÍA ──
+  w.document.write('<div class="stitle">Detalle de servicios</div>');
+  w.document.write('<table><thead><tr><th>Hora</th><th>Barbero</th><th>Servicio</th><th>Pago</th><th style="text-align:right">Precio</th><th style="text-align:right">BB</th></tr></thead><tbody>');
+  var sorted=[].concat(regs).sort(function(a,b){return (a.hora||'').localeCompare(b.hora||'');});
+  for(var i=0;i<sorted.length;i++){
+    var r=sorted[i];
+    var pagoColor=r.pago==='efectivo'?'#1a6b3a':r.pago==='debito'?'#1a4b8b':'#8b5e00';
+    w.document.write('<tr>');
+    w.document.write('<td style="color:#9c9a93">'+(r.hora||'--')+'</td>');
+    w.document.write('<td style="font-weight:600">'+r.bnom+'</td>');
+    w.document.write('<td>'+r.snom+'</td>');
+    w.document.write('<td style="color:'+pagoColor+';font-weight:600">'+r.pago.charAt(0).toUpperCase()+r.pago.slice(1)+'</td>');
+    w.document.write('<td style="text-align:right;font-family:monospace;font-weight:600">$'+fmt(r.precio)+'</td>');
+    w.document.write('<td style="text-align:right;font-family:monospace;color:#1a4b8b">$'+fmt(r.bb+(r.propina||0))+'</td>');
+    w.document.write('</tr>');
+  }
+  w.document.write('<tr class="tot-row"><td colspan="4">TOTAL</td><td style="text-align:right">$'+fmt(totalFact)+'</td><td style="text-align:right">$'+fmt(totalCorresponde)+'</td></tr>');
+  w.document.write('</tbody></table>');
+
+  // ── FIRMAS ──
+  w.document.write('<div class="firmas">');
+  for(var i=0;i<BB.length;i++){
+    var b=BB[i];
+    var br=regs.filter(function(r){return r.bid===b.id;});
+    var cor=0; for(var j=0;j<br.length;j++) cor+=br[j].bb+(br[j].propina||0);
+    w.document.write('<div class="firma"><div class="firma-name">'+b.nombre+'</div>');
+    w.document.write('<div class="firma-det">'+br.length+' servicios · $'+fmt(cor)+'</div>');
+    w.document.write('<div class="firma-line"></div><div class="firma-lbl">Firma y RUT</div></div>');
+  }
+  w.document.write('</div>');
+
+  w.document.write('<div class="footer"><span>Salon Men Saúl Fino · Local 222 · Galería Santiago Centro</span><span>Generado: '+fecha+' '+hora+' · BarberPilot</span></div>');
+  w.document.write('</div></body></html>');
+  w.document.close();
+  setTimeout(function(){ w.print(); }, 800);
 }
 
-// ═══ CONTROL DE HORARIOS ════════════════════════════════════
-var horarios = {}; // {fecha: [{bid, bnom, entrada, salida}]}
 
 function cargarHorarios(){
   try{
