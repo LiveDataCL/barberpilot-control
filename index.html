@@ -2864,20 +2864,12 @@ function printCajaA4(){
   var lblDep = saldoEfectivo>=0?'Retirar y depositar':'Reponer caja';
   w.document.write('<tr><td style="font-weight:700;font-size:10.5pt">'+lblDep+'</td><td class="'+clsDep+'" style="text-align:right;font-size:11pt">'+(saldoEfectivo<0?'− ':'')+'$'+fmt(Math.abs(saldoEfectivo))+'</td></tr>');
 
-  // ── DÉBITO ────────────────────────────────────────
-  if(totD>0){
-    w.document.write('<tr><td colspan="2" style="padding:4px 10px;font-size:8pt;font-weight:700;color:#1a4b8b;background:#f0f4ff;letter-spacing:.06em;margin-top:6px">💳 DÉBITO (pagos con tarjeta)</td></tr>');
-    w.document.write('<tr><td>Cobros por débito ('+cntD+' svc)</td><td style="text-align:right;font-family:monospace;color:#1a4b8b;font-weight:700">$'+fmt(totD)+'</td></tr>');
-    w.document.write('<tr><td style="font-size:9pt;color:#5c5a54">Comisión terminal (~7%)</td><td style="text-align:right;font-family:monospace;color:#c0392b">− $'+fmt(Math.round(totD*0.07))+'</td></tr>');
-    w.document.write('<tr><td style="font-weight:600">Neto a depositar</td><td style="text-align:right;font-family:monospace;font-weight:700;color:#1a4b8b">$'+fmt(totD-Math.round(totD*0.07))+'</td></tr>');
-  }
-
-  // ── TRANSFERENCIAS ────────────────────────────────
-  if(totT>0){
-    w.document.write('<tr><td colspan="2" style="padding:4px 10px;font-size:8pt;font-weight:700;color:#8b5e00;background:#fffbf0;letter-spacing:.06em">📲 TRANSFERENCIAS</td></tr>');
-    w.document.write('<tr><td>Cobros por transferencia ('+cntT+' svc)</td><td style="text-align:right;font-family:monospace;color:#8b5e00;font-weight:700">$'+fmt(totT)+'</td></tr>');
-    var pendTransf = totT - totalPagoTr;
-    if(pendTransf>0) w.document.write('<tr><td style="color:#c0392b">Pendiente por pagar barberos</td><td style="text-align:right;font-family:monospace;color:#c0392b">− $'+fmt(pendTransf)+'</td></tr>');
+  // ── RESUMEN ELECTRÓNICO (solo informativo, no afecta caja) ──
+  if(totD>0 || totT>0){
+    w.document.write('<tr><td colspan="2" style="padding:4px 10px;font-size:8pt;font-weight:700;color:#5c5a54;background:#f5f4f0;letter-spacing:.06em">PAGOS ELECTRÓNICOS (no afectan caja física)</td></tr>');
+    if(totD>0) w.document.write('<tr><td>💳 Débito ('+cntD+' svc)</td><td style="text-align:right;font-family:monospace;color:#1a4b8b;font-weight:600">$'+fmt(totD)+'</td></tr>');
+    if(totT>0) w.document.write('<tr><td>📲 Transferencia ('+cntT+' svc)</td><td style="text-align:right;font-family:monospace;color:#8b5e00;font-weight:600">$'+fmt(totT)+'</td></tr>');
+    w.document.write('<tr><td style="font-weight:600">Total electrónico</td><td style="text-align:right;font-family:monospace;font-weight:700">$'+fmt(totD+totT)+'</td></tr>');
   }
 
   w.document.write('</tbody></table>');
