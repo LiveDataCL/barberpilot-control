@@ -703,7 +703,7 @@ function cargarDesdeApi(){
     .catch(function(){});
 }
 
-function cargarRegistrosDia(){
+function cargarRegistrosDia(callback){
   if(!API_URL) return;
   fetch(API_URL + '/registros/dia?fecha=' + fechaHoy)
     .then(function(r){ return r.json(); })
@@ -1717,7 +1717,16 @@ function showTab(id,el){
   if(id==='pSum')renderSum();
   if(id==='pCierre')renderCierre();
   if(id==='pCaja')renderCaja();
-  if(id==='pHorarios'){renderHorarios();cargarRegistrosDia();}
+  if(id==='pHorarios'){
+    // Primero cargar registros del día, luego renderizar horarios
+    if(API_URL){
+      var hc = document.getElementById('horariosContent');
+      if(hc) hc.innerHTML='<div class="empty"><div class="empty-ico">⟳</div><div>Cargando...</div></div>';
+      cargarRegistrosDia(function(){ renderHorarios(); });
+    } else {
+      renderHorarios();
+    }
+  }
   if(id==='pHistorico')renderIngresarHistorico();
   if(id==='pClientes'){
     cargarClientes();
@@ -3740,15 +3749,18 @@ function sincronizarMesDesdeApi(periodo, callback){
   Promise.all(promesas).then(function(results){
     results.forEach(function(json){
       if(!json.ok || !json.registros || !json.registros.length) return;
-      var fecha = json.fecha;
       var recs  = json.registros.map(function(r){
         return {
           id:r.id, bid:r.bid, bnom:r.bnom, sid:r.sid||'custom', snom:r.snom,
           precio:parseInt(r.precio), pago:r.pago, com:parseFloat(r.com),
           bb:parseInt(r.bb), neg:parseInt(r.neg), propina:parseInt(r.propina||0),
-          fecha:r.fecha_display||fecha, hora:r.hora||'--', ts:parseInt(r.ts||0)
+          fecha:r.fecha||r.fecha_display||'', hora:r.hora||'--', ts:parseInt(r.ts||0)
         };
       });
+      if(!recs.length) return;
+      // Obtener fecha del primer registro válido
+      var fecha = recs[0].fecha ? recs[0].fecha.slice(0,10) : '';
+      if(!fecha || fecha.length !== 10) return;
       try{
         var key = 'sfsf_'+fecha;
         // Fusionar con lo que ya haya en localStorage
@@ -3764,15 +3776,16 @@ function sincronizarMesDesdeApi(periodo, callback){
 
 function renderKpis(){
   cargarKpiEvals();
-  // Sincronizar mes desde Railway si hay API_URL (para que KPIs sean del mes completo)
-  if(API_URL && !window._kpiSynced){
-    window._kpiSynced = true;
+  var c = document.getElementById('kpisContent');
+  if(c) c.innerHTML='<div class="empty"><div class="empty-ico">⟳</div><div>Cargando KPIs desde Railway...</div></div>';
+  if(API_URL){
+    // Siempre re-sincronizar al abrir la pestaña
     sincronizarMesDesdeApi(kpiPeriodo, function(){
       renderKpisInner();
     });
-    return; // renderKpisInner se llama en el callback
+  } else {
+    renderKpisInner();
   }
-  renderKpisInner();
 }
 
 function renderKpisInner(){
