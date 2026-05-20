@@ -574,6 +574,29 @@ var COM={efectivo:.5,debito:.43,transferencia:.5};
 var API_URL    = 'https://barberpilot-api-production.up.railway.app'; // Railway — preconfigurado
 var SHEETS_URL = ''; // legacy — ya no se usa
 
+function enviarASheets(r){
+  if(!SHEETS_URL) return;
+  fetch(SHEETS_URL, {
+    method: 'POST',
+    mode:   'no-cors',
+    headers:{ 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action:    'registrar',
+      id:        r.id,
+      fecha:     r.fecha || fechaHoy,
+      hora:      r.hora  || '--',
+      bid:       r.bid,
+      barbero:   r.bnom,
+      servicio:  r.snom,
+      precio:    r.precio,
+      pago:      r.pago,
+      bb:        r.bb,
+      neg:       r.neg,
+      propina:   r.propina || 0
+    })
+  }).catch(function(e){ console.warn('Sheets error:', e.message); });
+}
+
 function enviarAApi(r){
   // Guardar siempre en IDB primero (offline-first)
   idbPut(Object.assign({},r)).then(function(){ actualizarBadgeSync(); });
@@ -647,11 +670,54 @@ function sincronizarGastoSheets(g, accion) {
 // ═══ ESTADO ══════════════════════════════════════════════
 var sel={b:null,s:null,p:null,propina:0,propinaTipo:'0'};
 var regs=[];
+var regsMes=[];
+
 var filtro='todos';
 var fechaHoy=fechaStr(new Date());
 
 // ═══ STORAGE (localStorage + descarga JSON) ══════════════
 var LSKEY='sfsf_'+fechaHoy;
+
+// ── CARGA MES EN MEMORIA (reemplaza sincronizarMesDesdeApi) ──
+function cargarMesEnMemoria(periodo, callback){
+  if(!API_URL){ if(callback) callback(); return; }
+  var desde = periodo + '-01';
+  var dias  = [];
+  var cur   = new Date(desde + 'T12:00:00');
+  var fin   = new Date(fechaHoy + 'T12:00:00');
+  while(cur <= fin){
+    var d = cur.toISOString().slice(0,10);
+    if(d.substring(0,7) === periodo) dias.push(d);
+    cur.setDate(cur.getDate()+1);
+  }
+  Promise.all(dias.map(function(fecha){
+    return fetch(API_URL+'/registros/dia?fecha='+fecha)
+      .then(function(r){ return r.json(); })
+      .catch(function(){ return {ok:false,registros:[]}; });
+  })).then(function(results){
+    var todos = [];
+    results.forEach(function(json){
+      if(!json.ok || !json.registros) return;
+      json.registros.forEach(function(r){
+        todos.push({
+          id:r.id, bid:r.bid, bnom:r.bnom, snom:r.snom,
+          precio:parseInt(r.precio)||0, pago:r.pago,
+          bb:parseInt(r.bb)||0, neg:parseInt(r.neg)||0,
+          propina:parseInt(r.propina||0),
+          fecha:r.fecha||r.fecha_display||'',
+          hora:r.hora||'--'
+        });
+      });
+    });
+    regsMes = todos;
+    console.log('regsMes cargado:', todos.length, 'registros para', periodo);
+    if(callback) callback();
+  }).catch(function(e){
+    console.warn('cargarMesEnMemoria error:', e);
+    if(callback) callback();
+  });
+}
+
 
 function fechaStr(d){
   return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
@@ -705,7 +771,9 @@ function cargarDesdeApi(){
 
 function cargarHorariosDesdeRailway(){
   var hc = document.getElementById('horariosContent');
-  if(hc) hc.innerHTML = '<div class="empty"><div class="empty-ico">⟳</div><div>Cargando...</div></div>';
+  if(!hc) return;
+  hc.innerHTML = '<div class="empty"><div class="empty-ico">⟳</div>'
+    + '<div>Cargando registros de ' + fechaHoy + '...</div></div>';
   if(!API_URL){ renderHorarios(); return; }
   fetch(API_URL + '/registros/dia?fecha=' + fechaHoy)
     .then(function(r){ return r.json(); })
@@ -1351,8 +1419,8 @@ function registrar(){
   r.acumFact = acumFact;
   regs.push(r);          // Agregar inmediatamente a la lista local
   guardar();
-  enviarASheets(r);      // legacy
-  enviarAApi(r);         // Railway + IDB offline-first
+  enviarASheets(r);      // Google Sheets backup automático
+  enviarAApi(r);         // Railway principal
   resetForm();
   renderAll();           // Render inmediato con el nuevo registro
   // Recargar desde Railway para confirmar sync (diferido)
@@ -2065,56 +2133,11 @@ function generarHTMLA4(fecha, recs){
     h+='</div>';
   }
 
-  // DETALLE COMPLETO
-  h+='<div class="section-title">Detalle de servicios</div>'
-    +'<table class="tbl">'
-    +'<thead><tr>'
-    +'<th>#</th><th>Hora</th><th>Barbero</th><th>Servicio</th><th>Pago</th>'
-    +'<th style="text-align:right">Monto</th><th style="text-align:right">Barbero</th><th style="text-align:right">Negocio</th>'
-    +'</tr></thead><tbody>';
+  
+  // DETALLE ELIMINADO (ver solo en sistema de control)
+  
 
-  for(var i=0;i<recs.length;i++){
-    var r=recs[i];
-    h+='<tr>'
-      +'<td style="color:#9c9a93">'+(recs.length-i)+'</td>'
-      +'<td style="font-family:monospace">'+r.hora+'</td>'
-      +'<td style="font-weight:500">'+r.bnom+'</td>'
-      +'<td>'+r.snom+'</td>'
-      +'<td style="text-transform:capitalize">'+r.pago+'</td>'
-      +'<td style="text-align:right;font-family:monospace;font-weight:600">$'+fmt(r.precio)+'</td>'
-      +'<td style="text-align:right;font-family:monospace;font-weight:600;color:#1a6b3a">$'+fmt(r.bb+(r.propina||0))+(r.propina>0?'<br><span style="font-size:10px;color:#8b5e00">+prop $'+fmt(r.propina)+'</span>':'')+'</td>'
-      +'<td style="text-align:right;font-family:monospace;color:#1a4b8b">$'+fmt(r.neg)+'</td>'
-      +'</tr>';
-  }
-  h+='<tr class="tot-row">'
-    +'<td colspan="5">TOTALES</td>'
-    +'<td style="text-align:right">$'+fmt(tot)+'</td>'
-    +'<td style="text-align:right;color:#6ee8a2">$'+fmt(tBB)+'</td>'
-    +'<td style="text-align:right;color:#8ab8f0">$'+fmt(tNeg)+'</td>'
-    +'</tr>'
-    +'</tbody></table>';
-
-  // FIRMAS
-  h+='<div class="section-title">Conformidad de pago</div>'
-    +'<div class="firma-grid">';
-  for(var i=0;i<BB.length;i++){
-    var b=BB[i],br=[],bBB2=0;
-    for(var j=0;j<recs.length;j++)if(recs[j].bid===b.id)br.push(recs[j]);
-    for(var j=0;j<br.length;j++)bBB2+=br[j].bb;
-    h+='<div class="firma-box">'
-      +'<div class="firma-name">'+b.nombre+'</div>'
-      +'<div class="firma-monto">'+(br.length===0?'Sin servicios':br.length+' servicios · Recibe $'+fmt(bBB2))+'</div>'
-      +'<div class="firma-line"></div>'
-      +'<div class="firma-label">Firma · '+fecha+'</div>'
-      +'</div>';
-  }
-  h+='</div>';
-
-  // FOOTER
-  h+='<div class="footer"><span>Salon Men Saúl Fino · Local 222 · Galería Santiago Centro</span>'
-    +'<span>Documento interno · Confidencial</span></div>'
-    +'</div></body></html>';
-  return h;
+    return h;
 }
 
 function imprimirA4(){
@@ -2966,38 +2989,9 @@ function printCajaA4(){
   w.document.write('</div>'); // fin col der
   w.document.write('</div>'); // fin two-col
 
-  // ── SERVICIOS DEL DÍA ──
-  w.document.write('<div class="stitle">Detalle de servicios</div>');
-  w.document.write('<table><thead><tr><th>Hora</th><th>Barbero</th><th>Servicio</th><th>Pago</th><th style="text-align:right">Precio</th><th style="text-align:right">BB</th></tr></thead><tbody>');
-  var sorted=[].concat(regs).sort(function(a,b){return (a.hora||'').localeCompare(b.hora||'');});
-  for(var i=0;i<sorted.length;i++){
-    var r=sorted[i];
-    var pagoColor=r.pago==='efectivo'?'#1a6b3a':r.pago==='debito'?'#1a4b8b':'#8b5e00';
-    w.document.write('<tr>');
-    w.document.write('<td style="color:#9c9a93">'+(r.hora||'--')+'</td>');
-    w.document.write('<td style="font-weight:600">'+r.bnom+'</td>');
-    w.document.write('<td>'+r.snom+'</td>');
-    w.document.write('<td style="color:'+pagoColor+';font-weight:600">'+r.pago.charAt(0).toUpperCase()+r.pago.slice(1)+'</td>');
-    w.document.write('<td style="text-align:right;font-family:monospace;font-weight:600">$'+fmt(r.precio)+'</td>');
-    w.document.write('<td style="text-align:right;font-family:monospace;color:#1a4b8b">$'+fmt(r.bb+(r.propina||0))+'</td>');
-    w.document.write('</tr>');
-  }
-  w.document.write('<tr class="tot-row"><td colspan="4">TOTAL</td><td style="text-align:right">$'+fmt(totalFact)+'</td><td style="text-align:right">$'+fmt(totalCorresponde)+'</td></tr>');
-  w.document.write('</tbody></table>');
 
-  // ── FIRMAS ──
-  w.document.write('<div class="firmas">');
-  for(var i=0;i<BB.length;i++){
-    var b=BB[i];
-    var br=regs.filter(function(r){return r.bid===b.id;});
-    var cor=0; for(var j=0;j<br.length;j++) cor+=br[j].bb+(br[j].propina||0);
-    w.document.write('<div class="firma"><div class="firma-name">'+b.nombre+'</div>');
-    w.document.write('<div class="firma-det">'+br.length+' servicios · $'+fmt(cor)+'</div>');
-    w.document.write('<div class="firma-line"></div><div class="firma-lbl">Firma y RUT</div></div>');
-  }
-  w.document.write('</div>');
-
-  w.document.write('<div class="footer"><span>Salon Men Saúl Fino · Local 222 · Galería Santiago Centro</span><span>Generado: '+fecha+' '+hora+' · BarberPilot</span></div>');
+  
+    w.document.write('<div class="footer"><span>Salon Men Saúl Fino · Local 222 · Galería Santiago Centro</span><span>Generado: '+fecha+' '+hora+' · BarberPilot</span></div>');
   w.document.write('</div></body></html>');
   w.document.close();
   setTimeout(function(){ w.print(); }, 800);
@@ -3740,36 +3734,41 @@ function cargarKpiCuantiDesdeApi(periodo, callback){
 // Calcular cuantitativos directamente desde registros del localStorage/memoria
 function calcKpiCuantiLocal(bid, periodo){
   var todosRegs = [];
-  // Recoger todos los registros del período del localStorage
-  try{
-    for(var i=0; i<localStorage.length; i++){
-      var k = localStorage.key(i);
-      if(!k || k.indexOf('sfsf_') !== 0 || k.length !== 15) continue;
-      var fechaKey = k.replace('sfsf_','');
-      if(fechaKey.substring(0,7) !== periodo) continue;
-      var arr = JSON.parse(localStorage.getItem(k)||'[]');
-      arr.forEach(function(r){ if(r.bid===bid) todosRegs.push(r); });
+  // Usar regsMes si está cargado
+  if(regsMes.length > 0){
+    regsMes.forEach(function(r){
+      if(r.bid===bid && r.fecha && r.fecha.substring(0,7)===periodo) todosRegs.push(r);
+    });
+    // También regs[] del día actual
+    if(fechaHoy.substring(0,7)===periodo){
+      var ids={}; regsMes.forEach(function(r){ids[r.id]=1;});
+      regs.forEach(function(r){ if(r.bid===bid && !ids[r.id]) todosRegs.push(r); });
     }
-  }catch(e){}
-  // También registros en memoria del día actual
-  if(fechaHoy.substring(0,7)===periodo){
-    regs.forEach(function(r){ if(r.bid===bid) todosRegs.push(r); });
+  } else {
+    // Fallback localStorage
+    try{
+      for(var i=0;i<localStorage.length;i++){
+        var k=localStorage.key(i);
+        if(!k||k.indexOf('sfsf_')!==0||k.length!==15) continue;
+        if(k.replace('sfsf_','').substring(0,7)!==periodo) continue;
+        JSON.parse(localStorage.getItem(k)||'[]').forEach(function(r){if(r.bid===bid)todosRegs.push(r);});
+      }
+    }catch(e){}
+    if(fechaHoy.substring(0,7)===periodo) regs.forEach(function(r){if(r.bid===bid)todosRegs.push(r);});
   }
-  // Deduplicar por id
+  // Deduplicar
   var seen={}, uniq=[];
   todosRegs.forEach(function(r){if(!seen[r.id]){seen[r.id]=true;uniq.push(r);}});
-  todosRegs = uniq;
-
-  var n   = todosRegs.length;
-  var tot = todosRegs.reduce(function(a,r){return a+r.precio;},0);
-  var bb  = todosRegs.reduce(function(a,r){return a+r.bb+(r.propina||0);},0);
-  var tk  = n>0?Math.round(tot/n):0;
-  var prop= todosRegs.filter(function(r){return (r.propina||0)>0;}).length;
-  var propMonto = todosRegs.reduce(function(a,r){return a+(r.propina||0);},0);
-  var ups = todosRegs.filter(function(r){return r.precio>12000;}).length;
+  todosRegs=uniq;
+  var n=todosRegs.length;
+  var tot=todosRegs.reduce(function(a,r){return a+r.precio;},0);
+  var bb=todosRegs.reduce(function(a,r){return a+r.bb+(r.propina||0);},0);
+  var tk=n>0?Math.round(tot/n):0;
+  var prop=todosRegs.filter(function(r){return (r.propina||0)>0;}).length;
+  var propMonto=todosRegs.reduce(function(a,r){return a+(r.propina||0);},0);
+  var ups=todosRegs.filter(function(r){return r.precio>12000;}).length;
   return {n:n, tot:tot, bb:bb, tk:tk, propCnt:prop, propMonto:propMonto, upsCnt:ups};
 }
-
 function sincronizarMesDesdeApi(periodo, callback){
   // Descarga todos los registros del mes desde Railway y los guarda en localStorage
   if(!API_URL){ if(callback) callback(); return; }
@@ -3834,10 +3833,12 @@ function renderKpis(){
 
 function cargarKpisDesdeRailway(){
   var c = document.getElementById('kpisContent');
-  if(c) c.innerHTML = '<div class="empty"><div class="empty-ico">⟳</div><div>Descargando datos...</div></div>';
+  if(c) c.innerHTML = '<div class="empty"><div class="empty-ico">⟳</div>'
+    + '<div>Descargando ' + kpiPeriodo + '...</div></div>';
   cargarKpiEvals();
   if(!API_URL){ renderKpisInner(); return; }
-  sincronizarMesDesdeApi(kpiPeriodo, function(){
+  // Usar la nueva función que carga en memoria (sin localStorage)
+  cargarMesEnMemoria(kpiPeriodo, function(){
     renderKpisInner();
   });
 }
