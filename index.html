@@ -2699,17 +2699,19 @@ function printCajaA4(){
   var fecha = new Date().toLocaleDateString('es-CL');
   var hora  = pad(new Date().getHours())+':'+pad(new Date().getMinutes());
 
+  // Calcular totales
   var totE=0,totD=0,totT=0,cntE=0,cntD=0,cntT=0;
   for(var i=0;i<regs.length;i++){
     if(regs[i].pago==='efectivo'){totE+=regs[i].precio;cntE++;}
     else if(regs[i].pago==='debito'){totD+=regs[i].precio;cntD++;}
     else if(regs[i].pago==='transferencia'){totT+=regs[i].precio;cntT++;}
   }
-  var totalFact=totE+totD+totT;
-  var totalGastosPrint=0;
+  var totalFact = totE+totD+totT;
+  var totalGastosPrint = 0;
   for(var i=0;i<gastos.length;i++) totalGastosPrint+=gastos[i].monto;
 
-  var totalCorresponde=0,totalPagoEf=0,totalPagoTr=0,totalPend=0;
+  // Liquidación barberos
+  var totalCorresponde=0, totalPagoEf=0, totalPagoTr=0, totalPend=0;
   var bbRows='';
   for(var i=0;i<BB.length;i++){
     var b=BB[i];
@@ -2721,96 +2723,83 @@ function printCajaA4(){
     totalPagoEf+=liq.efectivo; totalPagoTr+=liq.transferencia; totalPend+=pend;
     var pendStyle=pend===0?'color:#1a6b3a':pend>0?'color:#c0392b':'color:#8b5e00';
     bbRows+='<tr>'
-      +'<td style="padding:7px 10px;font-weight:600">'+b.nombre+'<br><span style="font-weight:400;font-size:11px;color:#9c9a93">'+br.length+' servicio'+(br.length!==1?'s':'')+'</span></td>'
-      +'<td style="padding:7px 10px;text-align:right;font-family:monospace;font-weight:700">$'+fmt(cor)+'</td>'
-      +'<td style="padding:7px 10px;text-align:right;font-family:monospace;color:#8b5e00">'+(liq.efectivo>0?'$'+fmt(liq.efectivo):'-')+'</td>'
-      +'<td style="padding:7px 10px;text-align:right;font-family:monospace;color:#1a4b8b">'+(liq.transferencia>0?'$'+fmt(liq.transferencia):'-')+'</td>'
-      +'<td style="padding:7px 10px;text-align:right;font-family:monospace;'+pendStyle+';font-weight:700">'+(pend===0?'✓ Pagado':pend>0?'$'+fmt(pend)+' pend.':'-')+'</td>'
+      +'<td><strong>'+b.nombre+'</strong><br><small style="color:#9c9a93">'+br.length+' servicio'+(br.length!==1?'s':'')+'</small></td>'
+      +'<td class="r mono bold">$'+fmt(cor)+'</td>'
+      +'<td class="r mono" style="color:#8b5e00">'+(liq.efectivo>0?'$'+fmt(liq.efectivo):'-')+'</td>'
+      +'<td class="r mono" style="color:#1a4b8b">'+(liq.transferencia>0?'$'+fmt(liq.transferencia):'-')+'</td>'
+      +'<td class="r mono" style="'+pendStyle+';font-weight:700">'+(pend===0?'✓ Pagado':pend>0?'$'+fmt(pend)+' pend.':'-')+'</td>'
       +'</tr>';
   }
 
-  var cajaFinal=BASE_CAJA+totE-totalPagoEf-totalGastosPrint;
-  var negocioTotal=totalFact-totalCorresponde;
-  var utilidad=negocioTotal-totalGastosPrint;
-  var saldoDepositar=cajaFinal-BASE_CAJA; // Lo que hay que depositar o reponer
-
-  // ── TABLA CONTABLE FLUJO DE CAJA ──
-  var gastosFilas='';
-  for(var i=0;i<gastos.length;i++){
-    gastosFilas+='<tr>'
-      +'<td style="padding:6px 10px;color:#5c5a54">'+gastos[i].hora+'</td>'
-      +'<td style="padding:6px 10px">'+gastos[i].desc+'</td>'
-      +'<td style="padding:6px 10px;text-align:right;font-family:monospace;font-weight:700;color:#c0392b">− $'+fmt(gastos[i].monto)+'</td>'
-      +'</tr>';
-  }
-
-  // Descripción del saldo final
-  var saldoDescripcion='';
-  if(saldoDepositar>0){
-    saldoDescripcion='<div style="background:#e8f5e9;border:1px solid #4caf50;border-radius:6px;padding:12px 16px;margin-top:12px">'
-      +'<span style="font-weight:700;color:#1a6b3a;font-size:12pt">✓ Depositar $'+fmt(saldoDepositar)+'</span>'
-      +'<div style="font-size:10pt;color:#2e7d32;margin-top:4px">Retire del cajón el excedente sobre la base y deposítelo o entrégueselo al administrador.</div>'
-      +'</div>';
-  } else if(saldoDepositar<0){
-    saldoDescripcion='<div style="background:#fde8e8;border:1px solid #e53935;border-radius:6px;padding:12px 16px;margin-top:12px">'
-      +'<span style="font-weight:700;color:#c0392b;font-size:12pt">⚠ Reponer $'+fmt(Math.abs(saldoDepositar))+'</span>'
-      +'<div style="font-size:10pt;color:#b71c1c;margin-top:4px">Los egresos superaron los ingresos en efectivo. Se debe reponer este monto para mantener la base.</div>'
-      +'</div>';
-  } else {
-    saldoDescripcion='<div style="background:#fff8e1;border:1px solid #ffc107;border-radius:6px;padding:12px 16px;margin-top:12px">'
-      +'<span style="font-weight:700;color:#8b5e00;font-size:12pt">= Caja en equilibrio</span>'
-      +'<div style="font-size:10pt;color:#5c5a54;margin-top:4px">El saldo en caja coincide exactamente con la base inicial.</div>'
-      +'</div>';
-  }
+  var cajaEfectivoFinal = BASE_CAJA+totE-totalPagoEf-totalGastosPrint;
+  var saldoEfectivo     = cajaEfectivoFinal - BASE_CAJA;
+  var negocioTotal      = totalFact - totalCorresponde;
+  var utilidad          = negocioTotal - totalGastosPrint;
 
   var w=window.open('','_blank');
-  w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8">');
-  w.document.write('<style>');
-  w.document.write('@page{size:legal;margin:14mm 14mm}'); // Hoja oficio (legal)
-  w.document.write('@media print{.no-print{display:none}body{font-size:9.5pt}}');
+  w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><style>');
+  w.document.write('@page{size:legal;margin:16mm 18mm}');
+  w.document.write('@media print{.noprint{display:none}}');
   w.document.write('*{box-sizing:border-box;margin:0;padding:0}');
-  w.document.write('body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;font-size:10pt;color:#1a1916;background:#fff}');
-  w.document.write('.page{max-width:190mm;margin:0 auto}');
-  w.document.write('.hdr{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:10px;border-bottom:2px solid #1a1916;margin-bottom:14px}');
-  w.document.write('.brand{font-size:16pt;font-weight:700}.brand-sub{font-size:8pt;color:#5c5a54;margin-top:2px}');
-  w.document.write('.doc-meta{text-align:right;font-size:8.5pt;color:#5c5a54;line-height:1.6}');
-  w.document.write('.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}');
-  w.document.write('.kpi{border:1px solid #e2e0d8;border-radius:5px;padding:10px}');
-  w.document.write('.kpi-l{font-size:7.5pt;color:#9c9a93;margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em}');
-  w.document.write('.kpi-v{font-size:16pt;font-weight:700;font-family:"Courier New",monospace}');
-  w.document.write('.stitle{font-size:8.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#9c9a93;margin:14px 0 7px;padding-bottom:5px;border-bottom:1px solid #1a1916}');
+  w.document.write('body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;font-size:10pt;color:#1a1916;background:#fff;line-height:1.5}');
+
+  // Layout: una columna, secciones apiladas con buen espaciado
+  w.document.write('.wrap{max-width:180mm;margin:0 auto}');
+  w.document.write('.hdr{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:12px;border-bottom:2.5px solid #1a1916;margin-bottom:28px}');
+  w.document.write('.brand{font-size:18pt;font-weight:700;letter-spacing:.5px}.brand-sub{font-size:9pt;color:#5c5a54;margin-top:3px}');
+  w.document.write('.doc-info{text-align:right;font-size:9pt;color:#5c5a54;line-height:1.7}');
+
+  // KPIs en fila
+  w.document.write('.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:32px}');
+  w.document.write('.kpi{border:1px solid #e2e0d8;border-radius:6px;padding:14px 12px}');
+  w.document.write('.kpi-l{font-size:8pt;color:#9c9a93;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}');
+  w.document.write('.kpi-v{font-size:17pt;font-weight:700;font-family:"Courier New",monospace}');
+
+  // Secciones
+  w.document.write('.sec{margin-bottom:30px}');
+  w.document.write('.sec-title{font-size:8.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#9c9a93;padding-bottom:7px;border-bottom:1.5px solid #1a1916;margin-bottom:14px}');
+
+  // Tablas
   w.document.write('table{width:100%;border-collapse:collapse;font-size:9.5pt}');
-  w.document.write('th{font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#9c9a93;padding:5px 8px;border-bottom:1px solid #1a1916;text-align:left}');
-  w.document.write('td{padding:6px 8px;border-bottom:1px solid #e2e0d8}');
-  w.document.write('.tot-row td{background:#1a1916;color:#fff;font-weight:700;font-family:"Courier New",monospace}');
-  // ── ESTILOS TABLA CONTABLE ──
-  w.document.write('.conta{width:100%;border-collapse:collapse;margin-bottom:6px}');
-  w.document.write('.conta td{padding:5px 10px;font-size:10pt;border-bottom:1px solid #f0ede6}');
+  w.document.write('th{font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#9c9a93;padding:6px 10px;border-bottom:1px solid #1a1916;text-align:left}');
+  w.document.write('td{padding:8px 10px;border-bottom:1px solid #ede9e0}');
+  w.document.write('tr:last-child td{border-bottom:none}');
+  w.document.write('.tot td{background:#1a1916;color:#fff;font-weight:700;border-bottom:none}');
+  w.document.write('.r{text-align:right}.mono{font-family:"Courier New",monospace}.bold{font-weight:700}');
+
+  // Tabla contable
+  w.document.write('.conta td{padding:9px 12px;border-bottom:1px solid #f0ede6;font-size:10pt}');
+  w.document.write('.conta .sub{background:#f7f6f3;font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#9c9a93;padding:5px 12px}');
   w.document.write('.conta .ing{color:#1a6b3a;font-weight:700;font-family:monospace}');
   w.document.write('.conta .egr{color:#c0392b;font-weight:700;font-family:monospace}');
-  w.document.write('.conta .base{color:#5c5a54;font-family:monospace;font-weight:600}');
-  w.document.write('.conta .sep{border-top:2px solid #1a1916;border-bottom:none}');
-  w.document.write('.conta .saldo-pos{background:#e8f5e9;color:#1a6b3a;font-weight:700;font-size:11pt;font-family:monospace}');
-  w.document.write('.conta .saldo-neg{background:#fde8e8;color:#c0392b;font-weight:700;font-size:11pt;font-family:monospace}');
-  w.document.write('.firmas{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:20px}');
-  w.document.write('.firma{border:1px solid #e2e0d8;border-radius:5px;padding:10px}');
-  w.document.write('.firma-name{font-weight:700;font-size:10pt;margin-bottom:3px}');
-  w.document.write('.firma-det{font-size:8.5pt;color:#5c5a54;margin-bottom:16px;line-height:1.5}');
-  w.document.write('.firma-line{border-bottom:1px solid #1a1916;height:24px;margin-bottom:3px}');
-  w.document.write('.firma-lbl{font-size:7.5pt;color:#9c9a93}');
-  w.document.write('.footer{margin-top:14px;padding-top:7px;border-top:1px solid #e2e0d8;display:flex;justify-content:space-between;font-size:7.5pt;color:#9c9a93}');
-  w.document.write('.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}');
-  w.document.write('</style></head><body>');
-  w.document.write('<button class="no-print" onclick="window.print()" style="position:fixed;top:16px;right:16px;padding:9px 20px;background:#1a1916;color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;z-index:100">Imprimir / Guardar PDF</button>');
-  w.document.write('<div class="page">');
+  w.document.write('.conta .sep td{border-top:2px solid #1a1916;border-bottom:none;padding-top:10px}');
+  w.document.write('.conta .saldo-pos{background:#e8f5e9;color:#1a6b3a;font-weight:700;font-family:monospace;font-size:11pt}');
+  w.document.write('.conta .saldo-neg{background:#fde8e8;color:#c0392b;font-weight:700;font-family:monospace;font-size:11pt}');
 
-  // ── ENCABEZADO ──
+  // Caja de acción
+  w.document.write('.accion-pos{background:#e8f5e9;border:1.5px solid #4caf50;border-radius:7px;padding:14px 18px;margin-top:14px}');
+  w.document.write('.accion-neg{background:#fde8e8;border:1.5px solid #e53935;border-radius:7px;padding:14px 18px;margin-top:14px}');
+  w.document.write('.accion-eq{background:#fff8e1;border:1.5px solid #ffc107;border-radius:7px;padding:14px 18px;margin-top:14px}');
+  w.document.write('.accion-title{font-size:13pt;font-weight:700;margin-bottom:4px}');
+  w.document.write('.accion-desc{font-size:9.5pt;margin-top:4px;line-height:1.5}');
+
+  // Electrónico
+  w.document.write('.elec-box{border:1px solid #e2e0d8;border-radius:6px;overflow:hidden;margin-top:0}');
+  w.document.write('.elec-row{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid #f0ede6;font-size:10pt}');
+  w.document.write('.elec-row:last-child{border-bottom:none}');
+
+  w.document.write('.footer{margin-top:32px;padding-top:10px;border-top:1px solid #e2e0d8;display:flex;justify-content:space-between;font-size:8pt;color:#9c9a93}');
+  w.document.write('</style></head><body>');
+  w.document.write('<button class="noprint" onclick="window.print()" style="position:fixed;top:16px;right:16px;padding:9px 22px;background:#1a1916;color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;z-index:100">Imprimir · Guardar PDF</button>');
+  w.document.write('<div class="wrap">');
+
+  // ── 1. ENCABEZADO ─────────────────────────────────────────
   w.document.write('<div class="hdr">');
   w.document.write('<div><div class="brand">Salon Men Saúl Fino</div><div class="brand-sub">Galería Santiago Centro · Local 222 · Línea 1 Metro</div></div>');
-  w.document.write('<div class="doc-meta"><strong>Cierre de Caja</strong><br>'+fecha+'<br>'+hora+'</div>');
+  w.document.write('<div class="doc-info"><strong>Cierre de Caja</strong><br>'+fecha+'<br>'+hora+'</div>');
   w.document.write('</div>');
 
-  // ── KPIs ──
+  // ── 2. KPIs GENERALES ──────────────────────────────────────
   w.document.write('<div class="kpis">');
   w.document.write('<div class="kpi"><div class="kpi-l">Facturación total</div><div class="kpi-v" style="color:#8b5e00">$'+fmt(totalFact)+'</div></div>');
   w.document.write('<div class="kpi"><div class="kpi-l">Para el negocio</div><div class="kpi-v" style="color:#1a6b3a">$'+fmt(negocioTotal)+'</div></div>');
@@ -2818,86 +2807,69 @@ function printCajaA4(){
   w.document.write('<div class="kpi"><div class="kpi-l">Utilidad neta</div><div class="kpi-v" style="color:'+(utilidad>=0?'#1a6b3a':'#c0392b')+'">$'+fmt(utilidad)+'</div></div>');
   w.document.write('</div>');
 
-  // ── DOS COLUMNAS: servicios + tabla contable ──
-  w.document.write('<div class="two-col">');
+  // ── 3. COBROS DEL DÍA ──────────────────────────────────────
+  w.document.write('<div class="sec">');
+  w.document.write('<div class="sec-title">Cobros del día</div>');
+  w.document.write('<table><thead><tr><th>Canal de pago</th><th>Servicios</th><th class="r">Monto</th><th class="r">% del total</th></tr></thead><tbody>');
+  if(cntE>0) w.document.write('<tr><td>💵 Efectivo</td><td>'+cntE+'</td><td class="r mono bold" style="color:#1a6b3a">$'+fmt(totE)+'</td><td class="r" style="color:#9c9a93">'+Math.round(totE/totalFact*100)+'%</td></tr>');
+  if(cntD>0) w.document.write('<tr><td>💳 Débito</td><td>'+cntD+'</td><td class="r mono bold" style="color:#1a4b8b">$'+fmt(totD)+'</td><td class="r" style="color:#9c9a93">'+Math.round(totD/totalFact*100)+'%</td></tr>');
+  if(cntT>0) w.document.write('<tr><td>📲 Transferencia</td><td>'+cntT+'</td><td class="r mono bold" style="color:#8b5e00">$'+fmt(totT)+'</td><td class="r" style="color:#9c9a93">'+Math.round(totT/totalFact*100)+'%</td></tr>');
+  w.document.write('<tr class="tot"><td colspan="2">TOTAL · '+regs.length+' servicios</td><td class="r mono">$'+fmt(totalFact)+'</td><td class="r">100%</td></tr>');
+  w.document.write('</tbody></table></div>');
 
-  // Columna izquierda: cobros y servicios
-  w.document.write('<div>');
-  w.document.write('<div class="stitle">Cobros del día</div>');
-  w.document.write('<table><thead><tr><th>Canal</th><th>Svc</th><th style="text-align:right">Monto</th></tr></thead><tbody>');
-  w.document.write('<tr><td>💵 Efectivo</td><td>'+cntE+'</td><td style="text-align:right;font-family:monospace;color:#1a6b3a;font-weight:700">$'+fmt(totE)+'</td></tr>');
-  w.document.write('<tr><td>💳 Débito</td><td>'+cntD+'</td><td style="text-align:right;font-family:monospace;color:#1a4b8b;font-weight:700">$'+fmt(totD)+'</td></tr>');
-  w.document.write('<tr><td>📲 Transferencia</td><td>'+cntT+'</td><td style="text-align:right;font-family:monospace;color:#8b5e00;font-weight:700">$'+fmt(totT)+'</td></tr>');
-  w.document.write('<tr class="tot-row"><td colspan="2">TOTAL</td><td style="text-align:right">$'+fmt(totalFact)+'</td></tr>');
-  w.document.write('</tbody></table>');
-
-  // Liquidación barberos
-  w.document.write('<div class="stitle">Liquidación barberos</div>');
-  w.document.write('<table><thead><tr><th>Barbero</th><th style="text-align:right">Corresponde</th><th style="text-align:right">Ef.</th><th style="text-align:right">Transf.</th><th style="text-align:right">Estado</th></tr></thead><tbody>');
+  // ── 4. LIQUIDACIÓN BARBEROS ────────────────────────────────
+  w.document.write('<div class="sec">');
+  w.document.write('<div class="sec-title">Liquidación barberos</div>');
+  w.document.write('<table><thead><tr><th>Barbero</th><th class="r">Corresponde</th><th class="r">Pagado ef.</th><th class="r">Pagado transf.</th><th class="r">Estado</th></tr></thead><tbody>');
   w.document.write(bbRows);
-  w.document.write('<tr class="tot-row"><td>TOTAL</td><td style="text-align:right">$'+fmt(totalCorresponde)+'</td><td style="text-align:right">$'+fmt(totalPagoEf)+'</td><td style="text-align:right">$'+fmt(totalPagoTr)+'</td><td style="text-align:right">'+(totalPend===0?'✓ OK':'$'+fmt(totalPend)+' pend.')+'</td></tr>');
-  w.document.write('</tbody></table>');
-  w.document.write('</div>'); // fin col izq
+  w.document.write('<tr class="tot"><td>TOTAL</td><td class="r mono">$'+fmt(totalCorresponde)+'</td><td class="r mono">$'+fmt(totalPagoEf)+'</td><td class="r mono">$'+fmt(totalPagoTr)+'</td><td class="r mono">'+(totalPend===0?'✓ OK':'$'+fmt(totalPend)+' pend.')+'</td></tr>');
+  w.document.write('</tbody></table></div>');
 
-  // Columna derecha: tabla contable flujo de caja
-  w.document.write('<div>');
-  // ── CAJA EFECTIVO (único dinero físico) ──
-  var cajaEfectivoFinal = BASE_CAJA + totE - totalPagoEf - totalGastosPrint;
-  var saldoEfectivo     = cajaEfectivoFinal - BASE_CAJA;
-
-  w.document.write('<div class="stitle">Flujo de caja</div>');
+  // ── 5. FLUJO DE CAJA EN EFECTIVO ──────────────────────────
+  w.document.write('<div class="sec">');
+  w.document.write('<div class="sec-title">Flujo de caja · Solo efectivo</div>');
   w.document.write('<table class="conta"><tbody>');
-
-  // ── EFECTIVO ──────────────────────────────────────
-  w.document.write('<tr><td colspan="2" style="padding:4px 10px;font-size:8pt;font-weight:700;color:#1a6b3a;background:#f0faf4;letter-spacing:.06em">💵 EFECTIVO (dinero físico en caja)</td></tr>');
-  w.document.write('<tr><td>Base inicial</td><td class="base" style="text-align:right">$'+fmt(BASE_CAJA)+'</td></tr>');
-  if(totE>0) w.document.write('<tr><td>+ Cobros efectivo ('+cntE+' svc)</td><td class="ing" style="text-align:right">+ $'+fmt(totE)+'</td></tr>');
-  w.document.write('<tr><td>− Pago barberos en efectivo</td><td class="egr" style="text-align:right">− $'+fmt(totalPagoEf)+'</td></tr>');
+  w.document.write('<tr class="sub"><td colspan="2">APERTURA</td></tr>');
+  w.document.write('<tr><td>Base inicial en caja</td><td class="r mono" style="color:#5c5a54;font-weight:600">$'+fmt(BASE_CAJA)+'</td></tr>');
+  w.document.write('<tr class="sub"><td colspan="2">INGRESOS</td></tr>');
+  if(totE>0) w.document.write('<tr><td>+ Efectivo cobrado ('+cntE+' servicios)</td><td class="r ing">+ $'+fmt(totE)+'</td></tr>');
+  w.document.write('<tr class="sub"><td colspan="2">EGRESOS</td></tr>');
+  w.document.write('<tr><td>− Pago barberos en efectivo</td><td class="r egr">− $'+fmt(totalPagoEf)+'</td></tr>');
   for(var i=0;i<gastos.length;i++){
-    w.document.write('<tr><td>− '+gastos[i].desc+'</td><td class="egr" style="text-align:right">− $'+fmt(gastos[i].monto)+'</td></tr>');
+    w.document.write('<tr><td>− '+gastos[i].desc+'</td><td class="r egr">− $'+fmt(gastos[i].monto)+'</td></tr>');
   }
-  w.document.write('<tr><td colspan="2" class="sep"></td></tr>');
+  w.document.write('<tr class="sep"><td></td><td></td></tr>');
   var clsEf = cajaEfectivoFinal>=BASE_CAJA?'saldo-pos':'saldo-neg';
-  w.document.write('<tr><td style="font-weight:700">Saldo físico en caja</td><td class="'+clsEf+'" style="text-align:right">$'+fmt(cajaEfectivoFinal)+'</td></tr>');
-  w.document.write('<tr><td style="font-size:9pt;color:#5c5a54">Base requerida</td><td style="text-align:right;font-family:monospace;color:#5c5a54">$'+fmt(BASE_CAJA)+'</td></tr>');
-  var clsDep = saldoEfectivo>=0?'saldo-pos':'saldo-neg';
-  var lblDep = saldoEfectivo>=0?'Retirar y depositar':'Reponer caja';
-  w.document.write('<tr><td style="font-weight:700;font-size:10.5pt">'+lblDep+'</td><td class="'+clsDep+'" style="text-align:right;font-size:11pt">'+(saldoEfectivo<0?'− ':'')+'$'+fmt(Math.abs(saldoEfectivo))+'</td></tr>');
-
-  // ── RESUMEN ELECTRÓNICO (solo informativo, no afecta caja) ──
-  if(totD>0 || totT>0){
-    w.document.write('<tr><td colspan="2" style="padding:4px 10px;font-size:8pt;font-weight:700;color:#5c5a54;background:#f5f4f0;letter-spacing:.06em">PAGOS ELECTRÓNICOS (no afectan caja física)</td></tr>');
-    if(totD>0) w.document.write('<tr><td>💳 Débito ('+cntD+' svc)</td><td style="text-align:right;font-family:monospace;color:#1a4b8b;font-weight:600">$'+fmt(totD)+'</td></tr>');
-    if(totT>0) w.document.write('<tr><td>📲 Transferencia ('+cntT+' svc)</td><td style="text-align:right;font-family:monospace;color:#8b5e00;font-weight:600">$'+fmt(totT)+'</td></tr>');
-    w.document.write('<tr><td style="font-weight:600">Total electrónico</td><td style="text-align:right;font-family:monospace;font-weight:700">$'+fmt(totD+totT)+'</td></tr>');
-  }
-
+  w.document.write('<tr><td style="font-weight:700">Saldo físico en caja</td><td class="r '+clsEf+'">$'+fmt(cajaEfectivoFinal)+'</td></tr>');
+  w.document.write('<tr><td style="color:#9c9a93;font-size:9pt">Base requerida para mañana</td><td class="r mono" style="color:#9c9a93;font-size:9pt">$'+fmt(BASE_CAJA)+'</td></tr>');
+  var clsDep=saldoEfectivo>=0?'saldo-pos':'saldo-neg';
+  var lblDep=saldoEfectivo>=0?'Retirar y depositar':'Reponer en caja';
+  w.document.write('<tr><td style="font-weight:700;font-size:11pt">'+lblDep+'</td><td class="r '+clsDep+'" style="font-size:12pt">'+(saldoEfectivo<0?'− ':'')+'$'+fmt(Math.abs(saldoEfectivo))+'</td></tr>');
   w.document.write('</tbody></table>');
 
-  // Descripción acción de efectivo
-  var saldoDescripcionEf='';
+  // Caja de acción
   if(saldoEfectivo>0){
-    saldoDescripcionEf='<div style="background:#e8f5e9;border:1px solid #4caf50;border-radius:6px;padding:10px 14px;margin-top:10px">'
-      +'<span style="font-weight:700;color:#1a6b3a;font-size:11pt">✓ Retirar $'+fmt(saldoEfectivo)+' del cajón y depositar</span>'
-      +'<div style="font-size:9.5pt;color:#2e7d32;margin-top:3px">Dejar solo $'+fmt(BASE_CAJA)+' como base para el día siguiente.</div>'
-      +'</div>';
+    w.document.write('<div class="accion-pos"><div class="accion-title" style="color:#1a6b3a">✓ Retirar $'+fmt(saldoEfectivo)+' del cajón</div><div class="accion-desc" style="color:#2e7d32">Dejar solo $'+fmt(BASE_CAJA)+' como base. El excedente debe depositarse o entregarse al administrador.</div></div>');
   } else if(saldoEfectivo<0){
-    saldoDescripcionEf='<div style="background:#fde8e8;border:1px solid #e53935;border-radius:6px;padding:10px 14px;margin-top:10px">'
-      +'<span style="font-weight:700;color:#c0392b;font-size:11pt">⚠ Reponer $'+fmt(Math.abs(saldoEfectivo))+' en caja</span>'
-      +'<div style="font-size:9.5pt;color:#b71c1c;margin-top:3px">Los egresos en efectivo superaron los ingresos.</div>'
-      +'</div>';
+    w.document.write('<div class="accion-neg"><div class="accion-title" style="color:#c0392b">⚠ Reponer $'+fmt(Math.abs(saldoEfectivo))+' en caja</div><div class="accion-desc" style="color:#b71c1c">Los egresos superaron el efectivo recibido. Se debe completar la base antes de cerrar.</div></div>');
   } else {
-    saldoDescripcionEf='<div style="background:#fff8e1;border:1px solid #ffc107;border-radius:6px;padding:10px 14px;margin-top:10px">'
-      +'<span style="font-weight:700;color:#8b5e00;font-size:11pt">= Caja en equilibrio exacto</span>'
-      +'</div>';
+    w.document.write('<div class="accion-eq"><div class="accion-title" style="color:#8b5e00">= Caja en equilibrio exacto</div><div class="accion-desc" style="color:#5c5a54">El saldo coincide con la base requerida. No hay retiro ni reposición.</div></div>');
   }
-  w.document.write(saldoDescripcionEf);
-  w.document.write('</div>'); // fin col der
-  w.document.write('</div>'); // fin two-col
+  w.document.write('</div>');
 
+  // ── 6. PAGOS ELECTRÓNICOS (solo informativo) ───────────────
+  if(totD>0||totT>0){
+    w.document.write('<div class="sec">');
+    w.document.write('<div class="sec-title">Pagos electrónicos · Solo informativo · No afectan caja</div>');
+    w.document.write('<div class="elec-box">');
+    if(totD>0) w.document.write('<div class="elec-row"><span>💳 Débito &nbsp;<small style="color:#9c9a93">('+cntD+' servicios)</small></span><span class="mono bold" style="color:#1a4b8b">$'+fmt(totD)+'</span></div>');
+    if(totT>0) w.document.write('<div class="elec-row"><span>📲 Transferencia &nbsp;<small style="color:#9c9a93">('+cntT+' servicios)</small></span><span class="mono bold" style="color:#8b5e00">$'+fmt(totT)+'</span></div>');
+    w.document.write('<div class="elec-row" style="background:#f7f6f3"><span style="font-weight:700">Total electrónico</span><span class="mono bold">$'+fmt(totD+totT)+'</span></div>');
+    w.document.write('</div></div>');
+  }
 
-  
-    w.document.write('<div class="footer"><span>Salon Men Saúl Fino · Local 222 · Galería Santiago Centro</span><span>Generado: '+fecha+' '+hora+' · BarberPilot</span></div>');
+  // ── 7. FOOTER ──────────────────────────────────────────────
+  w.document.write('<div class="footer"><span>Salon Men Saúl Fino · Local 222 · Galería Santiago Centro</span><span>Generado: '+fecha+' '+hora+' · BarberPilot</span></div>');
   w.document.write('</div></body></html>');
   w.document.close();
   setTimeout(function(){ w.print(); }, 800);
