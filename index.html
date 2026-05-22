@@ -375,7 +375,6 @@
       <div class="tab on" onclick="showTab('pReg',this)">Registros del día</div>
       <div class="tab" onclick="showTab('pSum',this)">Resumen</div>
       <div class="tab" id="tabAprob" onclick="showTab('pAprob',this)">✅ Aprobar <span id="badgeAprob" style="display:none;background:#d4a843;color:#0a0908;border-radius:20px;font-size:10px;font-weight:700;padding:1px 7px;margin-left:4px">0</span></div>
-      <div class="tab" onclick="showTab('pClientes',this)">👥 Clientes</div>
       <div class="tab" onclick="showTab('pCaja',this)">💰 Cierre de caja</div>
       <div class="tab" onclick="showTab('pKpis',this)">🏆 KPIs</div>
       <div class="tab" onclick="showTab('pHorarios',this)">🕐 Horarios</div>
@@ -391,27 +390,11 @@
         <button class="fb" onclick="filtrar('b1',this)">Didian</button>
         <button class="fb" onclick="filtrar('b2',this)">Emerson</button>
         <button class="fb" onclick="filtrar('b3',this)">Samuel</button>
+        <button class="fb" onclick="filtrar('b4',this)">David</button>
         <button class="fb" style="margin-left:auto;color:var(--info);font-weight:600" onclick="descargarJornadaHoy()" title="Guarda el JSON del día — ábrelo luego en el Dashboard">💾 Guardar jornada</button>
         <button class="fb" style="color:var(--err)" onclick="limpiarHoy()">Limpiar día</button>
       </div>
       <div id="rCont"><div class="empty"><div class="empty-ico">✂</div><div>Sin registros. Registra el primer servicio del día.</div></div></div>
-    </div>
-
-    <div class="pane" id="pClientes">
-      <div style="margin-bottom:14px;display:flex;gap:10px;align-items:center">
-        <input id="cliSearch" type="text" placeholder="🔍 Buscar por nombre o teléfono…"
-          oninput="buscarClientes()"
-          style="flex:1;padding:9px 14px;border-radius:var(--r);border:1px solid var(--border2);
-          background:var(--surface2);color:var(--text);font-size:13px;outline:none">
-        <a id="btnExportCli" href="" target="_blank"
-          style="padding:8px 14px;background:var(--ok,#4db87a);color:#fff;border-radius:var(--r);
-          font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap">
-          📥 Exportar Excel
-        </a>
-      </div>
-      <div id="cliContent">
-        <div class="empty"><div class="empty-ico">👥</div><div>Cargando clientes…</div></div>
-      </div>
     </div>
 
     <div class="pane" id="pAprob">
@@ -552,7 +535,8 @@
 var BB=[
   {id:'b1',nombre:'Didian'},
   {id:'b2',nombre:'Emerson'},
-  {id:'b3',nombre:'Samuel'}
+  {id:'b3',nombre:'Samuel'},
+  {id:'b4',nombre:'David'}
 ];
 var SS=[
   {id:'s01',nombre:'Corte',                       precio:12000,tiempo:'30 min'},
@@ -574,37 +558,26 @@ var COM={efectivo:.5,debito:.43,transferencia:.5};
 var API_URL    = 'https://barberpilot-api-production.up.railway.app'; // Railway — preconfigurado
 var SHEETS_URL = ''; // legacy — ya no se usa
 
-function enviarASheets(r){
-  if(!SHEETS_URL) return;
-  fetch(SHEETS_URL, {
-    method: 'POST',
-    mode:   'no-cors',
-    headers:{ 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      action:    'registrar',
-      id:        r.id,
-      fecha:     r.fecha || fechaHoy,
-      hora:      r.hora  || '--',
-      bid:       r.bid,
-      barbero:   r.bnom,
-      servicio:  r.snom,
-      precio:    r.precio,
-      pago:      r.pago,
-      bb:        r.bb,
-      neg:       r.neg,
-      propina:   r.propina || 0
-    })
-  }).catch(function(e){ console.warn('Sheets error:', e.message); });
-}
-
 function enviarAApi(r){
-  if(!API_URL) return;
-  fetch(API_URL+'/registros', {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify(r)
-  }).catch(function(e){ console.warn('enviarAApi error:', e.message); });
+  var url = API_URL || SHEETS_URL;
+  if(!url) return;
+  if(API_URL){
+    fetch(API_URL+'/registros', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(r)
+    }).catch(function(){});
+  } else {
+    // Compatibilidad Apps Script legacy
+    var payload = {accion:'registrar',id:r.id,fecha:r.fecha,hora:r.hora,
+      bid:r.bid,bnom:r.bnom,sid:r.sid,snom:r.snom,precio:r.precio,
+      pago:r.pago,com:r.com,bb:r.bb,neg:r.neg,propina:r.propina||0};
+    fetch(SHEETS_URL, {method:'POST',mode:'no-cors',
+      headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)
+    }).catch(function(){});
+  }
 }
+var enviarASheets = enviarAApi;
 
 function eliminarDeSheets(id) {
   if (API_URL) {
@@ -653,14 +626,11 @@ function sincronizarGastoSheets(g, accion) {
 // ═══ ESTADO ══════════════════════════════════════════════
 var sel={b:null,s:null,p:null,propina:0,propinaTipo:'0'};
 var regs=[];
-
 var filtro='todos';
 var fechaHoy=fechaStr(new Date());
 
 // ═══ STORAGE (localStorage + descarga JSON) ══════════════
 var LSKEY='sfsf_'+fechaHoy;
-
-// ── CARGA MES EN MEMORIA (reemplaza sincronizarMesDesdeApi) ──
 
 function fechaStr(d){
   return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
@@ -712,7 +682,6 @@ function cargarDesdeApi(){
     .catch(function(){});
 }
 
-
 function cargarRegistrosDia(){
   if(!API_URL) return;
   fetch(API_URL + '/registros/dia?fecha=' + fechaHoy)
@@ -720,34 +689,40 @@ function cargarRegistrosDia(){
     .then(function(json){
       if(!json.ok || !json.registros) return;
       var apiRegs = json.registros;
+      // Fusionar: API tiene prioridad, agregar locales offline
       var merged = [];
       var idsApi = {};
       apiRegs.forEach(function(r){
         idsApi[r.id] = true;
         merged.push({
-          id:r.id, bid:r.bid, bnom:r.bnom,
-          sid:r.sid||'custom', snom:r.snom,
-          precio:parseInt(r.precio), pago:r.pago,
-          com:parseFloat(r.com), bb:parseInt(r.bb),
-          neg:parseInt(r.neg), propina:parseInt(r.propina||0),
-          fecha:r.fecha_display||fechaHoy,
-          hora:r.hora?r.hora.slice(0,5):'--',
-          ts:parseInt(r.ts)||Date.now(),
-          numServicio:0, totalServicios:0, acumBB:0, acumFact:0
+          id: r.id, bid: r.bid, bnom: r.bnom,
+          sid: r.sid||'custom', snom: r.snom,
+          precio: parseInt(r.precio), pago: r.pago,
+          com: parseFloat(r.com), bb: parseInt(r.bb),
+          neg: parseInt(r.neg), propina: parseInt(r.propina||0),
+          fecha: r.fecha_display || fechaHoy,
+          hora: r.hora ? r.hora.slice(0,5) : '--',
+          ts: parseInt(r.ts) || Date.now(),
+          numServicio: 0, totalServicios: 0, acumBB: 0, acumFact: 0
         });
       });
+      // Agregar registros locales que la API aún no tiene (offline)
       regs.forEach(function(r){ if(!idsApi[r.id]) merged.push(r); });
-      merged.sort(function(a,b){ return b.ts-a.ts; });
-      if(merged.length > 0){
+      merged.sort(function(a,b){ return b.ts - a.ts; });
+      if(merged.length > 0 || apiRegs.length === 0){
         regs = merged;
         guardar();
         renderAll();
         updCnts();
+        // Actualizar contadores de barberos en el header
         BB.forEach(function(b){
-          var cnt=regs.filter(function(r){return r.bid===b.id;}).length;
-          var el=document.querySelector('[data-bid="'+b.id+'"] .bcnt');
-          if(el) el.textContent=cnt+' svc';
+          var cnt = regs.filter(function(r){return r.bid===b.id;}).length;
+          var el = document.querySelector('[data-bid="'+b.id+'"] .bcnt');
+          if(el) el.textContent = cnt+' svc';
         });
+        if(apiRegs.length > 0){
+          toast('☁ '+apiRegs.length+' servicios cargados desde la nube');
+        }
       }
     })
     .catch(function(e){ console.warn('Sync error:', e.message); });
@@ -1049,8 +1024,6 @@ function init(){
   tick();setInterval(tick,30000);
   buildBarbers();buildServices();
   cargarSheetsUrl();cargar();cargarGastos();cargarLiquidaciones();cargarHorarios();cargarKpiEvals();renderAll();
-  // Cargar registros del día desde Railway al iniciar
-  if(API_URL) cargarRegistrosDia();
   // Auto-refresh cada 60s cuando la página está visible
   setInterval(function(){
     if(document.visibilityState==='visible' && API_URL) cargarRegistrosDia();
@@ -1310,13 +1283,11 @@ function registrar(){
   var acumFact = 0;
   for(var i=0;i<mismosBarbero.length;i++) acumFact += mismosBarbero[i].precio;
   r.acumFact = acumFact;
-  regs.push(r);
   guardar();
   enviarASheets(r);
-  enviarAApi(r);
   resetForm();
   renderAll();
-  toast('Servicio registrado ✓');
+  toast('Servicio registrado ✓' + (SHEETS_URL ? ' · Sincronizando…' : ''));
   printTicket62(r);
 }
 
@@ -1464,104 +1435,6 @@ function renderCierre(){
 }
 
 // ═══ TABS & FILTROS ══════════════════════════════════════
-function cargarClientes(q){
-  if(!API_URL) return;
-  var el = document.getElementById('cliContent');
-  if(!el) return;
-  el.innerHTML='<div class="empty"><div class="empty-ico">⟳</div><div>Cargando…</div></div>';
-  var url = API_URL + '/clientes' + (q?'?q='+encodeURIComponent(q):'');
-  fetch(url).then(function(r){return r.json();})
-  .then(function(json){
-    var clientes = json.clientes||[];
-    if(clientes.length===0){
-      el.innerHTML='<div class="empty"><div class="empty-ico">👥</div><div>Sin clientes registrados aún</div></div>';
-      return;
-    }
-    var h='<div style="font-size:12px;color:var(--text3);margin-bottom:12px">'+clientes.length+' cliente'+(clientes.length!==1?'s':'')+' registrados</div>';
-    h+='<table style="width:100%;border-collapse:collapse;font-size:13px">';
-    h+='<thead><tr style="border-bottom:2px solid var(--border2)">';
-    ['Cliente','Teléfono','Visitas','Total gastado','Último servicio','Notas'].forEach(function(col){
-      h+='<th style="padding:8px 10px;text-align:left;font-size:11px;color:var(--text3);letter-spacing:.08em;text-transform:uppercase">'+col+'</th>';
-    });
-    h+='</tr></thead><tbody>';
-    clientes.forEach(function(c){
-      var trStyle = 'border-bottom:1px solid var(--border);cursor:pointer';
-      h+='<tr style="'+trStyle+'" onclick="verCliente(\'' + c.id + '\')">';
-      h+='<td style="padding:10px;font-weight:600">'+c.nombre+'</td>';
-      h+='<td style="padding:10px;color:var(--text2)">'+(c.telefono||'—')+'</td>';
-      h+='<td style="padding:10px;text-align:center">'+(c.visitas||0)+'</td>';
-      h+='<td style="padding:10px;color:var(--ok);font-weight:600">$'+(parseInt(c.total_gastado)||0).toLocaleString('es-CL')+'</td>';
-      h+='<td style="padding:10px;color:var(--text3)">'+(c.ultima_visita?c.ultima_visita.slice(0,10):'—')+'</td>';
-      h+='<td style="padding:10px;color:var(--text3);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(c.notas||'—')+'</td>';
-      h+='</tr>';
-    });
-    h+='</tbody></table>';
-    el.innerHTML=h;
-  }).catch(function(){
-    el.innerHTML='<div class="empty"><div class="empty-ico">⚠️</div><div>Error al cargar clientes</div></div>';
-  });
-}
-
-function buscarClientes(){
-  var q = document.getElementById('cliSearch')?.value||'';
-  clearTimeout(window._cliTimer);
-  window._cliTimer = setTimeout(function(){ cargarClientes(q); }, 400);
-}
-
-function verCliente(id){
-  if(!API_URL) return;
-  fetch(API_URL+'/clientes/'+id).then(function(r){return r.json();})
-  .then(function(json){
-    if(!json.ok) return;
-    var c = json.cliente;
-    var regs = json.registros||[];
-    var totalGastado = regs.reduce(function(a,r){return a+(parseInt(r.precio)||0);},0);
-    var modal = document.createElement('div');
-    modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto';
-    var h='<div style="background:var(--surface);border-radius:12px;padding:24px;max-width:600px;width:100%;max-height:90vh;overflow-y:auto">';
-    h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">';
-    h+='<div>';
-    h+='<div style="font-size:20px;font-weight:700">'+c.nombre+'</div>';
-    h+='<div style="font-size:13px;color:var(--text3);margin-top:4px">'+(c.telefono||'Sin teléfono')+' · '+(c.correo||'Sin correo')+'</div>';
-    h+='</div>';
-    h+='<button id="btnCerrarCli" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text2)">✕</button>';
-    h+='</div>';
-    // Stats
-    h+='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px">';
-    h+='<div style="background:var(--surface2);border-radius:8px;padding:12px;text-align:center">';
-    h+='<div style="font-size:22px;font-weight:700">'+regs.length+'</div>';
-    h+='<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">Visitas</div></div>';
-    h+='<div style="background:rgba(77,184,122,.1);border-radius:8px;padding:12px;text-align:center">';
-    h+='<div style="font-size:22px;font-weight:700;color:var(--ok)">$'+totalGastado.toLocaleString('es-CL')+'</div>';
-    h+='<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">Total gastado</div></div>';
-    var tkProm = regs.length>0?Math.round(totalGastado/regs.length):0;
-    h+='<div style="background:var(--surface2);border-radius:8px;padding:12px;text-align:center">';
-    h+='<div style="font-size:22px;font-weight:700">$'+tkProm.toLocaleString('es-CL')+'</div>';
-    h+='<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">Ticket prom.</div></div>';
-    h+='</div>';
-    // Notas
-    if(c.notas){
-      h+='<div style="background:rgba(201,168,76,.1);border:1px solid rgba(201,168,76,.25);border-radius:8px;padding:14px;margin-bottom:16px">';
-      h+='<div style="font-size:11px;color:var(--gold,#c9a84c);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px">📝 Notas del barbero</div>';
-      h+='<div style="font-size:14px">'+c.notas+'</div></div>';
-    }
-    // Historial
-    h+='<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Historial de servicios</div>';
-    regs.forEach(function(r){
-      h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border)">';
-      h+='<div><div style="font-size:13px;font-weight:500">'+r.snom+'</div>';
-      h+='<div style="font-size:11px;color:var(--text3)">'+r.fecha_display+' · '+r.bnom+' · '+r.pago+'</div></div>';
-      h+='<div style="font-size:13px;font-weight:600;color:var(--ok)">$'+(parseInt(r.precio)||0).toLocaleString('es-CL')+'</div>';
-      h+='</div>';
-    });
-    h+='</div>';
-    modal.innerHTML=h;
-    document.body.appendChild(modal);
-    document.getElementById('btnCerrarCli').addEventListener('click',function(){modal.remove();});
-    modal.addEventListener('click',function(e){if(e.target===modal)modal.remove();});
-  });
-}
-
 function cargarPendientes(){
   if(!API_URL) return;
   fetch(API_URL+'/pendientes')
@@ -1715,17 +1588,11 @@ function showTab(id,el){
   all=document.querySelectorAll('.tab');for(var i=0;i<all.length;i++)all[i].classList.remove('on');
   all=document.querySelectorAll('.pane');for(var i=0;i<all.length;i++)all[i].classList.remove('on');
   el.classList.add('on');document.getElementById(id).classList.add('on');
-  if(id==='pReg')cargarRegistrosDia();
   if(id==='pSum')renderSum();
   if(id==='pCierre')renderCierre();
   if(id==='pCaja')renderCaja();
   if(id==='pHorarios')renderHorarios();
   if(id==='pHistorico')renderIngresarHistorico();
-  if(id==='pClientes'){
-    cargarClientes();
-    var exportBtn = document.getElementById('btnExportCli');
-    if(exportBtn) exportBtn.href = (API_URL||'') + '/clientes/export/csv';
-  }
   if(id==='pAprob'){
     cargarPendientes();
     var el=document.getElementById('aprobContent');
@@ -2016,11 +1883,56 @@ function generarHTMLA4(fecha, recs){
     h+='</div>';
   }
 
-  
-  // DETALLE ELIMINADO (ver solo en sistema de control)
-  
+  // DETALLE COMPLETO
+  h+='<div class="section-title">Detalle de servicios</div>'
+    +'<table class="tbl">'
+    +'<thead><tr>'
+    +'<th>#</th><th>Hora</th><th>Barbero</th><th>Servicio</th><th>Pago</th>'
+    +'<th style="text-align:right">Monto</th><th style="text-align:right">Barbero</th><th style="text-align:right">Negocio</th>'
+    +'</tr></thead><tbody>';
 
-    return h;
+  for(var i=0;i<recs.length;i++){
+    var r=recs[i];
+    h+='<tr>'
+      +'<td style="color:#9c9a93">'+(recs.length-i)+'</td>'
+      +'<td style="font-family:monospace">'+r.hora+'</td>'
+      +'<td style="font-weight:500">'+r.bnom+'</td>'
+      +'<td>'+r.snom+'</td>'
+      +'<td style="text-transform:capitalize">'+r.pago+'</td>'
+      +'<td style="text-align:right;font-family:monospace;font-weight:600">$'+fmt(r.precio)+'</td>'
+      +'<td style="text-align:right;font-family:monospace;font-weight:600;color:#1a6b3a">$'+fmt(r.bb+(r.propina||0))+(r.propina>0?'<br><span style="font-size:10px;color:#8b5e00">+prop $'+fmt(r.propina)+'</span>':'')+'</td>'
+      +'<td style="text-align:right;font-family:monospace;color:#1a4b8b">$'+fmt(r.neg)+'</td>'
+      +'</tr>';
+  }
+  h+='<tr class="tot-row">'
+    +'<td colspan="5">TOTALES</td>'
+    +'<td style="text-align:right">$'+fmt(tot)+'</td>'
+    +'<td style="text-align:right;color:#6ee8a2">$'+fmt(tBB)+'</td>'
+    +'<td style="text-align:right;color:#8ab8f0">$'+fmt(tNeg)+'</td>'
+    +'</tr>'
+    +'</tbody></table>';
+
+  // FIRMAS
+  h+='<div class="section-title">Conformidad de pago</div>'
+    +'<div class="firma-grid">';
+  for(var i=0;i<BB.length;i++){
+    var b=BB[i],br=[],bBB2=0;
+    for(var j=0;j<recs.length;j++)if(recs[j].bid===b.id)br.push(recs[j]);
+    for(var j=0;j<br.length;j++)bBB2+=br[j].bb;
+    h+='<div class="firma-box">'
+      +'<div class="firma-name">'+b.nombre+'</div>'
+      +'<div class="firma-monto">'+(br.length===0?'Sin servicios':br.length+' servicios · Recibe $'+fmt(bBB2))+'</div>'
+      +'<div class="firma-line"></div>'
+      +'<div class="firma-label">Firma · '+fecha+'</div>'
+      +'</div>';
+  }
+  h+='</div>';
+
+  // FOOTER
+  h+='<div class="footer"><span>Salon Men Saúl Fino · Local 222 · Galería Santiago Centro</span>'
+    +'<span>Documento interno · Confidencial</span></div>'
+    +'</div></body></html>';
+  return h;
 }
 
 function imprimirA4(){
@@ -2699,7 +2611,6 @@ function printCajaA4(){
   var fecha = new Date().toLocaleDateString('es-CL');
   var hora  = pad(new Date().getHours())+':'+pad(new Date().getMinutes());
 
-  // Calcular totales
   var totE=0,totD=0,totT=0,cntE=0,cntD=0,cntT=0;
   for(var i=0;i<regs.length;i++){
     if(regs[i].pago==='efectivo'){totE+=regs[i].precio;cntE++;}
@@ -2707,11 +2618,10 @@ function printCajaA4(){
     else if(regs[i].pago==='transferencia'){totT+=regs[i].precio;cntT++;}
   }
   var totalFact = totE+totD+totT;
-  var totalGastosPrint = 0;
+  var totalGastosPrint=0;
   for(var i=0;i<gastos.length;i++) totalGastosPrint+=gastos[i].monto;
 
-  // Liquidación barberos
-  var totalCorresponde=0, totalPagoEf=0, totalPagoTr=0, totalPend=0;
+  var totalCorresponde=0,totalPagoEf=0,totalPagoTr=0,totalPend=0;
   var bbRows='';
   for(var i=0;i<BB.length;i++){
     var b=BB[i];
@@ -2723,158 +2633,128 @@ function printCajaA4(){
     totalPagoEf+=liq.efectivo; totalPagoTr+=liq.transferencia; totalPend+=pend;
     var pendStyle=pend===0?'color:#1a6b3a':pend>0?'color:#c0392b':'color:#8b5e00';
     bbRows+='<tr>'
-      +'<td><strong>'+b.nombre+'</strong><br><small style="color:#9c9a93">'+br.length+' servicio'+(br.length!==1?'s':'')+'</small></td>'
-      +'<td class="r mono bold">$'+fmt(cor)+'</td>'
-      +'<td class="r mono" style="color:#8b5e00">'+(liq.efectivo>0?'$'+fmt(liq.efectivo):'-')+'</td>'
-      +'<td class="r mono" style="color:#1a4b8b">'+(liq.transferencia>0?'$'+fmt(liq.transferencia):'-')+'</td>'
-      +'<td class="r mono" style="'+pendStyle+';font-weight:700">'+(pend===0?'✓ Pagado':pend>0?'$'+fmt(pend)+' pend.':'-')+'</td>'
+      +'<td style="padding:7px 10px;font-weight:600">'+b.nombre+'<br><span style="font-weight:400;font-size:11px;color:#9c9a93">'+br.length+' servicio'+(br.length!==1?'s':'')+'</span></td>'
+      +'<td style="padding:7px 10px;text-align:right;font-family:monospace;font-weight:700">$'+fmt(cor)+'</td>'
+      +'<td style="padding:7px 10px;text-align:right;font-family:monospace;color:#8b5e00">'+( liq.efectivo>0?'$'+fmt(liq.efectivo):'-')+'</td>'
+      +'<td style="padding:7px 10px;text-align:right;font-family:monospace;color:#1a4b8b">'+( liq.transferencia>0?'$'+fmt(liq.transferencia):'-')+'</td>'
+      +'<td style="padding:7px 10px;text-align:right;font-family:monospace;'+pendStyle+';font-weight:700">'+(pend===0?'✓ Pagado':pend>0?'$'+fmt(pend)+' pend.':'-')+'</td>'
       +'</tr>';
   }
 
-  var cajaEfectivoFinal = BASE_CAJA+totE-totalPagoEf-totalGastosPrint;
-  var saldoEfectivo     = cajaEfectivoFinal - BASE_CAJA;
-  var negocioTotal      = totalFact - totalCorresponde;
-  var utilidad          = negocioTotal - totalGastosPrint;
+  var cajaFinal = BASE_CAJA+totE-totalPagoEf-totalGastosPrint;
+  var negocioTotal = totalFact - totalCorresponde;
+  var utilidad = negocioTotal - totalGastosPrint;
 
-  var w=window.open('','_blank');
-  w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><style>');
-  w.document.write('@page{size:legal;margin:16mm 18mm}');
-  w.document.write('@media print{.noprint{display:none}}');
-  w.document.write('*{box-sizing:border-box;margin:0;padding:0}');
-  w.document.write('body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;font-size:10pt;color:#1a1916;background:#fff;line-height:1.5}');
-
-  // Layout: una columna, secciones apiladas con buen espaciado
-  w.document.write('.wrap{max-width:180mm;margin:0 auto}');
-  w.document.write('.hdr{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:12px;border-bottom:2.5px solid #1a1916;margin-bottom:28px}');
-  w.document.write('.brand{font-size:18pt;font-weight:700;letter-spacing:.5px}.brand-sub{font-size:9pt;color:#5c5a54;margin-top:3px}');
-  w.document.write('.doc-info{text-align:right;font-size:9pt;color:#5c5a54;line-height:1.7}');
-
-  // KPIs en fila
-  w.document.write('.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:32px}');
-  w.document.write('.kpi{border:1px solid #e2e0d8;border-radius:6px;padding:14px 12px}');
-  w.document.write('.kpi-l{font-size:8pt;color:#9c9a93;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}');
-  w.document.write('.kpi-v{font-size:17pt;font-weight:700;font-family:"Courier New",monospace}');
-
-  // Secciones
-  w.document.write('.sec{margin-bottom:30px}');
-  w.document.write('.sec-title{font-size:8.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#9c9a93;padding-bottom:7px;border-bottom:1.5px solid #1a1916;margin-bottom:14px}');
-
-  // Tablas
-  w.document.write('table{width:100%;border-collapse:collapse;font-size:9.5pt}');
-  w.document.write('th{font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#9c9a93;padding:6px 10px;border-bottom:1px solid #1a1916;text-align:left}');
-  w.document.write('td{padding:8px 10px;border-bottom:1px solid #ede9e0}');
-  w.document.write('tr:last-child td{border-bottom:none}');
-  w.document.write('.tot td{background:#1a1916;color:#fff;font-weight:700;border-bottom:none}');
-  w.document.write('.r{text-align:right}.mono{font-family:"Courier New",monospace}.bold{font-weight:700}');
-
-  // Tabla contable
-  w.document.write('.conta td{padding:9px 12px;border-bottom:1px solid #f0ede6;font-size:10pt}');
-  w.document.write('.conta .sub{background:#f7f6f3;font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#9c9a93;padding:5px 12px}');
-  w.document.write('.conta .ing{color:#1a6b3a;font-weight:700;font-family:monospace}');
-  w.document.write('.conta .egr{color:#c0392b;font-weight:700;font-family:monospace}');
-  w.document.write('.conta .sep td{border-top:2px solid #1a1916;border-bottom:none;padding-top:10px}');
-  w.document.write('.conta .saldo-pos{background:#e8f5e9;color:#1a6b3a;font-weight:700;font-family:monospace;font-size:11pt}');
-  w.document.write('.conta .saldo-neg{background:#fde8e8;color:#c0392b;font-weight:700;font-family:monospace;font-size:11pt}');
-
-  // Caja de acción
-  w.document.write('.accion-pos{background:#e8f5e9;border:1.5px solid #4caf50;border-radius:7px;padding:14px 18px;margin-top:14px}');
-  w.document.write('.accion-neg{background:#fde8e8;border:1.5px solid #e53935;border-radius:7px;padding:14px 18px;margin-top:14px}');
-  w.document.write('.accion-eq{background:#fff8e1;border:1.5px solid #ffc107;border-radius:7px;padding:14px 18px;margin-top:14px}');
-  w.document.write('.accion-title{font-size:13pt;font-weight:700;margin-bottom:4px}');
-  w.document.write('.accion-desc{font-size:9.5pt;margin-top:4px;line-height:1.5}');
-
-  // Electrónico
-  w.document.write('.elec-box{border:1px solid #e2e0d8;border-radius:6px;overflow:hidden;margin-top:0}');
-  w.document.write('.elec-row{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid #f0ede6;font-size:10pt}');
-  w.document.write('.elec-row:last-child{border-bottom:none}');
-
-  w.document.write('.footer{margin-top:32px;padding-top:10px;border-top:1px solid #e2e0d8;display:flex;justify-content:space-between;font-size:8pt;color:#9c9a93}');
-  w.document.write('</style></head><body>');
-  w.document.write('<button class="noprint" onclick="window.print()" style="position:fixed;top:16px;right:16px;padding:9px 22px;background:#1a1916;color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;z-index:100">Imprimir · Guardar PDF</button>');
-  w.document.write('<div class="wrap">');
-
-  // ── 1. ENCABEZADO ─────────────────────────────────────────
-  w.document.write('<div class="hdr">');
-  w.document.write('<div><div class="brand">Salon Men Saúl Fino</div><div class="brand-sub">Galería Santiago Centro · Local 222 · Línea 1 Metro</div></div>');
-  w.document.write('<div class="doc-info"><strong>Cierre de Caja</strong><br>'+fecha+'<br>'+hora+'</div>');
-  w.document.write('</div>');
-
-  // ── 2. KPIs GENERALES ──────────────────────────────────────
-  w.document.write('<div class="kpis">');
-  w.document.write('<div class="kpi"><div class="kpi-l">Facturación total</div><div class="kpi-v" style="color:#8b5e00">$'+fmt(totalFact)+'</div></div>');
-  w.document.write('<div class="kpi"><div class="kpi-l">Para el negocio</div><div class="kpi-v" style="color:#1a6b3a">$'+fmt(negocioTotal)+'</div></div>');
-  w.document.write('<div class="kpi"><div class="kpi-l">Pago barberos</div><div class="kpi-v" style="color:#1a4b8b">$'+fmt(totalCorresponde)+'</div></div>');
-  w.document.write('<div class="kpi"><div class="kpi-l">Utilidad neta</div><div class="kpi-v" style="color:'+(utilidad>=0?'#1a6b3a':'#c0392b')+'">$'+fmt(utilidad)+'</div></div>');
-  w.document.write('</div>');
-
-  // ── 3. COBROS DEL DÍA ──────────────────────────────────────
-  w.document.write('<div class="sec">');
-  w.document.write('<div class="sec-title">Cobros del día</div>');
-  w.document.write('<table><thead><tr><th>Canal de pago</th><th>Servicios</th><th class="r">Monto</th><th class="r">% del total</th></tr></thead><tbody>');
-  if(cntE>0) w.document.write('<tr><td>💵 Efectivo</td><td>'+cntE+'</td><td class="r mono bold" style="color:#1a6b3a">$'+fmt(totE)+'</td><td class="r" style="color:#9c9a93">'+Math.round(totE/totalFact*100)+'%</td></tr>');
-  if(cntD>0) w.document.write('<tr><td>💳 Débito</td><td>'+cntD+'</td><td class="r mono bold" style="color:#1a4b8b">$'+fmt(totD)+'</td><td class="r" style="color:#9c9a93">'+Math.round(totD/totalFact*100)+'%</td></tr>');
-  if(cntT>0) w.document.write('<tr><td>📲 Transferencia</td><td>'+cntT+'</td><td class="r mono bold" style="color:#8b5e00">$'+fmt(totT)+'</td><td class="r" style="color:#9c9a93">'+Math.round(totT/totalFact*100)+'%</td></tr>');
-  w.document.write('<tr class="tot"><td colspan="2">TOTAL · '+regs.length+' servicios</td><td class="r mono">$'+fmt(totalFact)+'</td><td class="r">100%</td></tr>');
-  w.document.write('</tbody></table></div>');
-
-  // ── 4. LIQUIDACIÓN BARBEROS ────────────────────────────────
-  w.document.write('<div class="sec">');
-  w.document.write('<div class="sec-title">Liquidación barberos</div>');
-  w.document.write('<table><thead><tr><th>Barbero</th><th class="r">Corresponde</th><th class="r">Pagado ef.</th><th class="r">Pagado transf.</th><th class="r">Estado</th></tr></thead><tbody>');
-  w.document.write(bbRows);
-  w.document.write('<tr class="tot"><td>TOTAL</td><td class="r mono">$'+fmt(totalCorresponde)+'</td><td class="r mono">$'+fmt(totalPagoEf)+'</td><td class="r mono">$'+fmt(totalPagoTr)+'</td><td class="r mono">'+(totalPend===0?'✓ OK':'$'+fmt(totalPend)+' pend.')+'</td></tr>');
-  w.document.write('</tbody></table></div>');
-
-  // ── 5. FLUJO DE CAJA EN EFECTIVO ──────────────────────────
-  w.document.write('<div class="sec">');
-  w.document.write('<div class="sec-title">Flujo de caja · Solo efectivo</div>');
-  w.document.write('<table class="conta"><tbody>');
-  w.document.write('<tr class="sub"><td colspan="2">APERTURA</td></tr>');
-  w.document.write('<tr><td>Base inicial en caja</td><td class="r mono" style="color:#5c5a54;font-weight:600">$'+fmt(BASE_CAJA)+'</td></tr>');
-  w.document.write('<tr class="sub"><td colspan="2">INGRESOS</td></tr>');
-  if(totE>0) w.document.write('<tr><td>+ Efectivo cobrado ('+cntE+' servicios)</td><td class="r ing">+ $'+fmt(totE)+'</td></tr>');
-  w.document.write('<tr class="sub"><td colspan="2">EGRESOS</td></tr>');
-  w.document.write('<tr><td>− Pago barberos en efectivo</td><td class="r egr">− $'+fmt(totalPagoEf)+'</td></tr>');
-  for(var i=0;i<gastos.length;i++){
-    w.document.write('<tr><td>− '+gastos[i].desc+'</td><td class="r egr">− $'+fmt(gastos[i].monto)+'</td></tr>');
-  }
-  w.document.write('<tr class="sep"><td></td><td></td></tr>');
-  var clsEf = cajaEfectivoFinal>=BASE_CAJA?'saldo-pos':'saldo-neg';
-  w.document.write('<tr><td style="font-weight:700">Saldo físico en caja</td><td class="r '+clsEf+'">$'+fmt(cajaEfectivoFinal)+'</td></tr>');
-  w.document.write('<tr><td style="color:#9c9a93;font-size:9pt">Base requerida para mañana</td><td class="r mono" style="color:#9c9a93;font-size:9pt">$'+fmt(BASE_CAJA)+'</td></tr>');
-  var clsDep=saldoEfectivo>=0?'saldo-pos':'saldo-neg';
-  var lblDep=saldoEfectivo>=0?'Retirar y depositar':'Reponer en caja';
-  w.document.write('<tr><td style="font-weight:700;font-size:11pt">'+lblDep+'</td><td class="r '+clsDep+'" style="font-size:12pt">'+(saldoEfectivo<0?'− ':'')+'$'+fmt(Math.abs(saldoEfectivo))+'</td></tr>');
-  w.document.write('</tbody></table>');
-
-  // Caja de acción
-  if(saldoEfectivo>0){
-    w.document.write('<div class="accion-pos"><div class="accion-title" style="color:#1a6b3a">✓ Retirar $'+fmt(saldoEfectivo)+' del cajón</div><div class="accion-desc" style="color:#2e7d32">Dejar solo $'+fmt(BASE_CAJA)+' como base. El excedente debe depositarse o entregarse al administrador.</div></div>');
-  } else if(saldoEfectivo<0){
-    w.document.write('<div class="accion-neg"><div class="accion-title" style="color:#c0392b">⚠ Reponer $'+fmt(Math.abs(saldoEfectivo))+' en caja</div><div class="accion-desc" style="color:#b71c1c">Los egresos superaron el efectivo recibido. Se debe completar la base antes de cerrar.</div></div>');
-  } else {
-    w.document.write('<div class="accion-eq"><div class="accion-title" style="color:#8b5e00">= Caja en equilibrio exacto</div><div class="accion-desc" style="color:#5c5a54">El saldo coincide con la base requerida. No hay retiro ni reposición.</div></div>');
-  }
-  w.document.write('</div>');
-
-  // ── 6. PAGOS ELECTRÓNICOS (solo informativo) ───────────────
-  if(totD>0||totT>0){
-    w.document.write('<div class="sec">');
-    w.document.write('<div class="sec-title">Pagos electrónicos · Solo informativo · No afectan caja</div>');
-    w.document.write('<div class="elec-box">');
-    if(totD>0) w.document.write('<div class="elec-row"><span>💳 Débito &nbsp;<small style="color:#9c9a93">('+cntD+' servicios)</small></span><span class="mono bold" style="color:#1a4b8b">$'+fmt(totD)+'</span></div>');
-    if(totT>0) w.document.write('<div class="elec-row"><span>📲 Transferencia &nbsp;<small style="color:#9c9a93">('+cntT+' servicios)</small></span><span class="mono bold" style="color:#8b5e00">$'+fmt(totT)+'</span></div>');
-    w.document.write('<div class="elec-row" style="background:#f7f6f3"><span style="font-weight:700">Total electrónico</span><span class="mono bold">$'+fmt(totD+totT)+'</span></div>');
-    w.document.write('</div></div>');
+  var gastosHTML='';
+  if(gastos.length>0){
+    gastosHTML='<div style="margin-top:20px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#9c9a93;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #1a1916">Gastos del día</div>'
+      +'<table style="width:100%;border-collapse:collapse;font-size:13px">'
+      +'<thead><tr style="border-bottom:1px solid #e2e0d8"><th style="text-align:left;padding:5px 8px;font-size:10px;color:#9c9a93;text-transform:uppercase">Hora</th><th style="text-align:left;padding:5px 8px;font-size:10px;color:#9c9a93;text-transform:uppercase">Descripción</th><th style="text-align:right;padding:5px 8px;font-size:10px;color:#9c9a93;text-transform:uppercase">Monto</th></tr></thead><tbody>';
+    for(var i=0;i<gastos.length;i++){
+      gastosHTML+='<tr style="border-bottom:1px solid #e2e0d8"><td style="padding:6px 8px;color:#5c5a54">'+gastos[i].hora+'</td><td style="padding:6px 8px">'+gastos[i].desc+'</td><td style="padding:6px 8px;text-align:right;font-family:monospace;color:#c0392b">−$'+fmt(gastos[i].monto)+'</td></tr>';
+    }
+    gastosHTML+='<tr><td colspan="2" style="padding:7px 8px;font-weight:700">Total gastos</td><td style="padding:7px 8px;text-align:right;font-family:monospace;font-weight:700;color:#c0392b">−$'+fmt(totalGastosPrint)+'</td></tr></tbody></table></div>';
   }
 
-  // ── 7. FOOTER ──────────────────────────────────────────────
-  w.document.write('<div class="footer"><span>Salon Men Saúl Fino · Local 222 · Galería Santiago Centro</span><span>Generado: '+fecha+' '+hora+' · BarberPilot</span></div>');
-  w.document.write('</div></body></html>');
-  w.document.close();
-  setTimeout(function(){ w.print(); }, 800);
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8">'
+    +'<style>'
+    +'@page{size:A4;margin:18mm 16mm}'
+    +'@media print{.no-print{display:none}}'
+    +'*{box-sizing:border-box;margin:0;padding:0}'
+    +'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;font-size:10pt;color:#1a1916;background:#fff}'
+    +'.page{max-width:176mm;margin:0 auto}'
+    +'.hdr{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:12px;border-bottom:2px solid #1a1916;margin-bottom:16px}'
+    +'.brand{font-size:18pt;font-weight:700;letter-spacing:-.02em}'
+    +'.brand-sub{font-size:9pt;color:#5c5a54;margin-top:3px}'
+    +'.doc-meta{text-align:right;font-size:9pt;color:#5c5a54;line-height:1.7}'
+    +'.doc-title{font-size:13pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:16px}'
+    +'.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}'
+    +'.kpi{border:1px solid #e2e0d8;border-radius:6px;padding:12px}'
+    +'.kpi-l{font-size:8pt;color:#9c9a93;margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em}'
+    +'.kpi-v{font-size:18pt;font-weight:700;font-family:"Courier New",monospace}'
+    +'.stitle{font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#9c9a93;margin:18px 0 8px;padding-bottom:6px;border-bottom:1px solid #1a1916}'
+    +'table{width:100%;border-collapse:collapse}'    +'.hor-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px}'    +'.hor-card{border:1px solid #e2e0d8;border-radius:6px;overflow:hidden}'    +'.hor-head{background:#1a1916;color:#fff;padding:8px 11px;display:flex;justify-content:space-between;align-items:center}'    +'.hor-body{padding:9px 11px}'    +'.hor-row{display:flex;justify-content:space-between;font-size:9pt;padding:3px 0;border-bottom:1px solid #f0ede6}'    +'.hor-row:last-child{border-bottom:none}'    +'.hor-row .l{color:#5c5a54}.hor-row .v{font-family:monospace;font-weight:600}'    +'.hor-row .v.g{color:#1a6b3a}.hor-row .v.b{color:#1a4b8b}'
+    +'th{font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#9c9a93;padding:6px 10px;text-align:left;border-bottom:1px solid #1a1916}'
+    +'td{padding:7px 10px;border-bottom:1px solid #e2e0d8;font-size:10pt}'
+    +'.tot-row td{background:#1a1916;color:#fff;font-weight:700;font-family:"Courier New",monospace;font-size:10pt}'
+    +'.firmas{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:28px}'
+    +'.firma{border:1px solid #e2e0d8;border-radius:6px;padding:12px}'
+    +'.firma-name{font-weight:700;font-size:11pt;margin-bottom:4px}'
+    +'.firma-det{font-size:9pt;color:#5c5a54;margin-bottom:20px;line-height:1.6}'
+    +'.firma-line{border-bottom:1px solid #1a1916;height:28px;margin-bottom:4px}'
+    +'.firma-lbl{font-size:8pt;color:#9c9a93}'
+    +'.footer{margin-top:20px;padding-top:8px;border-top:1px solid #e2e0d8;display:flex;justify-content:space-between;font-size:8pt;color:#9c9a93}'
+    +'</style></head><body>'
+    +'<button class="no-print" onclick="window.print()" style="position:fixed;top:16px;right:16px;padding:10px 22px;background:#1a1916;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;z-index:100">Imprimir / Guardar PDF</button>'
+    +'<div class="page">'
+    +'<div class="hdr">'
+    +'<div><div class="brand">Salon Men Saúl Fino</div><div class="brand-sub">Galería Santiago Centro · Local 222 · Línea 1 Metro</div></div>'
+    +'<div class="doc-meta"><strong>Cierre de Caja</strong><br>'+fecha+'<br>'+hora+'</div>'
+    +'</div>'
+    +'<div class="doc-title">Cierre de jornada · '+fecha+'</div>'
+    +'<div class="kpis">'
+    +'<div class="kpi"><div class="kpi-l">Facturación total</div><div class="kpi-v" style="color:#8b5e00">$'+fmt(totalFact)+'</div></div>'
+    +'<div class="kpi"><div class="kpi-l">Para el negocio</div><div class="kpi-v" style="color:#1a6b3a">$'+fmt(negocioTotal)+'</div></div>'
+    +'<div class="kpi"><div class="kpi-l">Pago barberos</div><div class="kpi-v" style="color:#1a4b8b">$'+fmt(totalCorresponde)+'</div></div>'
+    +'<div class="kpi"><div class="kpi-l">Utilidad neta</div><div class="kpi-v" style="color:'+(utilidad>=0?'#1a6b3a':'#c0392b')+'">$'+fmt(utilidad)+'</div></div>'
+    +'</div>'
+    +'<div class="stitle">Cobros del día</div>'
+    +'<table><thead><tr><th>Canal</th><th>Servicios</th><th style="text-align:right">Monto bruto</th></tr></thead><tbody>'
+    +'<tr><td>💵 Efectivo</td><td>'+cntE+' servicios</td><td style="text-align:right;font-family:monospace;font-weight:600">$'+fmt(totE)+'</td></tr>'
+    +'<tr><td>💳 POS Mercado Pago (débito)</td><td>'+cntD+' servicios</td><td style="text-align:right;font-family:monospace;font-weight:600">$'+fmt(totD)+'</td></tr>'
+    +'<tr><td>📲 Transferencia</td><td>'+cntT+' servicios</td><td style="text-align:right;font-family:monospace;font-weight:600">$'+fmt(totT)+'</td></tr>'
+    +'<tr class="tot-row"><td colspan="2">TOTAL FACTURADO</td><td style="text-align:right">$'+fmt(totalFact)+'</td></tr>'
+    +'</tbody></table>'
+    +'<div class="stitle">Liquidación de barberos</div>'
+    +'<table><thead><tr><th>Barbero</th><th style="text-align:right">Le corresponde</th><th style="text-align:right">Pagado efectivo</th><th style="text-align:right">Pagado transf.</th><th style="text-align:right">Pendiente</th></tr></thead>'
+    +'<tbody>'+bbRows
+    +'<tr class="tot-row"><td>TOTALES</td><td style="text-align:right">$'+fmt(totalCorresponde)+'</td><td style="text-align:right">$'+fmt(totalPagoEf)+'</td><td style="text-align:right">$'+fmt(totalPagoTr)+'</td><td style="text-align:right">'+(totalPend===0?'✓ Al día':'$'+fmt(totalPend)+' pendiente')+'</td></tr>'
+    +'</tbody></table>'
+    +gastosHTML
+    +'<div class="stitle">Resumen de caja efectivo</div>'
+    +'<table><tbody>'
+    +'<tr><td>Base inicial del día</td><td style="text-align:right;font-family:monospace">$'+fmt(BASE_CAJA)+'</td></tr>'
+    +'<tr><td>+ Cobros en efectivo</td><td style="text-align:right;font-family:monospace">$'+fmt(totE)+'</td></tr>'
+    +'<tr><td>− Pagos efectivo a barberos</td><td style="text-align:right;font-family:monospace">−$'+fmt(totalPagoEf)+'</td></tr>'
+    +(totalGastosPrint>0?'<tr><td>− Gastos del día</td><td style="text-align:right;font-family:monospace">−$'+fmt(totalGastosPrint)+'</td></tr>':'')
+    +'<tr><td>Total físico en caja</td><td style="text-align:right;font-family:monospace">$'+fmt(cajaFinal)+'</td></tr>'
+    +'<tr><td style="color:#9c9a93">Base que queda en caja</td><td style="text-align:right;font-family:monospace;color:#9c9a93">$'+fmt(BASE_CAJA)+'</td></tr>'
+    +'<tr class="tot-row"><td>🏦 A DEPOSITAR HOY</td><td style="text-align:right">$'+fmt(cajaFinal-BASE_CAJA)+'</td></tr>'
+    +'</tbody></table>'
+    +(totalPend>0?'<div style="margin-top:10px;background:#fef9e7;border:1px solid #e8d08a;border-radius:6px;padding:10px 14px;font-size:10pt;color:#8b5e00">⚠ Quedan <strong>$'+fmt(totalPend)+'</strong> por transferir a barberos.</div>':'<div style="margin-top:10px;background:#e6f4ea;border:1px solid #c0dd97;border-radius:6px;padding:10px 14px;font-size:10pt;color:#1a6b3a">✓ Todos los barberos fueron pagados.</div>')
+  html+=''
+    +'<div class="footer">'
+    +'<span>Salon Men Saúl Fino · Local 222 · Galería Santiago Centro</span>'
+    +'<span>Documento interno · Generado '+fecha+' '+hora+'</span>'
+    +'</div>'
+    +'</div></body></html>';
+
+  // Nombre de archivo con fecha
+  var diasES=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+  var mesesES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  var mesesMAY=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+  var ahora=new Date();
+  var dia=String(ahora.getDate()).padStart(2,'0');
+  var mes=mesesMAY[ahora.getMonth()];
+  var anio=ahora.getFullYear();
+  var diaSemana=diasES[ahora.getDay()];
+  var nombreArchivo=diaSemana+'_'+dia+mes+anio;
+
+  // Agregar meta title y botón de descarga con nombre correcto al HTML
+  html=html.replace('<title>Cierre Caja</title>','<title>'+nombreArchivo+'</title>');
+
+  html=html.replace('</head>','<title>'+nombreArchivo+'</title></head>');
+
+  var win=window.open('','_blank','width=900,height=700,toolbar=0,menubar=0,scrollbars=1');
+  if(!win){ toast('Activa los pop-ups para abrir el A4'); return; }
+  win.document.write(html);
+  win.document.close();
+  // El título de la ventana define el nombre del PDF al guardar
+  setTimeout(function(){ try{ win.document.title = nombreArchivo; }catch(e){} }, 300);
 }
 
+// ═══ CONTROL DE HORARIOS ════════════════════════════════════
+var horarios = {}; // {fecha: [{bid, bnom, entrada, salida}]}
 
 function cargarHorarios(){
   try{
@@ -3081,6 +2961,7 @@ function renderIngresarHistorico(){
     +'<option value="b1">Didian</option>'
     +'<option value="b2">Emerson</option>'
     +'<option value="b3">Samuel</option>'
+    +'<option value="b4">David</option>'
     +'</select></div>'
 
     +'<div>'
@@ -3612,28 +3493,36 @@ function cargarKpiCuantiDesdeApi(periodo, callback){
 // Calcular cuantitativos directamente desde registros del localStorage/memoria
 function calcKpiCuantiLocal(bid, periodo){
   var todosRegs = [];
+  // Recoger todos los registros del período del localStorage
   try{
-      for(var i=0;i<localStorage.length;i++){
-        var k=localStorage.key(i);
-        if(!k||k.indexOf('sfsf_')!==0||k.length!==15) continue;
-        if(k.replace('sfsf_','').substring(0,7)!==periodo) continue;
-        JSON.parse(localStorage.getItem(k)||'[]').forEach(function(r){if(r.bid===bid)todosRegs.push(r);});
-      }
-    }catch(e){}
-  if(fechaHoy.substring(0,7)===periodo) regs.forEach(function(r){if(r.bid===bid)todosRegs.push(r);});
-  // Deduplicar
+    for(var i=0; i<localStorage.length; i++){
+      var k = localStorage.key(i);
+      if(!k || k.indexOf('sfsf_') !== 0 || k.length !== 15) continue;
+      var fechaKey = k.replace('sfsf_','');
+      if(fechaKey.substring(0,7) !== periodo) continue;
+      var arr = JSON.parse(localStorage.getItem(k)||'[]');
+      arr.forEach(function(r){ if(r.bid===bid) todosRegs.push(r); });
+    }
+  }catch(e){}
+  // También registros en memoria del día actual
+  if(fechaHoy.substring(0,7)===periodo){
+    regs.forEach(function(r){ if(r.bid===bid) todosRegs.push(r); });
+  }
+  // Deduplicar por id
   var seen={}, uniq=[];
   todosRegs.forEach(function(r){if(!seen[r.id]){seen[r.id]=true;uniq.push(r);}});
-  todosRegs=uniq;
-  var n=todosRegs.length;
-  var tot=todosRegs.reduce(function(a,r){return a+r.precio;},0);
-  var bb=todosRegs.reduce(function(a,r){return a+r.bb+(r.propina||0);},0);
-  var tk=n>0?Math.round(tot/n):0;
-  var prop=todosRegs.filter(function(r){return (r.propina||0)>0;}).length;
-  var propMonto=todosRegs.reduce(function(a,r){return a+(r.propina||0);},0);
-  var ups=todosRegs.filter(function(r){return r.precio>12000;}).length;
+  todosRegs = uniq;
+
+  var n   = todosRegs.length;
+  var tot = todosRegs.reduce(function(a,r){return a+r.precio;},0);
+  var bb  = todosRegs.reduce(function(a,r){return a+r.bb+(r.propina||0);},0);
+  var tk  = n>0?Math.round(tot/n):0;
+  var prop= todosRegs.filter(function(r){return (r.propina||0)>0;}).length;
+  var propMonto = todosRegs.reduce(function(a,r){return a+(r.propina||0);},0);
+  var ups = todosRegs.filter(function(r){return r.precio>12000;}).length;
   return {n:n, tot:tot, bb:bb, tk:tk, propCnt:prop, propMonto:propMonto, upsCnt:ups};
 }
+
 function sincronizarMesDesdeApi(periodo, callback){
   // Descarga todos los registros del mes desde Railway y los guarda en localStorage
   if(!API_URL){ if(callback) callback(); return; }
@@ -3655,18 +3544,15 @@ function sincronizarMesDesdeApi(periodo, callback){
   Promise.all(promesas).then(function(results){
     results.forEach(function(json){
       if(!json.ok || !json.registros || !json.registros.length) return;
+      var fecha = json.fecha;
       var recs  = json.registros.map(function(r){
         return {
           id:r.id, bid:r.bid, bnom:r.bnom, sid:r.sid||'custom', snom:r.snom,
           precio:parseInt(r.precio), pago:r.pago, com:parseFloat(r.com),
           bb:parseInt(r.bb), neg:parseInt(r.neg), propina:parseInt(r.propina||0),
-          fecha:r.fecha||r.fecha_display||'', hora:r.hora||'--', ts:parseInt(r.ts||0)
+          fecha:r.fecha_display||fecha, hora:r.hora||'--', ts:parseInt(r.ts||0)
         };
       });
-      if(!recs.length) return;
-      // Obtener fecha del primer registro válido
-      var fecha = recs[0].fecha ? recs[0].fecha.slice(0,10) : '';
-      if(!fecha || fecha.length !== 10) return;
       try{
         var key = 'sfsf_'+fecha;
         // Fusionar con lo que ya haya en localStorage
@@ -3677,24 +3563,21 @@ function sincronizarMesDesdeApi(periodo, callback){
       }catch(e){}
     });
     if(callback) callback();
-  }).catch(function(e){
-    console.warn('sync error:', e);
-    if(callback) callback();
   });
 }
 
 function renderKpis(){
   cargarKpiEvals();
+  // Sincronizar mes desde Railway si hay API_URL (para que KPIs sean del mes completo)
   if(API_URL && !window._kpiSynced){
     window._kpiSynced = true;
     sincronizarMesDesdeApi(kpiPeriodo, function(){
       renderKpisInner();
     });
-    return;
+    return; // renderKpisInner se llama en el callback
   }
   renderKpisInner();
 }
-
 
 function renderKpisInner(){
   // Actualizar automáticamente apertura/cierre para todos los barberos
@@ -4038,8 +3921,6 @@ function toast(msg){
 
 // ═══ ARRANCAR ════════════════════════════════════════════
 init();
-
-
 </script>
 </body>
 </html>
