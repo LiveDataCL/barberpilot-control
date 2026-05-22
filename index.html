@@ -2711,17 +2711,22 @@ function printCajaA4(){
     +'<tr class="tot-row"><td>TOTALES</td><td style="text-align:right">$'+fmt(totalCorresponde)+'</td><td style="text-align:right">$'+fmt(totalPagoEf)+'</td><td style="text-align:right">$'+fmt(totalPagoTr)+'</td><td style="text-align:right">'+(totalPend===0?'✓ Al día':'$'+fmt(totalPend)+' pendiente')+'</td></tr>'
     +'</tbody></table>'
     +gastosHTML
-    +'<div class="stitle">Resumen de caja efectivo</div>'
+    +'<div class="stitle">Flujo de caja efectivo</div>'
     +'<table><tbody>'
-    +'<tr><td>Base inicial del día</td><td style="text-align:right;font-family:monospace">$'+fmt(BASE_CAJA)+'</td></tr>'
-    +'<tr><td>+ Cobros en efectivo</td><td style="text-align:right;font-family:monospace">$'+fmt(totE)+'</td></tr>'
-    +'<tr><td>− Pagos efectivo a barberos</td><td style="text-align:right;font-family:monospace">−$'+fmt(totalPagoEf)+'</td></tr>'
-    +(totalGastosPrint>0?'<tr><td>− Gastos del día</td><td style="text-align:right;font-family:monospace">−$'+fmt(totalGastosPrint)+'</td></tr>':'')
-    +'<tr><td>Total físico en caja</td><td style="text-align:right;font-family:monospace">$'+fmt(cajaFinal)+'</td></tr>'
-    +'<tr><td style="color:#9c9a93">Base que queda en caja</td><td style="text-align:right;font-family:monospace;color:#9c9a93">$'+fmt(BASE_CAJA)+'</td></tr>'
-    +'<tr class="tot-row"><td>🏦 A DEPOSITAR HOY</td><td style="text-align:right">$'+fmt(cajaFinal-BASE_CAJA)+'</td></tr>'
+    +'<tr><td style="color:#5c5a54">Base inicial en caja</td><td style="text-align:right;font-family:monospace;color:#5c5a54">$'+fmt(BASE_CAJA)+'</td></tr>'
+    +(totE>0?'<tr><td><strong style="color:#1a6b3a">💰 Cobros efectivo ('+cntE+' svc)</strong></td><td style="text-align:right;font-family:monospace;color:#1a6b3a;font-weight:700">+ $'+fmt(totE)+'</td></tr>':'')
+    +'<tr><td><strong style="color:#c0392b">💸 Pago barberos en efectivo</strong></td><td style="text-align:right;font-family:monospace;color:#c0392b;font-weight:700">− $'+fmt(totalPagoEf)+'</td></tr>'
+    +(totalGastosPrint>0?gastos.map(function(g){return '<tr><td><strong style="color:#c0392b">💸 '+g.desc+'</strong></td><td style="text-align:right;font-family:monospace;color:#c0392b;font-weight:700">− $'+fmt(g.monto)+'</td></tr>';}).join(''):'')
+    +'<tr style="border-top:2px solid #1a1916"><td style="padding-top:8px;font-weight:700">Saldo físico en caja</td><td style="text-align:right;font-family:monospace;font-weight:700;padding-top:8px;'+(cajaFinal>=BASE_CAJA?'background:#e8f5e9;color:#1a6b3a':'background:#fde8e8;color:#c0392b')+'">$'+fmt(cajaFinal)+'</td></tr>'
+    +'<tr><td style="color:#9c9a93;font-size:9pt">Base requerida para mañana</td><td style="text-align:right;font-family:monospace;color:#9c9a93;font-size:9pt">$'+fmt(BASE_CAJA)+'</td></tr>'
+    +'<tr><td style="font-weight:700;color:'+(cajaFinal-BASE_CAJA>0?'#1a6b3a':cajaFinal-BASE_CAJA<0?'#c0392b':'#1a1916')+'">'+(cajaFinal-BASE_CAJA>0?'Retirar y depositar':cajaFinal-BASE_CAJA<0?'Reponer en caja':'Caja en equilibrio')+'</td><td style="text-align:right;font-family:monospace;font-weight:700;color:'+(cajaFinal-BASE_CAJA>0?'#1a6b3a':cajaFinal-BASE_CAJA<0?'#c0392b':'#1a1916')+'">'+(cajaFinal-BASE_CAJA<0?'− ':'')+'$'+fmt(Math.abs(cajaFinal-BASE_CAJA))+'</td></tr>'
     +'</tbody></table>'
-    +(totalPend>0?'<div style="margin-top:10px;background:#fef9e7;border:1px solid #e8d08a;border-radius:6px;padding:10px 14px;font-size:10pt;color:#8b5e00">⚠ Quedan <strong>$'+fmt(totalPend)+'</strong> por transferir a barberos.</div>':'<div style="margin-top:10px;background:#e6f4ea;border:1px solid #c0dd97;border-radius:6px;padding:10px 14px;font-size:10pt;color:#1a6b3a">✓ Todos los barberos fueron pagados.</div>')
+    +(cajaFinal-BASE_CAJA>0
+      ?'<div style="margin-top:10px;background:#e8f5e9;border:1.5px solid #4caf50;border-radius:6px;padding:10px 14px"><div style="font-size:11pt;font-weight:700;color:#1a6b3a;margin-bottom:3px">✓ Retirar $'+fmt(cajaFinal-BASE_CAJA)+' del cajón y depositar</div><div style="font-size:9pt;color:#2e7d32">Dejar solo $'+fmt(BASE_CAJA)+' como base. El excedente debe depositarse o entregarse al administrador.</div></div>'
+      :cajaFinal-BASE_CAJA<0
+      ?'<div style="margin-top:10px;background:#fde8e8;border:1.5px solid #e53935;border-radius:6px;padding:10px 14px"><div style="font-size:11pt;font-weight:700;color:#c0392b;margin-bottom:3px">⚠ Reponer $'+fmt(Math.abs(cajaFinal-BASE_CAJA))+' en caja</div><div style="font-size:9pt;color:#b71c1c">Los egresos superaron el efectivo recibido hoy. Se debe completar la base antes de cerrar.</div></div>'
+      :'<div style="margin-top:10px;background:#f5f4f0;border:1.5px solid #1a1916;border-radius:6px;padding:10px 14px"><div style="font-size:11pt;font-weight:700;color:#1a1916;margin-bottom:3px">= Caja en equilibrio exacto</div><div style="font-size:9pt;color:#5c5a54">El saldo coincide con la base requerida. No hay retiro ni reposición necesaria.</div></div>')
+    +(totalPend>0?'<div style="margin-top:8px;background:#fef9e7;border:1px solid #e8d08a;border-radius:6px;padding:10px 14px;font-size:10pt;color:#8b5e00">⚠ Quedan <strong>$'+fmt(totalPend)+'</strong> por transferir a barberos.</div>':'<div style="margin-top:8px;background:#e6f4ea;border:1px solid #c0dd97;border-radius:6px;padding:10px 14px;font-size:10pt;color:#1a6b3a">✓ Todos los barberos fueron pagados.</div>')
   html+=''
     +'<div class="footer">'
     +'<span>Salon Men Saúl Fino · Local 222 · Galería Santiago Centro</span>'
