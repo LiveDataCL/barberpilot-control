@@ -2754,31 +2754,39 @@ function printCajaA4(){
   // Efectivo
   w.document.write('<div>');
   w.document.write('<table class="conta"><tbody>');
-  w.document.write('<tr class="sub-hdr"><td colspan="2">💵 EFECTIVO (dinero físico en caja)</td></tr>');
-  w.document.write('<tr><td>Base inicial</td><td class="r mono" style="color:#5c5a54">$'+fmt(BASE_CAJA)+'</td></tr>');
-  if(totE>0) w.document.write('<tr><td>+ Cobros efectivo ('+cntE+' svc)</td><td class="r ing">+ $'+fmt(totE)+'</td></tr>');
-  w.document.write('<tr><td>− Pago barberos en efectivo</td><td class="r egr">− $'+fmt(totalPagoEf)+'</td></tr>');
+  w.document.write('<tr class="sub-hdr"><td colspan="2">💵 EFECTIVO — Dinero físico en caja</td></tr>');
+  w.document.write('<tr><td style="color:#5c5a54">Base inicial en caja</td><td class="r mono" style="color:#5c5a54;font-weight:600">$'+fmt(BASE_CAJA)+'</td></tr>');
+  if(totE>0) w.document.write('<tr><td><strong style="color:#1a6b3a">💰 Cobros efectivo ('+cntE+' svc)</strong></td><td class="r mono" style="color:#1a6b3a;font-weight:700">+ $'+fmt(totE)+'</td></tr>');
+  w.document.write('<tr><td><strong style="color:#c0392b">💸 Pago barberos en efectivo</strong></td><td class="r mono" style="color:#c0392b;font-weight:700">− $'+fmt(totalPagoEf)+'</td></tr>');
   for(var i=0;i<gastos.length;i++){
-    w.document.write('<tr><td>− '+gastos[i].desc+'</td><td class="r egr">− $'+fmt(gastos[i].monto)+'</td></tr>');
+    w.document.write('<tr><td><strong style="color:#c0392b">💸 '+gastos[i].desc+'</strong></td><td class="r mono" style="color:#c0392b;font-weight:700">− $'+fmt(gastos[i].monto)+'</td></tr>');
   }
   var clsEf = cajaFinal>=BASE_CAJA?'saldo-pos':'saldo-neg';
   w.document.write('<tr class="sep-row"><td>Saldo físico en caja</td><td class="r '+clsEf+'">$'+fmt(cajaFinal)+'</td></tr>');
-  w.document.write('<tr><td style="color:#9c9a93;font-size:8.5pt">Base requerida</td><td class="r mono" style="color:#9c9a93;font-size:8.5pt">$'+fmt(BASE_CAJA)+'</td></tr>');
-  var lblDep = saldoEfectivo>=0?'Retirar y depositar':'Reponer en caja';
-  var clsDep = saldoEfectivo>=0?'#1a6b3a':'#c0392b';
-  w.document.write('<tr><td style="font-weight:700">'+lblDep+'</td><td class="r mono bold" style="color:'+clsDep+'">'+(saldoEfectivo<0?'− ':'')+'$'+fmt(Math.abs(saldoEfectivo))+'</td></tr>');
+  w.document.write('<tr><td style="color:#9c9a93;font-size:8.5pt">Base requerida para mañana</td><td class="r mono" style="color:#9c9a93;font-size:8.5pt">$'+fmt(BASE_CAJA)+'</td></tr>');
+  var lblDep = saldoEfectivo>0?'Retirar y depositar':saldoEfectivo<0?'Reponer en caja':'Caja en equilibrio';
+  var clsDep = saldoEfectivo>0?'#1a6b3a':saldoEfectivo<0?'#c0392b':'#1a1916';
+  w.document.write('<tr><td style="font-weight:700;color:'+clsDep+'">'+lblDep+'</td><td class="r mono bold" style="color:'+clsDep+'">'+(saldoEfectivo<0?'− ':'')+'$'+fmt(Math.abs(saldoEfectivo))+'</td></tr>');
   w.document.write('</tbody></table>');
 
-  // Acción
+  // Caja de acción descriptiva
   if(saldoEfectivo>0){
-    w.document.write('<div class="accion-pos"><strong style="color:#1a6b3a">✓ Retirar $'+fmt(saldoEfectivo)+' del cajón</strong><div style="font-size:8.5pt;color:#2e7d32;margin-top:3px">Dejar solo $'+fmt(BASE_CAJA)+' como base para el día siguiente.</div></div>');
+    w.document.write('<div style="background:#e8f5e9;border:1.5px solid #4caf50;border-radius:5px;padding:9px 13px;margin-top:8px">'
+      +'<div style="font-size:10pt;font-weight:700;color:#1a6b3a;margin-bottom:3px">✓ Retirar $'+fmt(saldoEfectivo)+' del cajón y depositar</div>'
+      +'<div style="font-size:8.5pt;color:#2e7d32">Dejar solo $'+fmt(BASE_CAJA)+' como base. El excedente debe depositarse o entregarse al administrador.</div>'
+      +'</div>');
   } else if(saldoEfectivo<0){
-    w.document.write('<div class="accion-neg"><strong style="color:#c0392b">⚠ Reponer $'+fmt(Math.abs(saldoEfectivo))+'</strong><div style="font-size:8.5pt;color:#b71c1c;margin-top:3px">Los egresos superaron el efectivo recibido.</div></div>');
+    w.document.write('<div style="background:#fde8e8;border:1.5px solid #e53935;border-radius:5px;padding:9px 13px;margin-top:8px">'
+      +'<div style="font-size:10pt;font-weight:700;color:#c0392b;margin-bottom:3px">⚠ Reponer $'+fmt(Math.abs(saldoEfectivo))+' en caja</div>'
+      +'<div style="font-size:8.5pt;color:#b71c1c">Los egresos superaron el efectivo recibido hoy. Se debe completar la base antes de cerrar.</div>'
+      +'</div>');
   } else {
-    w.document.write('<div class="accion-eq"><strong style="color:#8b5e00">= Caja en equilibrio exacto</strong></div>');
+    w.document.write('<div style="background:#f5f4f0;border:1.5px solid #1a1916;border-radius:5px;padding:9px 13px;margin-top:8px">'
+      +'<div style="font-size:10pt;font-weight:700;color:#1a1916;margin-bottom:3px">= Caja en equilibrio exacto</div>'
+      +'<div style="font-size:8.5pt;color:#5c5a54">El saldo coincide con la base requerida. No hay retiro ni reposición necesaria.</div>'
+      +'</div>');
   }
   w.document.write('</div>');
-
   // Electrónicos
   if(totD>0||totT>0){
     w.document.write('<div>');
