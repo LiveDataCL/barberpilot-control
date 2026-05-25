@@ -2371,7 +2371,7 @@ function renderResumenFinal(){
     var b=BB[i];
     var bbRegs=regs.filter(function(r){return r.bid===b.id;});
     var corresponde=0;
-    for(var j=0;j<bbRegs.length;j++) corresponde+=bbRegs[j].bb;
+    for(var j=0;j<bbRegs.length;j++) corresponde+=bbRegs[j].bb+(bbRegs[j].propina||0);
     totalCorresponde+=corresponde;
     var liq=liquidaciones[b.id]||{efectivo:0,transferencia:0};
     totalPagoEfectivo+=liq.efectivo;
