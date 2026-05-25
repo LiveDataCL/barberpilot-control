@@ -1040,6 +1040,23 @@ function init(){
     if(document.visibilityState==='visible' && API_URL) cargarPendientes();
   }, 30000);
   cargarPendientes(); // al abrir
+
+  // ─── Sincronizar horarios y KPIs del día con Railway ─────────────────────
+  if(API_URL){
+    cargarHorariosDesdeRailway(function(){
+      renderHorarios();
+    });
+  }
+  // Programar auto-envío a las 23:00 si no se hace manual
+  programarAutoEnvioKpi();
+  
+  // Timer para reprogramar el auto-envío al día siguiente (a medianoche)
+  setInterval(function(){
+    var ahora = new Date();
+    if(ahora.getHours() === 0 && ahora.getMinutes() === 0){
+      programarAutoEnvioKpi();
+    }
+  }, 60000);
   // Fechas default en selectores histórico
   try{
     var hoyD=new Date();
@@ -2773,6 +2790,43 @@ function guardarHorariosHoy(){
   try{ localStorage.setItem('sfsf_horarios_'+fechaHoy, JSON.stringify(horarios[fechaHoy]||[])); }catch(e){}
 }
 
+// ─── SINCRONIZACIÓN HORARIOS ↔ RAILWAY ───────────────────────────────────────
+var _horEnviando = false;
+var _horAutoTimer = null;
+
+function enviarHorariosARailway(silencioso){
+  if(!API_URL || _horEnviando) return;
+  var payload = { fecha: fechaHoy, horarios: horarios[fechaHoy]||[] };
+  _horEnviando = true;
+  fetch(API_URL + '/horarios/' + fechaHoy, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(json){
+    _horEnviando = false;
+    if(!silencioso) toast(json.ok ? '\u2705 Horarios guardados en la nube' : '\u26a0 Error al guardar horarios');
+    if(json.ok && _horAutoTimer){ clearTimeout(_horAutoTimer); _horAutoTimer = null; }
+  })
+  .catch(function(){ _horEnviando = false; });
+}
+
+function cargarHorariosDesdeRailway(callback){
+  if(!API_URL){ cargarHorarios(); if(callback) callback(); return; }
+  fetch(API_URL + '/horarios/' + fechaHoy)
+    .then(function(r){ return r.json(); })
+    .then(function(json){
+      cargarHorarios(); // base local
+      if(json.ok && json.horarios && json.horarios.length > 0){
+        horarios[fechaHoy] = json.horarios;
+        guardarHorariosHoy();
+      }
+      if(callback) callback();
+    })
+    .catch(function(){ cargarHorarios(); if(callback) callback(); });
+}
+
 function marcarHora(bid, tipo){
   if(!horarios[fechaHoy]) horarios[fechaHoy]=[];
   var now = new Date();
@@ -2792,6 +2846,11 @@ function marcarHora(bid, tipo){
   // Actualizar KPIs de horario automáticamente cada vez que se registra entrada/salida
   BB.forEach(function(b){ syncEstrellaHorarioAuto(b.id, fechaHoy.substring(0,7)); });
   renderHorarios();
+  // Enviar horario a Railway (con debounce 3s para no spamear)
+  if(API_URL){
+    if(window._horarioTimer) clearTimeout(window._horarioTimer);
+    window._horarioTimer = setTimeout(function(){ enviarHorariosARailway(true); }, 3000);
+  }
 }
 
 function guardarHoraManual(bid, tipo, valor){
@@ -3280,6 +3339,69 @@ function cargarKpiEvals(){
 
 function guardarKpiEvals(){
   try{ localStorage.setItem('sfsf_kpi_evals', JSON.stringify(kpiEvals)); }catch(e){}
+  // Envío a Railway solo cuando se llama explícitamente a enviarKpiEvalsARailway()
+}
+
+// ─── SINCRONIZACIÓN KPIs ↔ RAILWAY ───────────────────────────────────────────
+var _kpiEnviando = false;
+var _kpiAutoTimer = null;
+
+function enviarKpiEvalsARailway(silencioso){
+  if(!API_URL || _kpiEnviando) return;
+  _kpiEnviando = true;
+  var payload = { periodo: kpiPeriodo, evaluaciones: kpiEvals[kpiPeriodo]||{} };
+  fetch(API_URL + '/kpi-evaluaciones/' + kpiPeriodo, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(json){
+    _kpiEnviando = false;
+    if(!silencioso) toast(json.ok ? '\u2705 Evaluaci\u00f3n enviada a la nube' : '\u26a0 Error al guardar en Railway');
+    if(json.ok && _kpiAutoTimer){ clearTimeout(_kpiAutoTimer); _kpiAutoTimer = null; }
+  })
+  .catch(function(){
+    _kpiEnviando = false;
+    if(!silencioso) toast('\u26a0 Sin conexi\u00f3n a Railway — guardado solo en local');
+  });
+}
+
+function cargarKpiEvalsDesdeRailway(callback){
+  if(!API_URL){ cargarKpiEvals(); if(callback) callback(); return; }
+  fetch(API_URL + '/kpi-evaluaciones/' + kpiPeriodo)
+    .then(function(r){ return r.json(); })
+    .then(function(json){
+      cargarKpiEvals(); // cargar primero localStorage
+      if(json.ok && json.evaluaciones){
+        // Railway es la fuente de verdad — fusionar encima de lo local
+        if(!kpiEvals[kpiPeriodo]) kpiEvals[kpiPeriodo] = {};
+        var remoto = json.evaluaciones;
+        Object.keys(remoto).forEach(function(bid){
+          if(!kpiEvals[kpiPeriodo][bid]) kpiEvals[kpiPeriodo][bid] = {cuali:{},disq:false,disqMotivo:''};
+          var src = remoto[bid]; var dst = kpiEvals[kpiPeriodo][bid];
+          if(src.cuali) Object.assign(dst.cuali, src.cuali);
+          if(src.disq !== undefined) dst.disq = src.disq;
+          if(src.disqMotivo !== undefined) dst.disqMotivo = src.disqMotivo;
+        });
+        guardarKpiEvals();
+      }
+      if(callback) callback();
+    })
+    .catch(function(){ cargarKpiEvals(); if(callback) callback(); });
+}
+
+function programarAutoEnvioKpi(){
+  if(_kpiAutoTimer){ clearTimeout(_kpiAutoTimer); _kpiAutoTimer = null; }
+  var ahora = new Date();
+  var cierre = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate(), 23, 0, 0);
+  if(ahora >= cierre) return;
+  var msHasta23 = cierre - ahora;
+  _kpiAutoTimer = setTimeout(function(){
+    _kpiAutoTimer = null;
+    enviarKpiEvalsARailway(true); // silencioso
+    enviarHorariosARailway(true);
+  }, msHasta23);
 }
 
 function getEval(periodo, bid){
@@ -3397,7 +3519,7 @@ function gradeLabel(g){
 // ── PLAN DE FACTURACIÓN — anclado al dashboard_facturacion ──
 // PLAN_S: plan mensual servicios barbería. Índice 0 = Mayo 2026.
 var PLAN_S_BARBERIA = [
-  6500000,11500000 /*Jun*/,9500000 /*Jul*/,11500000 /*Ago*/,
+  6500000,8000000 /*Jun*/,9500000 /*Jul*/,11500000 /*Ago*/,
   13500000 /*Sep*/,15500000 /*Oct*/,17000000 /*Nov*/,19000000 /*Dic*/,
   17000000 /*Ene27*/,18500000 /*Feb*/,20000000 /*Mar*/,21500000 /*Abr*/
 ];
@@ -3576,10 +3698,13 @@ function renderKpis(){
   // Sincronizar mes desde Railway si hay API_URL (para que KPIs sean del mes completo)
   if(API_URL && !window._kpiSynced){
     window._kpiSynced = true;
-    sincronizarMesDesdeApi(kpiPeriodo, function(){
-      renderKpisInner();
+    // Primero cargar evaluaciones desde Railway, luego sincronizar registros del mes
+    cargarKpiEvalsDesdeRailway(function(){
+      sincronizarMesDesdeApi(kpiPeriodo, function(){
+        renderKpisInner();
+      });
     });
-    return; // renderKpisInner se llama en el callback
+    return;
   }
   renderKpisInner();
 }
@@ -3862,10 +3987,50 @@ function renderKpisInner(){
     + '<b>Sugerencia adicional:</b> Considera añadir en el futuro KPIs de recurrencia de clientes (clientes que vuelven a pedir el mismo barbero) y evaluación de reseñas en Google Maps.<br>'
     + '</div>';
 
+  // ─── BOTÓN CERRAR EVALUACIÓN + ESTADO DE SINCRONIZACIÓN ────────────────────
+  h += '<div style="margin-top:20px;padding:16px 20px;background:#fff;border:1px solid var(--border);border-radius:var(--rl);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">'
+    + '<div>'
+    + '<div style="font-size:13px;font-weight:700;color:var(--text)">Enviar evaluaci\u00f3n a la nube</div>'
+    + '<div style="font-size:12px;color:var(--text3);margin-top:3px;max-width:480px;line-height:1.5">'
+    + 'Guarda las estrellas del per\u00edodo <strong>' + kpiPeriodo + '</strong> en Railway. '
+    + 'El sistema tambi\u00e9n lo env\u00eda autom\u00e1ticamente a las 23:00 si no lo haces manual.'
+    + '</div>'
+    + '<div id="kpiSyncStatus" style="font-size:11px;color:var(--text3);margin-top:4px">\u25cf Sin enviar hoy</div>'
+    + '</div>'
+    + '<div style="display:flex;gap:10px;flex-wrap:wrap">'
+    + '<button onclick="enviarKpiEvalsARailway(false)" class="kpi-save-btn">'
+    + '\u2601 Cerrar evaluaci\u00f3n'
+    + '</button>'
+    + '</div>'
+    + '</div>';
+
   h += '</div>'; // kpi-page
 
   c.innerHTML = h;
+  // Verificar estado de sincronización al renderizar
+  verificarEstadoSyncKpi();
 }
+
+function verificarEstadoSyncKpi(){
+  var el = document.getElementById('kpiSyncStatus');
+  if(!el) return;
+  if(!API_URL){ el.textContent = '\u25cf Sin Railway configurado'; return; }
+  fetch(API_URL + '/kpi-evaluaciones/' + kpiPeriodo + '?check=1')
+    .then(function(r){ return r.json(); })
+    .then(function(json){
+      if(json.ok && json.ultima_actualizacion){
+        var d = new Date(json.ultima_actualizacion);
+        el.innerHTML = '\u2705 \u00daltimo env\u00edo: ' + d.toLocaleDateString('es-CL') + ' ' + d.toLocaleTimeString('es-CL', {hour:'2-digit',minute:'2-digit'});
+        el.style.color = 'var(--ok)';
+      } else {
+        el.textContent = '\u26a0 No hay datos del per\u00edodo en Railway';
+        el.style.color = 'var(--warn)';
+      }
+    })
+    .catch(function(){
+      el.textContent = '\u25cf Sin conexi\u00f3n a Railway';
+    });
+
 
 function setKpiStarEl(el){
   var bid = el.dataset.bid;
@@ -3901,6 +4066,7 @@ function setDisqMotivo(bid, motivo){
 
 function cambiarPeriodoKpi(val){
   kpiPeriodo = val;
+  window._kpiSynced = false; // forzar re-sync desde Railway al cambiar período
   renderKpis();
 }
 
