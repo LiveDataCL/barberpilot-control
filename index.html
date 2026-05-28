@@ -2998,10 +2998,11 @@ function renderIngresarHistorico(){
     's01':'Corte','s02':'Barba','s03':'Corte + Barba',
     's04':'Corte + Perfilado de barba','s05':'Perfilado de corte',
     's06':'Perfilado de cejas','s07':'Barba + Cejas',
-    's08':'Perfilado de barba','s09':'Matizado canas cabello','s10':'Matizado canas barba'
+    's08':'Perfilado de barba','s09':'Matizado canas cabello','s10':'Matizado canas barba',
+    's11':'Corte Express + Perfilado de barba'
   };
   var PRECIOS={'s01':12000,'s02':10000,'s03':20000,'s04':16000,'s05':6000,
-               's06':4000,'s07':13000,'s08':6000,'s09':8000,'s10':5000};
+               's06':4000,'s07':13000,'s08':6000,'s09':8000,'s10':5000,'s11':15000};
 
   var h='<p style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6">'
     +'Ingresa aquí servicios de jornadas anteriores que registraste en papel. '
@@ -3036,8 +3037,16 @@ function renderIngresarHistorico(){
   for(var k in SERVICIOS_MAP){
     h+='<option value="'+k+'">'+SERVICIOS_MAP[k]+' ($'+PRECIOS[k].toLocaleString('es-CL')+')</option>';
   }
+  h+='<option value="custom">✏ Servicio personalizado…</option>';
 
-  h+='</select></div>'
+  h+='</select>'
+    +'<div id="histCustomWrap" style="display:none;margin-top:6px;gap:6px">'
+    +'<input id="histCustomNombre" type="text" placeholder="Nombre del servicio" '
+    +'style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--sans)">'
+    +'<input id="histCustomPrecio" type="number" placeholder="Precio $" min="0" step="500" '
+    +'style="width:110px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--mono)">'
+    +'</div>'
+    +'</div>'
 
     +'<div>'
     +'<div style="font-size:11px;color:var(--text2);margin-bottom:4px">Pago</div>'
@@ -3111,7 +3120,11 @@ function renderIngresarHistorico(){
   }
 }
 
-function actualizarPrecioHist(){} // placeholder — el precio lo calcula agregarItemHistorico
+function actualizarPrecioHist(){
+  var sid=document.getElementById('hServicio').value;
+  var wrap=document.getElementById('histCustomWrap');
+  if(wrap) wrap.style.display=sid==='custom'?'flex':'none';
+}
 
 function agregarItemHistorico(){
   var bid=document.getElementById('hBarbero').value;
@@ -3122,16 +3135,26 @@ function agregarItemHistorico(){
   if(!sid){alert('Selecciona un servicio');return;}
 
   var b=null; for(var i=0;i<BB.length;i++) if(BB[i].id===bid){b=BB[i];break;}
-  var s=null; for(var i=0;i<SS.length;i++) if(SS[i].id===sid){s=SS[i];break;}
   var com=COM[pago];
-  var bb=Math.round(s.precio*com);
+  var snom, precio;
 
+  if(sid==='custom'){
+    snom=(document.getElementById('histCustomNombre').value||'').trim();
+    precio=parseInt(document.getElementById('histCustomPrecio').value||'0',10);
+    if(!snom){alert('Ingresa el nombre del servicio personalizado');return;}
+    if(!precio){alert('Ingresa el precio del servicio personalizado');return;}
+  } else {
+    var s=null; for(var i=0;i<SS.length;i++) if(SS[i].id===sid){s=SS[i];break;}
+    snom=s.nombre; precio=s.precio;
+  }
+
+  var bb=Math.round(precio*com);
   histItems.push({
     id:'TK_MAN_'+Date.now()+'_'+histItems.length,
     bid:b.id, bnom:b.nombre,
-    sid:s.id, snom:s.nombre,
-    precio:s.precio, pago:pago, com:com,
-    bb:bb, neg:s.precio-bb,
+    sid:sid==='custom'?'custom':sid, snom:snom,
+    precio:precio, pago:pago, com:com,
+    bb:bb, neg:precio-bb,
     fecha:'', hora:hora, ts:0
   });
   renderIngresarHistorico();
