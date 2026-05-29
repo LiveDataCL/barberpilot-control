@@ -3208,8 +3208,8 @@ function descargarHistorico(){
 // Devuelve las estrellas de apertura/cierre para un barbero en un período
 // Acumula los puntajes de cada día del mes y promedia
 // Horario de referencia del salón
-var HORARIO_APERTURA = '11:30'; // hora de apertura del salón
-var HORARIO_CIERRE   = '19:00'; // hora de cierre del salón
+var HORARIO_APERTURA = '10:00'; // hora de apertura del salón
+var HORARIO_CIERRE   = '20:00'; // hora de cierre del salón
 
 function horaAMinutos(h){
   if(!h) return null;
@@ -3226,21 +3226,21 @@ function estrellasPorHorario(horaRegistrada, tipo){
   if(minReal === null) return 0;
 
   if(tipo === 'apertura'){
-    // Antes de la hora = 5⭐, hasta 10min tarde = 4⭐, hasta 20min = 3⭐, hasta 30min = 2⭐, >30min = 1⭐
-    var diff = minReal - minRef; // positivo = tarde
-    if(diff <= 0)  return 5;   // puntual o antes
-    if(diff <= 10) return 4;   // hasta 10min tarde
-    if(diff <= 20) return 3;   // hasta 20min tarde
-    if(diff <= 30) return 2;   // hasta 30min tarde
-    return 1;                   // más de 30min tarde
+    // Ref: 10:00. Escala en base a minutos de retraso
+    var diff = minReal - minRef; // positivo = llegó tarde
+    if(diff <= 15) return 5;  // hasta 10:15
+    if(diff <= 30) return 4;  // hasta 10:30
+    if(diff <= 60) return 3;  // hasta 11:00
+    if(diff <= 90) return 2;  // hasta 11:30
+    return 1;                  // después de 11:30
   } else {
-    // Cierre: salida después del cierre = 5⭐, hasta 15min antes = 4⭐, etc.
+    // Ref: 20:00. Escala en base a minutos de salida anticipada
     var diff = minRef - minReal; // positivo = salió antes
-    if(diff <= 0)  return 5;   // cierra o se queda más
-    if(diff <= 15) return 4;   // salió hasta 15min antes
-    if(diff <= 30) return 3;   // hasta 30min antes
-    if(diff <= 45) return 2;   // hasta 45min antes
-    return 1;                   // más de 45min antes
+    if(diff <= 0)   return 5;  // 20:00 o más tarde
+    if(diff <= 30)  return 4;  // desde 19:30
+    if(diff <= 60)  return 3;  // desde 19:00 (máximo si sale antes)
+    if(diff <= 90)  return 2;  // desde 18:30
+    return 1;                   // antes de 18:30
   }
 }
 
@@ -3492,11 +3492,28 @@ function calcPuntaje(bid, periodo){
   var ev = getEval(periodo, bid);
   var cuanti = calcKpiCuanti(bid, periodo);
 
-  // BLOQUE 1 — Producción: 40 puntos
-  // Servicios realizados: hasta 20 pts (ref: 10 servicios = 20 pts, más proporcional)
-  var ptsSvc = Math.min(20, cuanti.nSvc * 2);
-  // Ticket promedio: hasta 20 pts (ref: $15.000 = 20 pts)
-  var ptsTkt = Math.min(20, Math.round(cuanti.tk / 15000 * 20));
+  // BLOQUE 1 — Producción: 45 puntos
+  // Referencia: meta individual = meta mensual / nº barberos activos
+  var META_FACT_MES  = metaPlanParaPeriodo(periodo); // del plan
+  var BARBEROS_ACT   = BB.length; // barberos activos
+  var metaIndFact    = META_FACT_MES / BARBEROS_ACT;
+  var metaIndSvc     = Math.round(metaIndFact / 12300); // tk ref $12.300
+  var factEstimada   = cuanti.nSvc * (cuanti.tk || 12300);
+
+  // Servicios: aporte vs meta individual (20 pts)
+  var ptsSvc  = metaIndSvc > 0
+    ? Math.min(20, Math.round(cuanti.nSvc / metaIndSvc * 20))
+    : 0;
+
+  // Facturación estimada: aporte vs meta individual (15 pts)
+  var ptsFact = metaIndFact > 0
+    ? Math.min(15, Math.round(factEstimada / metaIndFact * 15))
+    : 0;
+
+  // Ticket promedio: vs $13.000 de referencia (10 pts)
+  var ptsTkt  = cuanti.tk > 0
+    ? Math.min(10, Math.round(cuanti.tk / 13000 * 10))
+    : 0;
 
   // BLOQUE 2 — Conducta cualitativa: 50 puntos (peso proporcional)
   var ptsQSum = 0;
@@ -3511,10 +3528,10 @@ function calcPuntaje(bid, periodo){
   // BLOQUE 3 — Propinas: hasta 10 pts extra
   var ptsProp = cuanti.propScore;
 
-  var total = ptsSvc + ptsTkt + ptsCuali + ptsProp;
+  var total = ptsSvc + ptsFact + ptsTkt + ptsCuali + ptsProp;
 
   return {
-    ptsSvc: ptsSvc, ptsTkt: ptsTkt,
+    ptsSvc: ptsSvc, ptsFact: ptsFact, ptsTkt: ptsTkt,
     ptsCuali: ptsCuali, ptsProp: ptsProp,
     total: Math.min(100, total),
     cuanti: cuanti,
@@ -3867,7 +3884,7 @@ function renderKpisInner(){
     + '<th class="r">Servicios</th>'
     + '<th class="r">Tkt prom.</th>'
     + '<th class="r">Propinas</th>'
-    + '<th class="r">Producción<br><small style="font-weight:400;text-transform:none;color:var(--text3)">40 pts</small></th>'
+    + '<th class="r">Producción<br><small style="font-weight:400;text-transform:none;color:var(--text3)">45 pts</small></th>'
     + '<th class="r">Conducta<br><small style="font-weight:400;text-transform:none;color:var(--text3)">50 pts</small></th>'
     + '<th class="r">Propina+<br><small style="font-weight:400;text-transform:none;color:var(--text3)">10 pts</small></th>'
     + '<th class="r">Total</th>'
@@ -3888,8 +3905,8 @@ function renderKpisInner(){
       + '<td class="r" '+disqClass+'><span style="font-family:var(--mono)">$'+fmt(sc.cuanti.tk)+'</span></td>'
       + '<td class="r" '+disqClass+'>'+(sc.cuanti.totalPropinas>0?'<span style="font-family:var(--mono);color:#8b5e00">$'+fmt(sc.cuanti.totalPropinas)+'</span>':'<span style="color:var(--text3)">—</span>')+'</td>'
       + '<td class="r"><div class="kpi-score-cell">'
-      +   '<span class="kpi-score-num">'+(sc.disq?'—':sc.ptsSvc+sc.ptsTkt)+'</span>'
-      +   '<div class="kpi-score-bar"><div class="kpi-score-fill" style="width:'+(sc.disq?0:Math.round((sc.ptsSvc+sc.ptsTkt)/40*100))+'%;background:#8b5e00"></div></div>'
+      +   '<span class="kpi-score-num">'+(sc.disq?'—':sc.ptsSvc+sc.ptsFact+sc.ptsTkt)+'</span>'
+      +   '<div class="kpi-score-bar"><div class="kpi-score-fill" style="width:'+(sc.disq?0:Math.round((sc.ptsSvc+sc.ptsFact+sc.ptsTkt)/45*100))+'%;background:#8b5e00"></div></div>'
       + '</div></td>'
       + '<td class="r"><div class="kpi-score-cell">'
       +   '<span class="kpi-score-num">'+(sc.disq?'—':sc.ptsCuali)+'</span>'
@@ -4004,7 +4021,7 @@ function renderKpisInner(){
   // ── Notas metodológicas ──
   h += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--rl);padding:16px;font-size:12px;color:var(--text2);line-height:1.7">'
     + '<div style="font-weight:700;font-size:13px;margin-bottom:8px;color:var(--text)">📋 Metodología de cálculo</div>'
-    + '<b>Bloque Producción (40 pts):</b> Servicios realizados (hasta 20 pts, ref: 10 svc = 20 pts) + Ticket promedio (hasta 20 pts, ref: $15.000 = 20 pts).<br>'
+    + '<b>Bloque Producción (45 pts):</b> Servicios (hasta 20 pts, vs meta individual) + Facturación estimada (hasta 15 pts, vs meta individual) + Ticket promedio (hasta 10 pts, ref: $13.000).<br>'
     + '<b>Bloque Conducta (50 pts):</b> Promedio ponderado de los 10 indicadores cualitativos (1–5 ⭐ cada uno con su factor de peso).<br>'
     + '<b>Bloque Propinas (10 pts extra):</b> &gt;0% propinas = +3 pts · &gt;5% = +5 pts · &gt;10% = +10 pts sobre la facturación del período.<br>'
     + '<b>Sugerencia adicional:</b> Considera añadir en el futuro KPIs de recurrencia de clientes (clientes que vuelven a pedir el mismo barbero) y evaluación de reseñas en Google Maps.<br>'
