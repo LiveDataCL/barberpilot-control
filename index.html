@@ -453,6 +453,15 @@
             ☁ Migrar datos a la nube
           </button>
         </div>
+
+        <!-- ── Avatares del equipo ── -->
+        <div style="margin-top:28px;border-top:1px solid var(--border);padding-top:22px">
+          <div style="font-size:15px;font-weight:600;margin-bottom:6px">📸 Avatares del equipo</div>
+          <p style="color:var(--text2);font-size:13px;margin-bottom:18px;line-height:1.6">
+            Sube la foto de cada barbero. La app la descarga automáticamente al hacer login.
+          </p>
+          <div id="avatarGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px"></div>
+        </div>
       </div>
     </div>
 
@@ -1621,6 +1630,7 @@ function showTab(id,el){
     },100);
   }
   if(id==='pKpis')renderKpis();
+  if(id==='pConfig') cargarAvatares();
 }
 function filtrar(f,el){
   var all=document.querySelectorAll('.fb');for(var i=0;i<all.length;i++)all[i].classList.remove('on');
@@ -4120,6 +4130,77 @@ function setDisqMotivo(bid, motivo){
   var ev = getEval(kpiPeriodo, bid);
   ev.disqMotivo = motivo;
   guardarKpiEvals();
+}
+
+// ── AVATARES ────────────────────────────────────────────────────
+function cargarAvatares(){
+  var grid = document.getElementById('avatarGrid');
+  if(!grid) return;
+  if(!API_URL){ grid.innerHTML = '<p style="font-size:13px;color:var(--text3)">Conecta Railway primero en la sección de arriba.</p>'; return; }
+  var h = '';
+  BB.forEach(function(b){
+    h += '<div style="text-align:center">'
+      + '<div id="av-wrap-'+b.id+'" style="width:72px;height:72px;border-radius:50%;'
+      +   'background:var(--surface2);border:1.5px solid var(--border);margin:0 auto 8px;'
+      +   'overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:28px">'
+      +   '<span>'+b.nombre[0]+'</span>'
+      + '</div>'
+      + '<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px">'+b.nombre+'</div>'
+      + '<label style="display:inline-block;padding:5px 12px;background:var(--surface2);border:1px solid var(--border);'
+      +   'border-radius:20px;font-size:11px;color:var(--text2);cursor:pointer;transition:border-color .12s" '
+      +   'onmouseover="this.style.borderColor=\'var(--text)\'" onmouseout="this.style.borderColor=\'var(--border)\'">'
+      +   '📁 Subir foto'
+      +   '<input type="file" accept="image/*" style="display:none" '
+      +     'onchange="subirAvatar(\''+b.id+'\',\''+b.nombre+'\',this)">'
+      + '</label>'
+      + '</div>';
+  });
+  grid.innerHTML = h;
+  BB.forEach(function(b){ fetchAvatarPreview(b.id); });
+}
+
+function fetchAvatarPreview(bid){
+  if(!API_URL) return;
+  fetch(API_URL+'/barbero/'+bid+'/avatar')
+    .then(function(r){ return r.json(); })
+    .then(function(json){
+      if(json.ok && json.imagen){
+        var wrap = document.getElementById('av-wrap-'+bid);
+        if(wrap) wrap.innerHTML = '<img src="data:'+(json.mime_type||'image/jpeg')+';base64,'+json.imagen
+          +'" style="width:72px;height:72px;object-fit:cover">';
+      }
+    })
+    .catch(function(){});
+}
+
+function subirAvatar(bid, nombre, input){
+  var file = input.files[0];
+  if(!file || !API_URL) return;
+  if(file.size > 500*1024){ toast('Imagen demasiado grande (máx 500 KB)'); input.value=''; return; }
+  var reader = new FileReader();
+  reader.onload = function(e){
+    var dataUrl  = e.target.result;
+    var comma    = dataUrl.indexOf(',');
+    var mimeType = dataUrl.substring(5, dataUrl.indexOf(';'));
+    var base64   = dataUrl.substring(comma+1);
+    fetch(API_URL+'/barbero/'+bid+'/avatar', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ imagen: base64, mime_type: mimeType })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(json){
+      if(json.ok){
+        fetchAvatarPreview(bid);
+        toast('✓ Avatar de '+nombre+' actualizado');
+      } else {
+        toast('Error: '+(json.error||'sin respuesta'));
+      }
+      input.value = '';
+    })
+    .catch(function(e){ toast('Error de conexión: '+e.message); input.value=''; });
+  };
+  reader.readAsDataURL(file);
 }
 
 function cambiarPeriodoKpi(val){
