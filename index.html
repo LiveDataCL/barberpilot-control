@@ -3468,8 +3468,25 @@ function calcKpiCuanti(bid, periodo){
     if((todosRegs[i].precio||0) > 12000) upselling++;
   }
   var tk         = nSvc>0 ? Math.round(totalFacturado/nSvc) : 0;
-  var propPct    = totalFacturado>0 ? totalPropinas/totalFacturado : 0;
-  var propScore  = propPct>=.10 ? 10 : propPct>=.05 ? 5 : propPct>0 ? 3 : 0;
+  // Meta: 5 propinas/día × 26 días = 130 propinas
+  //       $5.000/día × 26 días = $130.000 en propinas
+  var DIAS_MES_REF     = 26;
+  var META_PROP_CNT    = 5  * DIAS_MES_REF;   // 130 propinas
+  var META_PROP_MONTO  = 5000 * DIAS_MES_REF; // $130.000
+
+  // Contar registros con propina > 0
+  var propCnt = 0;
+  for(var i=0;i<todosRegs.length;i++){
+    if((todosRegs[i].propina||0) > 0) propCnt++;
+  }
+
+  // 5 pts por cantidad de propinas (proporcional a meta)
+  var ptsCnt   = Math.min(5, Math.round(propCnt   / META_PROP_CNT   * 5));
+  // 5 pts por monto total de propinas (proporcional a meta)
+  var ptsMonto = Math.min(5, Math.round(totalPropinas / META_PROP_MONTO * 5));
+  var propScore = ptsCnt + ptsMonto;
+
+  var propPct = totalFacturado>0 ? totalPropinas/totalFacturado : 0;
 
   return {
     nSvc:           nSvc,
@@ -3479,6 +3496,7 @@ function calcKpiCuanti(bid, periodo){
     totalPropinas:  totalPropinas,
     propPct:        propPct,
     propScore:      propScore,
+    propCnt:        propCnt,
     upselling:      upselling,
     n:              nSvc,     // alias calcKpiCuantiLocal
     tot:            totalFacturado,
@@ -3510,9 +3528,9 @@ function calcPuntaje(bid, periodo){
     ? Math.min(15, Math.round(factEstimada / metaIndFact * 15))
     : 0;
 
-  // Ticket promedio: vs $13.000 de referencia (10 pts)
+  // Ticket promedio: vs $14.000 de referencia (10 pts)
   var ptsTkt  = cuanti.tk > 0
-    ? Math.min(10, Math.round(cuanti.tk / 13000 * 10))
+    ? Math.min(10, Math.round(cuanti.tk / 14000 * 10))
     : 0;
 
   // BLOQUE 2 — Conducta cualitativa: 50 puntos (peso proporcional)
@@ -3903,7 +3921,7 @@ function renderKpisInner(){
       + '<td><strong>'+b.nombre+'</strong>'+(sc.disq?'<span class="kpi-disq-badge">🚫 Descalif.</span>':'')+'</td>'
       + '<td class="r" '+disqClass+'><span style="font-family:var(--mono);font-weight:600">'+sc.cuanti.nSvc+'</span></td>'
       + '<td class="r" '+disqClass+'><span style="font-family:var(--mono)">$'+fmt(sc.cuanti.tk)+'</span></td>'
-      + '<td class="r" '+disqClass+'>'+(sc.cuanti.totalPropinas>0?'<span style="font-family:var(--mono);color:#8b5e00">$'+fmt(sc.cuanti.totalPropinas)+'</span>':'<span style="color:var(--text3)">—</span>')+'</td>'
+      + '<td class="r" '+disqClass+'>'+(sc.cuanti.totalPropinas>0?'<span style="font-family:var(--mono);color:#8b5e00">$'+fmt(sc.cuanti.totalPropinas)+'</span><br><span style="font-size:10px;color:var(--text3)">'+sc.cuanti.propCnt+' registros</span>':'<span style="color:var(--text3)">—</span>')+'</td>'
       + '<td class="r"><div class="kpi-score-cell">'
       +   '<span class="kpi-score-num">'+(sc.disq?'—':sc.ptsSvc+sc.ptsFact+sc.ptsTkt)+'</span>'
       +   '<div class="kpi-score-bar"><div class="kpi-score-fill" style="width:'+(sc.disq?0:Math.round((sc.ptsSvc+sc.ptsFact+sc.ptsTkt)/45*100))+'%;background:#8b5e00"></div></div>'
