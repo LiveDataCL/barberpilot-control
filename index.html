@@ -3610,7 +3610,7 @@ function metaPlanParaPeriodo(periodo){ // periodo = 'YYYY-MM'
 // ── MODOS DE BONO ─────────────────────────────────────────────
 // 'fijo'       → monto fijo en pesos
 // 'porcentaje' → % de la facturación real del mes
-var BONUS_MODO  = 'fijo';
+var BONUS_MODO  = 'porcentaje';
 var BONUS_MONTO = {S:20000, A:10000, B:0, C:0, X:0, M:0};
 var BONUS_PCT   = {S:0.5,   A:0.25,  B:0, C:0, X:0, M:0}; // % de facturación real
 var META_FACT   = metaPlanMesActual(); // siempre del plan; se puede sobreescribir
@@ -3637,8 +3637,12 @@ function guardarConfigKpi(){
 
 // Facturación real acumulada del período (YYYY-MM)
 function calcFacturacionMes(periodo){
+  // Usar total cacheado desde Railway si está disponible (fuente de verdad)
+  if(window._factMesCache && window._factMesCache[periodo] !== undefined){
+    return window._factMesCache[periodo];
+  }
   var total = 0;
-  // Recorrer registros diarios guardados en localStorage
+  // Fallback: recorrer registros diarios guardados en localStorage
   try{
     for(var i=0;i<localStorage.length;i++){
       var k = localStorage.key(i);
@@ -3737,10 +3741,12 @@ function sincronizarMesDesdeApi(periodo, callback){
       .catch(function(){ return {ok:false,registros:[]}; });
   });
   Promise.all(promesas).then(function(results){
+    var totalRailway = 0; // acumula facturación real desde Railway
     results.forEach(function(json){
       if(!json.ok || !json.registros || !json.registros.length) return;
       var fecha = json.fecha;
       var recs  = json.registros.map(function(r){
+        totalRailway += parseInt(r.precio||0); // suma directa desde la fuente
         return {
           id:r.id, bid:r.bid, bnom:r.bnom, sid:r.sid||'custom', snom:r.snom,
           precio:parseInt(r.precio), pago:r.pago, com:parseFloat(r.com),
@@ -3757,6 +3763,9 @@ function sincronizarMesDesdeApi(periodo, callback){
         localStorage.setItem(key, JSON.stringify(existing.concat(nuevos)));
       }catch(e){}
     });
+    // Cachear total Railway — fuente de verdad para cálculo de bonos
+    if(!window._factMesCache) window._factMesCache = {};
+    window._factMesCache[periodo] = totalRailway;
     if(callback) callback();
   });
 }
@@ -4039,8 +4048,8 @@ function renderKpisInner(){
     + 'El bono puede pagarse en efectivo, transferencia o en especie (productos, experiencias). '
     + 'Cualquier descalificación anula el bono completamente, independiente del puntaje obtenido.</div>'
     + '<div class="kpi-bonus-grid">'
-    + '<div class="kpi-bonus-card"><div style="font-size:18px;margin-bottom:4px">🥇</div><div class="kpi-bonus-name">S — Sobresaliente</div><div style="font-size:11px;color:var(--text3);margin-bottom:6px">90–100 puntos</div><div class="kpi-bonus-amount">$'+fmt(BONUS_MONTO.S)+'</div><div class="kpi-bonus-label">Bono mensual</div></div>'
-    + '<div class="kpi-bonus-card"><div style="font-size:18px;margin-bottom:4px">✅</div><div class="kpi-bonus-name">A — Muy bueno</div><div style="font-size:11px;color:var(--text3);margin-bottom:6px">75–89 puntos</div><div class="kpi-bonus-amount">$'+fmt(BONUS_MONTO.A)+'</div><div class="kpi-bonus-label">Bono mensual</div></div>'
+    + '<div class="kpi-bonus-card"><div style="font-size:18px;margin-bottom:4px">🥇</div><div class="kpi-bonus-name">S — Sobresaliente</div><div style="font-size:11px;color:var(--text3);margin-bottom:6px">90–100 puntos</div><div class="kpi-bonus-amount">'+(BONUS_MODO==='porcentaje'?BONUS_PCT.S+'%':'$'+fmt(BONUS_MONTO.S))+'</div><div class="kpi-bonus-label">'+(BONUS_MODO==='porcentaje'?'de la facturación del mes<br><span style="font-size:10px;color:var(--text3)">(≈ $'+fmt(factBonoS)+' este mes)</span>':'Bono mensual')+'</div></div>'
+    + '<div class="kpi-bonus-card"><div style="font-size:18px;margin-bottom:4px">✅</div><div class="kpi-bonus-name">A — Muy bueno</div><div style="font-size:11px;color:var(--text3);margin-bottom:6px">75–89 puntos</div><div class="kpi-bonus-amount">'+(BONUS_MODO==='porcentaje'?BONUS_PCT.A+'%':'$'+fmt(BONUS_MONTO.A))+'</div><div class="kpi-bonus-label">'+(BONUS_MODO==='porcentaje'?'de la facturación del mes<br><span style="font-size:10px;color:var(--text3)">(≈ $'+fmt(factBonoA)+' este mes)</span>':'Bono mensual')+'</div></div>'
     + '<div class="kpi-bonus-card"><div style="font-size:18px;margin-bottom:4px">👍</div><div class="kpi-bonus-name">B — Bueno</div><div style="font-size:11px;color:var(--text3);margin-bottom:6px">55–74 puntos</div><div class="kpi-bonus-amount">$'+fmt(BONUS_MONTO.B)+'</div><div class="kpi-bonus-label">Bono mensual</div></div>'
     + '<div class="kpi-bonus-card"><div style="font-size:18px;margin-bottom:4px">⚠</div><div class="kpi-bonus-name">C — Regular</div><div style="font-size:11px;color:var(--text3);margin-bottom:6px">35–54 puntos</div><div class="kpi-bonus-amount" style="color:var(--text3)">Sin bono</div><div class="kpi-bonus-label">Oportunidad de mejora</div></div>'
     + '<div class="kpi-bonus-card"><div style="font-size:18px;margin-bottom:4px">🚫</div><div class="kpi-bonus-name">X — Descalificado</div><div style="font-size:11px;color:var(--text3);margin-bottom:6px">Falta grave</div><div class="kpi-bonus-amount" style="color:var(--err)">$0</div><div class="kpi-bonus-label">Bono anulado</div></div>'
