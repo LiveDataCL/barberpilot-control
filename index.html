@@ -486,6 +486,78 @@
       </div>
     </div>
 
+    <!-- ── Modal editor de cliente en cola ── -->
+    <div id="salaEditorOverlay" onclick="if(event.target===this)salaCerrarEditor()"
+      style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.45);z-index:500;align-items:center;justify-content:center">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:20px;width:480px;max-width:94vw;max-height:85vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.15)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div style="font-size:15px;font-weight:600" id="salaEditorTitle">✏ Editar cliente</div>
+          <button onclick="salaCerrarEditor()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text3);padding:2px 6px;line-height:1">✕</button>
+        </div>
+        <!-- Sección 1: datos del cliente -->
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:10px">Datos del cliente</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+          <div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Nombre</div>
+            <input id="editor-nombre" type="text"
+              style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--sans);background:var(--surface)"/>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Teléfono</div>
+            <input id="editor-tel" type="tel"
+              style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--sans);background:var(--surface)"/>
+          </div>
+        </div>
+        <button onclick="salaGuardarCliente()"
+          style="padding:8px 18px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans);margin-bottom:18px">Guardar datos</button>
+        <div style="height:1px;background:var(--border);margin-bottom:16px"></div>
+        <!-- Sección 2: servicio -->
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:10px">Servicio</div>
+        <div style="display:grid;grid-template-columns:1fr 90px;gap:8px;margin-bottom:10px">
+          <select id="editor-svc" onchange="salaEditorAutoPreio()"
+            style="padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--surface);font-family:var(--sans)">
+            <option value="">Elegir…</option>
+            <option value="Corte">Corte</option>
+            <option value="Barba">Barba</option>
+            <option value="Corte + Barba">Corte + Barba</option>
+            <option value="Corte + Perfilado de barba">Corte + Perfilado de barba</option>
+            <option value="Perfilado de corte">Perfilado de corte</option>
+            <option value="Perfilado de cejas">Perfilado de cejas</option>
+            <option value="Barba + Cejas">Barba + Cejas</option>
+            <option value="Perfilado de barba">Perfilado de barba</option>
+            <option value="Matizado canas cabello">Matizado canas cabello</option>
+            <option value="Matizado canas barba">Matizado canas barba</option>
+            <option value="Corte Express + Perfilado de barba">Corte Express + Perfilado de barba</option>
+          </select>
+          <input id="editor-precio" type="number" placeholder="Precio"
+            style="padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--mono);background:var(--surface)"/>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px">
+          <select id="editor-svc-extra" onchange="salaEditorExtraPreio()"
+            style="flex:1;padding:7px 10px;border:1.5px dashed var(--border2);border-radius:var(--r);font-size:12px;background:var(--surface);font-family:var(--sans);color:var(--text2)">
+            <option value="">＋ Agregar servicio extra…</option>
+            <option value="Corte">Corte</option>
+            <option value="Barba">Barba</option>
+            <option value="Corte + Barba">Corte + Barba</option>
+            <option value="Corte + Perfilado de barba">Corte + Perfilado de barba</option>
+            <option value="Perfilado de corte">Perfilado de corte</option>
+            <option value="Perfilado de cejas">Perfilado de cejas</option>
+            <option value="Barba + Cejas">Barba + Cejas</option>
+            <option value="Perfilado de barba">Perfilado de barba</option>
+            <option value="Matizado canas cabello">Matizado canas cabello</option>
+            <option value="Matizado canas barba">Matizado canas barba</option>
+            <option value="Corte Express + Perfilado de barba">Corte Express + Perfilado de barba</option>
+          </select>
+          <input id="editor-extra-precio" type="number" placeholder="+"
+            style="width:70px;padding:7px 8px;border:1.5px dashed var(--border2);border-radius:var(--r);font-size:12px;font-family:var(--mono);background:var(--surface)"/>
+          <button onclick="salaAddExtraServicio()"
+            style="padding:7px 13px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);font-size:15px;cursor:pointer;font-weight:700">＋</button>
+        </div>
+        <button onclick="salaActualizarServicio()"
+          style="padding:8px 18px;background:var(--ok);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans)">Actualizar servicio</button>
+      </div>
+    </div>
+
     <div class="pane" id="pSum">
       <div class="sgrid" id="sCards"></div>
       <div class="bsgrid" id="bsGrid"></div>
@@ -4330,7 +4402,10 @@ function toast(msg){
 
 // ═══ SALA DE ESPERA ══════════════════════════════════════
 
-var _salaInterval = null;
+var _salaInterval   = null;
+var _salaEditorData = {}; // { queue_id: { client_name, phone, service, cliente_id } }
+var _editorQueueId  = null;
+var _editorClienteId = null;
 var SALA_PRECIOS = {
   'Corte':12000,'Barba':10000,'Corte + Barba':20000,
   'Corte + Perfilado de barba':16000,'Perfilado de corte':6000,
@@ -4432,6 +4507,7 @@ function renderSala(){
     .then(function(r){return r.json();})
     .then(function(j){
       if(!j.ok) throw new Error(j.error);
+      _salaEditorData={};
       var h='';
       ['b1','b2','b3','b4'].forEach(function(bid){
         var b=j.barberos[bid];
@@ -4451,8 +4527,14 @@ function renderSala(){
           var sv=b.enServicio;
           var desde=sv.service_start?new Date(sv.service_start).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'}):'—';
           h+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:5px">EN SERVICIO</div>';
-          h+='<div style="margin-bottom:8px"><div style="font-weight:500">'+sv.client_name+'</div>';
-          h+='<div style="font-size:12px;color:var(--text2)">'+sv.service+' · desde '+desde+'</div></div>';
+          _salaEditorData[sv.queue_id]={client_name:sv.client_name,phone:sv.phone||'',service:sv.service,cliente_id:sv.cliente_id||null};
+          h+='<div style="margin-bottom:8px">';
+          h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">';
+          h+='<div style="font-weight:500">'+sv.client_name+'</div>';
+          h+='<button onclick="salaAbrirEditor('+sv.queue_id+')" style="padding:2px 8px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;font-family:var(--sans)">✏ Editar</button>';
+          h+='</div>';
+          h+='<div style="font-size:12px;color:var(--text2)">'+sv.service+' · desde '+desde+'</div>';
+          h+='</div>';
           h+='<div style="display:flex;gap:6px;align-items:center;margin-bottom:10px">';
           h+='<select id="pago-'+sv.queue_id+'" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface);font-family:var(--sans)">';
           h+='<option value="efectivo">💵 Efectivo</option>';
@@ -4470,9 +4552,13 @@ function renderSala(){
         if(b.enEspera.length>0){
           h+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:6px">EN ESPERA</div>';
           b.enEspera.forEach(function(e,i){
+            _salaEditorData[e.queue_id]={client_name:e.client_name,phone:e.phone||'',service:e.service,cliente_id:e.cliente_id||null};
             h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border)">';
             h+='<div style="font-size:13px"><span style="color:var(--text3);font-family:var(--mono);font-size:11px">'+(i+1)+'. </span>'+e.client_name+'</div>';
+            h+='<div style="display:flex;align-items:center;gap:6px">';
             h+='<div style="font-size:11px;color:var(--text2)">'+e.service+'</div>';
+            h+='<button onclick="salaAbrirEditor('+e.queue_id+')" style="padding:2px 7px;font-size:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer">✏</button>';
+            h+='</div>';
             h+='</div>';
           });
           if(!enSvc&&b.enEspera[0]){
@@ -4544,6 +4630,85 @@ function salaPrecargarCliente(nombre,tel){
   panel.style.display='none';
   document.getElementById('salaToggleCrmIco').textContent='▶';
   document.getElementById('sala-bid').focus();
+}
+
+// ═══ EDITOR DE COLA ══════════════════════════════════════
+
+function salaAbrirEditor(queue_id){
+  var d=_salaEditorData[queue_id];
+  if(!d){toast('Datos del cliente no disponibles');return;}
+  _editorQueueId  =queue_id;
+  _editorClienteId=d.cliente_id||null;
+  document.getElementById('editor-nombre').value      =d.client_name||'';
+  document.getElementById('editor-tel').value         =d.phone||'';
+  document.getElementById('editor-svc').value         =d.service||'';
+  document.getElementById('editor-precio').value      =SALA_PRECIOS[d.service]||'';
+  document.getElementById('editor-svc-extra').value   ='';
+  document.getElementById('editor-extra-precio').value='';
+  document.getElementById('salaEditorTitle').textContent='✏ '+(d.client_name||'Cliente');
+  var ov=document.getElementById('salaEditorOverlay');
+  ov.style.display='flex';
+}
+
+function salaCerrarEditor(){
+  document.getElementById('salaEditorOverlay').style.display='none';
+  renderSala();
+}
+
+function salaEditorAutoPreio(){
+  var svc=document.getElementById('editor-svc').value;
+  if(svc) document.getElementById('editor-precio').value=SALA_PRECIOS[svc]||'';
+}
+
+function salaEditorExtraPreio(){
+  var svc=document.getElementById('editor-svc-extra').value;
+  if(svc) document.getElementById('editor-extra-precio').value=SALA_PRECIOS[svc]||'';
+}
+
+function salaAddExtraServicio(){
+  var extra=document.getElementById('editor-svc-extra').value;
+  var extraP=parseInt(document.getElementById('editor-extra-precio').value)||0;
+  if(!extra){toast('Elige el servicio extra');return;}
+  var svcActual=(document.getElementById('editor-svc').value||'').trim();
+  var precioActual=parseInt(document.getElementById('editor-precio').value)||0;
+  document.getElementById('editor-svc').value   =svcActual?svcActual+' + '+extra:extra;
+  document.getElementById('editor-precio').value=precioActual+extraP;
+  document.getElementById('editor-svc-extra').value='';
+  document.getElementById('editor-extra-precio').value='';
+  toast('Servicio extra agregado');
+}
+
+function salaGuardarCliente(){
+  if(!API_URL||!_editorQueueId) return;
+  var nombre=(document.getElementById('editor-nombre').value||'').trim();
+  var tel=(document.getElementById('editor-tel').value||'').trim();
+  if(!nombre){toast('Escribe el nombre del cliente');return;}
+  fetch(API_URL+'/queue/'+_editorQueueId+'/client',{
+    method:'PUT',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({client_name:nombre,phone:tel||null})
+  }).then(function(r){return r.json();})
+    .then(function(j){
+      if(j.ok){
+        toast('✓ Datos del cliente actualizados');
+        document.getElementById('salaEditorTitle').textContent='✏ '+nombre;
+        if(_salaEditorData[_editorQueueId]) _salaEditorData[_editorQueueId].client_name=nombre;
+      } else toast('Error: '+(j.error||''));
+    }).catch(function(e){toast('Error: '+e.message);});
+}
+
+function salaActualizarServicio(){
+  if(!API_URL||!_editorQueueId) return;
+  var svc=(document.getElementById('editor-svc').value||'').trim();
+  var precio=parseInt(document.getElementById('editor-precio').value)||0;
+  if(!svc){toast('Elige el servicio');return;}
+  fetch(API_URL+'/queue/'+_editorQueueId,{
+    method:'PUT',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({service:svc,precio:precio})
+  }).then(function(r){return r.json();})
+    .then(function(j){
+      if(j.ok){toast('✓ Servicio actualizado');salaCerrarEditor();}
+      else toast('Error: '+(j.error||''));
+    }).catch(function(e){toast('Error: '+e.message);});
 }
 
 // ═══ ARRANCAR ════════════════════════════════════════════
