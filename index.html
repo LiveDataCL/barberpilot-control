@@ -375,6 +375,7 @@
       <div class="tab on" onclick="showTab('pReg',this)">Registros del día</div>
       <div class="tab" onclick="showTab('pSum',this)">Resumen</div>
       <div class="tab" id="tabAprob" onclick="showTab('pAprob',this)">✅ Aprobar <span id="badgeAprob" style="display:none;background:#d4a843;color:#0a0908;border-radius:20px;font-size:10px;font-weight:700;padding:1px 7px;margin-left:4px">0</span></div>
+      <div class="tab" onclick="showTab('pSala',this)">🪑 Sala de espera</div>
       <div class="tab" onclick="showTab('pCaja',this)">💰 Cierre de caja</div>
       <div class="tab" onclick="showTab('pKpis',this)">🏆 KPIs</div>
       <div class="tab" onclick="showTab('pHorarios',this)">🕐 Horarios</div>
@@ -400,6 +401,88 @@
     <div class="pane" id="pAprob">
       <div id="aprobContent">
         <div class="empty"><div class="empty-ico">⟳</div><div>Cargando pendientes…</div></div>
+      </div>
+    </div>
+
+    <div class="pane" id="pSala">
+      <!-- ── Check-in manual ── -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:16px;margin-bottom:16px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:12px">✚ Check-in manual</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+          <div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Teléfono (opcional)</div>
+            <input id="sala-tel" type="tel" placeholder="+56 9 1234 5678"
+              style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--sans);background:var(--surface)"
+              onblur="buscarClientePorTel()" />
+            <div id="sala-tel-badge" style="font-size:11px;margin-top:4px;color:var(--text3)"></div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Nombre *</div>
+            <input id="sala-nombre" type="text" placeholder="Rodrigo Villalobos"
+              style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--sans);background:var(--surface)" />
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px">
+          <div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Barbero *</div>
+            <select id="sala-bid" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--surface);font-family:var(--sans)">
+              <option value="">Elegir…</option>
+              <option value="b1">Didian</option>
+              <option value="b2">Emerson</option>
+              <option value="b3">Samuel</option>
+              <option value="b4">David</option>
+            </select>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Servicio *</div>
+            <select id="sala-svc" onchange="salaAutoPreio()" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--surface);font-family:var(--sans)">
+              <option value="">Elegir…</option>
+              <option value="Corte">Corte</option>
+              <option value="Barba">Barba</option>
+              <option value="Corte + Barba">Corte + Barba</option>
+              <option value="Corte + Perfilado de barba">Corte + Perfilado de barba</option>
+              <option value="Perfilado de corte">Perfilado de corte</option>
+              <option value="Perfilado de cejas">Perfilado de cejas</option>
+              <option value="Barba + Cejas">Barba + Cejas</option>
+              <option value="Perfilado de barba">Perfilado de barba</option>
+              <option value="Matizado canas cabello">Matizado canas cabello</option>
+              <option value="Matizado canas barba">Matizado canas barba</option>
+              <option value="Corte Express + Perfilado de barba">Corte Express + Perfilado de barba</option>
+            </select>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Precio</div>
+            <input id="sala-precio" type="number" placeholder="12000"
+              style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--mono);background:var(--surface)" />
+          </div>
+        </div>
+        <button onclick="salaCheckin()" style="padding:9px 20px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans)">✓ Registrar llegada</button>
+      </div>
+
+      <!-- ── Cola en tiempo real ── -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3)">Cola en tiempo real</div>
+        <button onclick="renderSala()" style="font-size:11px;padding:4px 11px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);cursor:pointer;font-family:var(--sans)">↺ Actualizar</button>
+      </div>
+      <div id="salaGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="empty" style="grid-column:1/-1"><div class="empty-ico">⟳</div><div>Cargando cola…</div></div>
+      </div>
+
+      <!-- ── Mini CRM ── -->
+      <div style="margin-top:20px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;cursor:pointer" onclick="salaToggleCrm()">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3)">🔍 Buscar cliente</div>
+          <div id="salaToggleCrmIco" style="font-size:12px;color:var(--text3)">▶</div>
+        </div>
+        <div id="salaCrmPanel" style="display:none">
+          <div style="display:flex;gap:8px;margin-bottom:10px">
+            <input id="salaQ" type="text" placeholder="Nombre o teléfono…"
+              style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--sans);background:var(--surface)"
+              onkeydown="if(event.key==='Enter') buscarClienteCRM()" />
+            <button onclick="buscarClienteCRM()" style="padding:8px 16px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans)">Buscar</button>
+          </div>
+          <div id="salaCrmResultados"></div>
+        </div>
       </div>
     </div>
 
@@ -1024,7 +1107,7 @@ function showTabById(id){
   document.getElementById(id).classList.add('on');
   // activar tab correspondiente
   var tabs=document.querySelectorAll('.tab');
-  var panes=['pReg','pSum','pCierre','pHist','pCaja','pConfig','pHorarios','pHistorico'];
+  var panes=['pReg','pSum','pCierre','pHist','pCaja','pConfig','pHorarios','pHistorico','pSala'];
   for(var i=0;i<panes.length;i++)if(panes[i]===id&&tabs[i])tabs[i].classList.add('on');
 }
 
@@ -1619,6 +1702,13 @@ function showTab(id,el){
   if(id==='pCaja')renderCaja();
   if(id==='pHorarios')renderHorarios();
   if(id==='pHistorico')renderIngresarHistorico();
+  if(id==='pSala'){
+    renderSala();
+    if(_salaInterval) clearInterval(_salaInterval);
+    _salaInterval = setInterval(renderSala, 20000);
+  } else {
+    if(_salaInterval){ clearInterval(_salaInterval); _salaInterval = null; }
+  }
   if(id==='pAprob'){
     cargarPendientes();
     var el=document.getElementById('aprobContent');
@@ -4236,6 +4326,224 @@ function toast(msg){
   var el=document.getElementById('toastel');
   el.textContent=msg;el.classList.add('on');
   setTimeout(function(){el.classList.remove('on');},2600);
+}
+
+// ═══ SALA DE ESPERA ══════════════════════════════════════
+
+var _salaInterval = null;
+var SALA_PRECIOS = {
+  'Corte':12000,'Barba':10000,'Corte + Barba':20000,
+  'Corte + Perfilado de barba':16000,'Perfilado de corte':6000,
+  'Perfilado de cejas':4000,'Barba + Cejas':13000,
+  'Perfilado de barba':6000,'Matizado canas cabello':8000,
+  'Matizado canas barba':5000,'Corte Express + Perfilado de barba':15000
+};
+
+function salaAutoPreio(){
+  var svc=document.getElementById('sala-svc').value;
+  var p=SALA_PRECIOS[svc]||'';
+  document.getElementById('sala-precio').value=p;
+}
+
+function buscarClientePorTel(){
+  if(!API_URL) return;
+  var tel=(document.getElementById('sala-tel').value||'').trim();
+  var badge=document.getElementById('sala-tel-badge');
+  if(!tel){badge.textContent='';return;}
+  badge.textContent='Buscando…';badge.style.color='var(--text3)';
+  fetch(API_URL+'/clientes?q='+encodeURIComponent(tel))
+    .then(function(r){return r.json();})
+    .then(function(j){
+      var clientes=j.clientes||[];
+      var telLimpio=tel.replace(/\s/g,'');
+      var match=clientes.find(function(c){return c.telefono&&c.telefono.replace(/\s/g,'')===telLimpio;});
+      if(match){
+        document.getElementById('sala-nombre').value=match.nombre;
+        badge.textContent='✓ Cliente conocido · '+match.visitas+' visita'+(match.visitas!==1?'s':'');
+        badge.style.color='var(--ok)';
+      } else {
+        badge.textContent='● Cliente nuevo';
+        badge.style.color='var(--text3)';
+      }
+    }).catch(function(){badge.textContent='';});
+}
+
+function salaCheckin(){
+  if(!API_URL){toast('Conecta Railway en ⚙ Config primero');return;}
+  var nombre=(document.getElementById('sala-nombre').value||'').trim();
+  var bid=document.getElementById('sala-bid').value;
+  var svc=document.getElementById('sala-svc').value;
+  var tel=(document.getElementById('sala-tel').value||'').trim();
+  if(!nombre){toast('Escribe el nombre del cliente');return;}
+  if(!bid){toast('Elige el barbero');return;}
+  if(!svc){toast('Elige el servicio');return;}
+  fetch(API_URL+'/queue/control/checkin',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({client_name:nombre,phone:tel||null,bid:bid,service:svc})
+  }).then(function(r){return r.json();})
+    .then(function(j){
+      if(!j.ok){toast('Error: '+(j.error||'sin respuesta'));return;}
+      var nb={b1:'Didian',b2:'Emerson',b3:'Samuel',b4:'David'}[bid]||bid;
+      toast('✓ '+nombre+' en cola de '+nb+' · ~'+j.estimated_wait_min+' min');
+      document.getElementById('sala-tel').value='';
+      document.getElementById('sala-nombre').value='';
+      document.getElementById('sala-bid').value='';
+      document.getElementById('sala-svc').value='';
+      document.getElementById('sala-precio').value='';
+      document.getElementById('sala-tel-badge').textContent='';
+      renderSala();
+    }).catch(function(e){toast('Error de conexión: '+e.message);});
+}
+
+function salaIniciarSiguiente(queue_id){
+  if(!API_URL) return;
+  fetch(API_URL+'/queue/'+queue_id+'/status',{
+    method:'PUT',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({status:'IN_SERVICE'})
+  }).then(function(r){return r.json();})
+    .then(function(j){
+      if(j.ok){toast('✂️ Servicio iniciado');renderSala();}
+      else toast('Error: '+(j.error||''));
+    }).catch(function(e){toast('Error: '+e.message);});
+}
+
+function salaCerrarServicio(queue_id,bid,pago){
+  if(!API_URL) return;
+  if(!window.confirm('¿Cerrar servicio y generar ticket?')) return;
+  fetch(API_URL+'/queue/control/registrar',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({queue_id:queue_id,bid:bid,pago:pago})
+  }).then(function(r){return r.json();})
+    .then(function(j){
+      if(j.ok){
+        toast('✓ Servicio cerrado · $'+fmt(j.precio)+' · bb $'+fmt(j.bb));
+        setTimeout(function(){cargarRegistrosDia();},500);
+        renderSala();
+      } else toast('Error: '+(j.error||''));
+    }).catch(function(e){toast('Error: '+e.message);});
+}
+
+function renderSala(){
+  if(!API_URL){
+    document.getElementById('salaGrid').innerHTML='<div class="empty" style="grid-column:1/-1"><div class="empty-ico">⚙</div><div>Conecta Railway en ⚙ Config</div></div>';
+    return;
+  }
+  fetch(API_URL+'/queue/control')
+    .then(function(r){return r.json();})
+    .then(function(j){
+      if(!j.ok) throw new Error(j.error);
+      var h='';
+      ['b1','b2','b3','b4'].forEach(function(bid){
+        var b=j.barberos[bid];
+        if(!b) return;
+        var nEspera=b.enEspera.length;
+        var enSvc=!!b.enServicio;
+        h+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden">';
+        // card header
+        h+='<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">';
+        h+='<div style="font-weight:600;font-size:14px">'+b.nombre+'</div>';
+        var badgeBg=nEspera>0?'var(--warn)':'var(--ok)';
+        h+='<div style="font-size:11px;background:'+badgeBg+';color:#fff;padding:2px 8px;border-radius:20px">'+nEspera+' en espera</div>';
+        h+='</div>';
+        h+='<div style="padding:12px 14px">';
+        // EN SERVICIO
+        if(enSvc){
+          var sv=b.enServicio;
+          var desde=sv.service_start?new Date(sv.service_start).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'}):'—';
+          h+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:5px">EN SERVICIO</div>';
+          h+='<div style="margin-bottom:8px"><div style="font-weight:500">'+sv.client_name+'</div>';
+          h+='<div style="font-size:12px;color:var(--text2)">'+sv.service+' · desde '+desde+'</div></div>';
+          h+='<div style="display:flex;gap:6px;align-items:center;margin-bottom:10px">';
+          h+='<select id="pago-'+sv.queue_id+'" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface);font-family:var(--sans)">';
+          h+='<option value="efectivo">💵 Efectivo</option>';
+          h+='<option value="debito">💳 Débito</option>';
+          h+='<option value="transferencia">📲 Transferencia</option>';
+          h+='</select>';
+          h+='<button onclick="salaCerrarServicio('+sv.queue_id+',\''+bid+'\',document.getElementById(\'pago-'+sv.queue_id+'\').value)" ';
+          h+='style="padding:6px 12px;background:var(--ok);color:#fff;border:none;border-radius:var(--r);font-size:12px;font-weight:600;cursor:pointer">💳 Cerrar</button>';
+          h+='</div>';
+          h+='<div style="height:1px;background:var(--border);margin-bottom:10px"></div>';
+        } else {
+          h+='<div style="font-size:11px;color:var(--text3);margin-bottom:10px;font-style:italic">Sin servicio activo</div>';
+        }
+        // EN ESPERA
+        if(b.enEspera.length>0){
+          h+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:6px">EN ESPERA</div>';
+          b.enEspera.forEach(function(e,i){
+            h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border)">';
+            h+='<div style="font-size:13px"><span style="color:var(--text3);font-family:var(--mono);font-size:11px">'+(i+1)+'. </span>'+e.client_name+'</div>';
+            h+='<div style="font-size:11px;color:var(--text2)">'+e.service+'</div>';
+            h+='</div>';
+          });
+          if(!enSvc&&b.enEspera[0]){
+            h+='<button onclick="salaIniciarSiguiente('+b.enEspera[0].queue_id+')" ';
+            h+='style="margin-top:10px;width:100%;padding:7px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-size:12px;font-weight:600;cursor:pointer">▶ Iniciar siguiente</button>';
+          }
+        } else if(!enSvc){
+          h+='<div style="font-size:11px;color:var(--text3);font-style:italic">Cola vacía</div>';
+        }
+        h+='</div></div>';
+      });
+      if(!h) h='<div class="empty" style="grid-column:1/-1"><div class="empty-ico">✓</div><div>Cola vacía</div></div>';
+      document.getElementById('salaGrid').innerHTML=h;
+    }).catch(function(e){
+      document.getElementById('salaGrid').innerHTML='<div class="empty" style="grid-column:1/-1"><div class="empty-ico">⚠</div><div>Error: '+e.message+'</div></div>';
+    });
+}
+
+function salaToggleCrm(){
+  var panel=document.getElementById('salaCrmPanel');
+  var ico=document.getElementById('salaToggleCrmIco');
+  var abierto=panel.style.display!=='none';
+  panel.style.display=abierto?'none':'block';
+  ico.textContent=abierto?'▶':'▼';
+}
+
+function buscarClienteCRM(){
+  if(!API_URL) return;
+  var q=(document.getElementById('salaQ').value||'').trim();
+  if(!q){toast('Escribe un nombre o teléfono');return;}
+  var el=document.getElementById('salaCrmResultados');
+  el.innerHTML='<div style="font-size:12px;color:var(--text3);padding:8px 0">Buscando…</div>';
+  fetch(API_URL+'/clientes?q='+encodeURIComponent(q))
+    .then(function(r){return r.json();})
+    .then(function(j){
+      var clientes=j.clientes||[];
+      if(!clientes.length){
+        el.innerHTML='<div style="font-size:12px;color:var(--text3);padding:8px 0">Sin resultados para "'+q+'"</div>';
+        return;
+      }
+      var h='<table class="rt" style="width:100%">';
+      h+='<thead><tr><th>Nombre</th><th>Teléfono</th><th>Visitas</th><th>Último servicio</th><th></th></tr></thead><tbody>';
+      clientes.slice(0,15).forEach(function(c){
+        var ultima=c.ultima_visita?c.ultima_visita.slice(0,10):'—';
+        h+='<tr>';
+        h+='<td style="font-weight:500">'+c.nombre+'</td>';
+        h+='<td style="font-family:var(--mono);font-size:12px">'+(c.telefono||'—')+'</td>';
+        h+='<td style="text-align:center">'+(c.visitas||0)+'</td>';
+        h+='<td style="font-size:12px;color:var(--text2)">'+ultima+'</td>';
+        h+='<td><button onclick="salaPrecargarCliente(\''+c.nombre.replace(/'/g,"\\'")+'\',' + '\''+( c.telefono||'').replace(/'/g,"\\'")+'\')"\n';
+        h+='style="padding:4px 10px;font-size:11px;font-weight:600;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer">✚ Check-in</button></td>';
+        h+='</tr>';
+      });
+      h+='</tbody></table>';
+      el.innerHTML=h;
+    }).catch(function(e){
+      el.innerHTML='<div style="font-size:12px;color:var(--err)">Error: '+e.message+'</div>';
+    });
+}
+
+function salaPrecargarCliente(nombre,tel){
+  document.getElementById('sala-nombre').value=nombre;
+  document.getElementById('sala-tel').value=tel||'';
+  if(tel){
+    document.getElementById('sala-tel-badge').textContent='✓ Cliente del CRM';
+    document.getElementById('sala-tel-badge').style.color='var(--ok)';
+  }
+  var panel=document.getElementById('salaCrmPanel');
+  panel.style.display='none';
+  document.getElementById('salaToggleCrmIco').textContent='▶';
+  document.getElementById('sala-bid').focus();
 }
 
 // ═══ ARRANCAR ════════════════════════════════════════════
