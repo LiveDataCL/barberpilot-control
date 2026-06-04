@@ -427,6 +427,7 @@
             <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Barbero *</div>
             <select id="sala-bid" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--surface);font-family:var(--sans)">
               <option value="">Elegir…</option>
+              <option value="any">⚡ Primer disponible</option>
               <option value="b1">Didian</option>
               <option value="b2">Emerson</option>
               <option value="b3">Samuel</option>
@@ -507,6 +508,17 @@
             <input id="editor-tel" type="tel"
               style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--sans);background:var(--surface)"/>
           </div>
+        </div>
+        <div style="margin-bottom:12px">
+          <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Reasignar barbero</div>
+          <select id="editor-bid" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--surface);font-family:var(--sans)">
+            <option value="">Sin cambio</option>
+            <option value="any">⚡ Primer disponible</option>
+            <option value="b1">Didian</option>
+            <option value="b2">Emerson</option>
+            <option value="b3">Samuel</option>
+            <option value="b4">David</option>
+          </select>
         </div>
         <button onclick="salaGuardarCliente()"
           style="padding:8px 18px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans);margin-bottom:18px">Guardar datos</button>
@@ -1511,7 +1523,7 @@ function renderReg(){
   if(arr.length===0){c.innerHTML='<div class="empty"><div class="empty-ico">✂</div><div>Sin registros aún.</div></div>';return;}
   var h='<table class="rt"><thead><tr>'
     +'<th>#</th><th>Hora</th><th>Barbero</th><th>Servicio</th><th>Pago</th>'
-    +'<th>Monto</th><th>Barbero</th><th>Negocio</th><th></th>'
+    +'<th>Monto</th><th>Barbero</th><th>Cliente</th><th></th>'
     +'</tr></thead><tbody>';
   for(var i=0;i<arr.length;i++){
     var r=arr[i],bc=r.pago==='efectivo'?'be':r.pago==='debito'?'bd':'btr';
@@ -1523,7 +1535,7 @@ function renderReg(){
       +'<td><span class="badge '+bc+'">'+r.pago+'</span></td>'
       +'<td style="font-family:var(--mono);font-weight:600">$'+fmt(r.precio)+'</td>'
       +'<td style="font-family:var(--mono);font-weight:600;color:var(--ok)">$'+fmt(r.bb+(r.propina||0))+(r.propina>0?'<br><span style="font-size:10px;color:#8b5e00">+$'+fmt(r.propina)+' prop.</span>':'')+'</td>'
-      +'<td style="font-family:var(--mono);color:var(--info)">$'+fmt(r.neg)+'</td>'
+      +'<td><span style="font-size:12px;color:var(--text2);display:block;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(r.cliente_nombre||r.cliente_id||'')+'">'+( r.cliente_nombre||r.cliente_id||'—')+'</span></td>'
       +'<td>'
       +'<button class="bsm" onclick="verTkt(\''+r.id+'\')">Ver</button>'
       +'<button class="bsm dx" onclick="del(\''+r.id+'\')">✕</button>'
@@ -4482,19 +4494,32 @@ function salaIniciarSiguiente(queue_id){
     }).catch(function(e){toast('Error: '+e.message);});
 }
 
-function salaCerrarServicio(queue_id,bid,pago){
+function salaCerrarServicio(queue_id,bid,pago,propina){
   if(!API_URL) return;
   if(!window.confirm('¿Cerrar servicio y generar ticket?')) return;
   fetch(API_URL+'/queue/control/registrar',{
     method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({queue_id:queue_id,bid:bid,pago:pago})
+    body:JSON.stringify({queue_id:queue_id,bid:bid,pago:pago,propina:propina||0})
   }).then(function(r){return r.json();})
     .then(function(j){
       if(j.ok){
-        toast('✓ Servicio cerrado · $'+fmt(j.precio)+' · bb $'+fmt(j.bb));
+        var msg='✓ Servicio cerrado · $'+fmt(j.precio)+' · bb $'+fmt(j.bb);
+        if(j.propina>0) msg+=' + prop $'+fmt(j.propina);
+        toast(msg);
         setTimeout(function(){cargarRegistrosDia();},500);
         renderSala();
       } else toast('Error: '+(j.error||''));
+    }).catch(function(e){toast('Error: '+e.message);});
+}
+
+function salaEliminarEntrada(queue_id){
+  if(!API_URL) return;
+  if(!window.confirm('¿Eliminar esta entrada de la cola?')) return;
+  fetch(API_URL+'/queue/'+queue_id,{method:'DELETE'})
+    .then(function(r){return r.json();})
+    .then(function(j){
+      if(j.ok){toast('Entrada eliminada de la cola');renderSala();}
+      else toast('Error: '+(j.error||''));
     }).catch(function(e){toast('Error: '+e.message);});
 }
 
@@ -4531,7 +4556,10 @@ function renderSala(){
           h+='<div style="margin-bottom:8px">';
           h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">';
           h+='<div style="font-weight:500">'+sv.client_name+'</div>';
+          h+='<div style="display:flex;gap:4px">';
           h+='<button onclick="salaAbrirEditor('+sv.queue_id+')" style="padding:2px 8px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;font-family:var(--sans)">✏ Editar</button>';
+          h+='<button onclick="salaEliminarEntrada('+sv.queue_id+')" style="padding:2px 7px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;color:var(--err)">✕</button>';
+          h+='</div>';
           h+='</div>';
           h+='<div style="font-size:12px;color:var(--text2)">'+sv.service+' · desde '+desde+'</div>';
           h+='</div>';
@@ -4541,7 +4569,9 @@ function renderSala(){
           h+='<option value="debito">💳 Débito</option>';
           h+='<option value="transferencia">📲 Transferencia</option>';
           h+='</select>';
-          h+='<button onclick="salaCerrarServicio('+sv.queue_id+',\''+bid+'\',document.getElementById(\'pago-'+sv.queue_id+'\').value)" ';
+          h+='<input id="prop-'+sv.queue_id+'" type="number" placeholder="Propina" min="0" step="500" ';
+          h+='style="width:78px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;font-family:var(--mono);background:var(--surface)"/>';
+          h+='<button onclick="salaCerrarServicio('+sv.queue_id+',\''+bid+'\',document.getElementById(\'pago-'+sv.queue_id+'\').value,parseInt(document.getElementById(\'prop-'+sv.queue_id+'\').value)||0)" ';
           h+='style="padding:6px 12px;background:var(--ok);color:#fff;border:none;border-radius:var(--r);font-size:12px;font-weight:600;cursor:pointer">💳 Cerrar</button>';
           h+='</div>';
           h+='<div style="height:1px;background:var(--border);margin-bottom:10px"></div>';
@@ -4555,9 +4585,10 @@ function renderSala(){
             _salaEditorData[e.queue_id]={client_name:e.client_name,phone:e.phone||'',service:e.service,cliente_id:e.cliente_id||null};
             h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border)">';
             h+='<div style="font-size:13px"><span style="color:var(--text3);font-family:var(--mono);font-size:11px">'+(i+1)+'. </span>'+e.client_name+'</div>';
-            h+='<div style="display:flex;align-items:center;gap:6px">';
+            h+='<div style="display:flex;align-items:center;gap:4px">';
             h+='<div style="font-size:11px;color:var(--text2)">'+e.service+'</div>';
             h+='<button onclick="salaAbrirEditor('+e.queue_id+')" style="padding:2px 7px;font-size:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer">✏</button>';
+            h+='<button onclick="salaEliminarEntrada('+e.queue_id+')" style="padding:2px 6px;font-size:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;color:var(--err)">✕</button>';
             h+='</div>';
             h+='</div>';
           });
@@ -4643,6 +4674,7 @@ function salaAbrirEditor(queue_id){
   document.getElementById('editor-tel').value         =d.phone||'';
   document.getElementById('editor-svc').value         =d.service||'';
   document.getElementById('editor-precio').value      =SALA_PRECIOS[d.service]||'';
+  document.getElementById('editor-bid').value         ='';
   document.getElementById('editor-svc-extra').value   ='';
   document.getElementById('editor-extra-precio').value='';
   document.getElementById('salaEditorTitle').textContent='✏ '+(d.client_name||'Cliente');
@@ -4682,16 +4714,28 @@ function salaGuardarCliente(){
   if(!API_URL||!_editorQueueId) return;
   var nombre=(document.getElementById('editor-nombre').value||'').trim();
   var tel=(document.getElementById('editor-tel').value||'').trim();
+  var bidNuevo=document.getElementById('editor-bid').value;
   if(!nombre){toast('Escribe el nombre del cliente');return;}
-  fetch(API_URL+'/queue/'+_editorQueueId+'/client',{
+  var url,body;
+  if(bidNuevo){
+    url=API_URL+'/queue/'+_editorQueueId;
+    body={client_name:nombre,phone:tel||null,barber_id:bidNuevo};
+  } else {
+    url=API_URL+'/queue/'+_editorQueueId+'/client';
+    body={client_name:nombre,phone:tel||null};
+  }
+  fetch(url,{
     method:'PUT',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({client_name:nombre,phone:tel||null})
+    body:JSON.stringify(body)
   }).then(function(r){return r.json();})
     .then(function(j){
       if(j.ok){
-        toast('✓ Datos del cliente actualizados');
+        var extra=j.assigned_barber&&bidNuevo?' → '+j.assigned_barber:'';
+        toast('✓ Datos actualizados'+extra);
         document.getElementById('salaEditorTitle').textContent='✏ '+nombre;
+        document.getElementById('editor-bid').value='';
         if(_salaEditorData[_editorQueueId]) _salaEditorData[_editorQueueId].client_name=nombre;
+        if(bidNuevo) salaCerrarEditor();
       } else toast('Error: '+(j.error||''));
     }).catch(function(e){toast('Error: '+e.message);});
 }
