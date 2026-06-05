@@ -1967,8 +1967,11 @@ function fmtJornada(mins){
   return h+'h'+(m>0?' '+m+'m':'');
 }
 
-function generarHTMLA4(fecha, recs){
+function generarHTMLA4(fecha, recs, gastosParam){
   var tot=0,tBB=0,tNeg=0,cnt=recs.length;
+  var totalGastosPrint=0;
+  var gastosUsar=gastosParam||[];
+  for(var i=0;i<gastosUsar.length;i++) totalGastosPrint+=gastosUsar[i].monto;
   for(var i=0;i<recs.length;i++){tot+=recs[i].precio;tBB+=recs[i].bb;tNeg+=recs[i].neg;}
 
   var svcTotal={};
@@ -2140,14 +2143,14 @@ function imprimirA4(){
   if(regs.length===0){toast('Sin registros para imprimir');return;}
   var win=window.open('','_blank','width=900,height=700,toolbar=0,menubar=0,location=0,scrollbars=1');
   if(!win){toast('Activa pop-ups para abrir el A4');return;}
-  win.document.write(generarHTMLA4(new Date().toLocaleDateString('es-CL'),regs));
+  win.document.write(generarHTMLA4(new Date().toLocaleDateString('es-CL'),regs,gastos));
   win.document.close();
 }
 
 function imprimirA4Hist(fecha,recs){
   var win=window.open('','_blank','width=900,height=700,toolbar=0,menubar=0,location=0,scrollbars=1');
   if(!win){toast('Activa pop-ups para abrir el A4');return;}
-  win.document.write(generarHTMLA4(fecha,recs));
+  win.document.write(generarHTMLA4(fecha,recs,[]));
   win.document.close();
 }
 
