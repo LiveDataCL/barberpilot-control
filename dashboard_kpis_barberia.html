@@ -216,11 +216,10 @@ table.data-table .total-row td{background:var(--text)!important;color:#fff!impor
 <div class="ctrl-bar no-print">
   <div class="ctrl-group">
     <span class="ctrl-label">Período</span>
-    <button class="pf" onclick="setPeriod('mes',this)" id="btnMes">Este mes</button>
-    <button class="pf on" onclick="setPeriod('7',this)" id="btn7">Últ. 7 días</button>
-    <button class="pf" onclick="setPeriod('30',this)" id="btn30">Últ. 30 días</button>
-    <button class="pf" onclick="setPeriod('all',this)" id="btnAll">Todo</button>
-    <button class="pf" onclick="setPeriod('custom',this)" id="btnCustom">Personalizado</button>
+    <button class="pf" onclick="setPeriod('sem-ant',this)">Semana pasada</button>
+    <button class="pf on" onclick="setPeriod('esta-sem',this)" id="btnEstaSem">Esta semana</button>
+    <button class="pf" onclick="setPeriod('mes-ant',this)">Mes anterior</button>
+    <button class="pf" onclick="setPeriod('este-mes',this)">Este mes</button>
   </div>
   <div id="customRange" style="display:none;align-items:center;gap:5px">
     <input type="date" id="inDesde">
@@ -270,7 +269,7 @@ table.data-table .total-row td{background:var(--text)!important;color:#fff!impor
 //  ESTADO GLOBAL
 // ═══════════════════════════════════════════════════════════
 var jornadas = [];
-var filtPeriod = '7';
+var filtPeriod = 'esta-sem';
 var filtBarbero = 'todos';
 var charts = {};
 var API_URL = window.DASHBOARD_CONFIG?.apiUrl || 'https://barberpilot-api-production.up.railway.app';
@@ -493,25 +492,37 @@ function procesarFiles(files){
 }
 
 // ═══ FILTROS ════════════════════════════════════════════
+function lunesDe(d){
+  // Devuelve el lunes de la semana de la fecha dada
+  var dow=d.getDay(); // 0=Dom
+  var diff=dow===0?6:dow-1;
+  var lunes=new Date(d); lunes.setDate(d.getDate()-diff); return lunes;
+}
+function isoDate(d){ return d.toISOString().slice(0,10); }
+
 function setPeriod(p, el){
   document.querySelectorAll('.ctrl-bar .pf').forEach(function(b){
     if(b.onclick&&b.onclick.toString().indexOf('setPeriod')>=0) b.classList.remove('on');
   });
   el.classList.add('on');
   filtPeriod=p;
-  var cr=document.getElementById('customRange');
-  if(cr) cr.style.display = p==='custom'?'flex':'none';
-  if(p==='custom') return;
-  if(p==='mes'||p==='7'||p==='30'){
-    var dias=p==='mes'?null:parseInt(p);
-    var hasta2=new Date();
-    var desde2=new Date();
-    if(p==='mes') desde2=new Date(hasta2.getFullYear(),hasta2.getMonth(),1);
-    else desde2.setDate(hasta2.getDate()-dias);
-    cargarRango(desde2.toISOString().slice(0,10), hasta2.toISOString().slice(0,10));
-    return;
+  var hoy=new Date();
+  var desde2, hasta2;
+  if(p==='esta-sem'){
+    desde2=lunesDe(hoy); hasta2=hoy;
+  } else if(p==='sem-ant'){
+    var lunes=lunesDe(hoy);
+    desde2=new Date(lunes); desde2.setDate(lunes.getDate()-7);
+    hasta2=new Date(desde2); hasta2.setDate(desde2.getDate()+6);
+  } else if(p==='este-mes'){
+    desde2=new Date(hoy.getFullYear(),hoy.getMonth(),1); hasta2=hoy;
+  } else if(p==='mes-ant'){
+    desde2=new Date(hoy.getFullYear(),hoy.getMonth()-1,1);
+    hasta2=new Date(hoy.getFullYear(),hoy.getMonth(),0);
+  } else {
+    renderTodo(); return;
   }
-  renderTodo();
+  cargarRango(isoDate(desde2), isoDate(hasta2));
 }
 
 function cargarRango(desde, hasta){
@@ -572,18 +583,7 @@ function quitarJornada(fecha){
 
 // ═══ DATOS FILTRADOS ════════════════════════════════════
 function getJornadasFiltradas(){
-  var js=jornadas.slice();
-  if(filtPeriod==='7'||filtPeriod==='30'){
-    var dias=parseInt(filtPeriod);
-    var cutoff=new Date(); cutoff.setDate(cutoff.getDate()-dias);
-    var cut=cutoff.toISOString().slice(0,10);
-    js=js.filter(function(j){return j.fecha>=cut;});
-  } else if(filtPeriod==='mes'){
-    var ahora=new Date();
-    var inicio=new Date(ahora.getFullYear(),ahora.getMonth(),1).toISOString().slice(0,10);
-    js=js.filter(function(j){return j.fecha>=inicio;});
-  }
-  return js;
+  return jornadas.slice();
 }
 
 function getRegsFiltrados(){
@@ -1018,9 +1018,8 @@ function imprimirReporte(){
 
 function cargarDesdeAPI_silente(callback){
   var ahora=new Date();
-  var desde=new Date(); desde.setDate(ahora.getDate()-7);
-  var desdeStr=desde.toISOString().slice(0,10);
-  var hastaStr=ahora.toISOString().slice(0,10);
+  var desdeStr=isoDate(lunesDe(ahora));
+  var hastaStr=isoDate(ahora);
 
   var hdrs={'X-Dashboard-Token':DASHBOARD_TOKEN};
   Promise.all([
