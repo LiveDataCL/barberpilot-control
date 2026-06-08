@@ -275,6 +275,7 @@ var filtBarbero = 'todos';
 var charts = {};
 var API_URL = window.DASHBOARD_CONFIG?.apiUrl || 'https://barberpilot-api-production.up.railway.app';
 var DASHBOARD_TOKEN = window.DASHBOARD_CONFIG?.token || '';
+var gastosData = {}; // { fecha: [{id, hora, desc_gasto, monto}] }
 
 // Paleta por barbero
 var BB_COLORS = {
@@ -405,14 +406,16 @@ function cargarDesdeAPI(){
   var desdeStr = desde.toISOString().slice(0,10);
   var hastaStr = ahora.toISOString().slice(0,10);
 
-  fetch(API_URL+'/registros/rango?desde='+desdeStr+'&hasta='+hastaStr, {
-    headers: { 'X-Dashboard-Token': DASHBOARD_TOKEN }
-  })
-  .then(function(r){ return r.json(); })
-  .then(function(json){
-    if(!json.ok || !json.registros){ throw new Error(json.error||'sin datos'); }
+  var hdrs={'X-Dashboard-Token':DASHBOARD_TOKEN};
+  Promise.all([
+    fetch(API_URL+'/registros/rango?desde='+desdeStr+'&hasta='+hastaStr,{headers:hdrs}).then(function(r){return r.json();}),
+    fetch(API_URL+'/gastos/rango?desde='+desdeStr+'&hasta='+hastaStr,{headers:hdrs}).then(function(r){return r.json();}).catch(function(){return{ok:true,gastos:[]};})
+  ])
+  .then(function(results){
+    var rJson=results[0], gJson=results[1];
+    if(!rJson.ok || !rJson.registros){ throw new Error(rJson.error||'sin datos'); }
     var byFecha={};
-    json.registros.forEach(function(r){
+    rJson.registros.forEach(function(r){
       var f=r.fecha;
       if(!byFecha[f]) byFecha[f]=[];
       byFecha[f].push({ bid:r.bid, bnom:r.bnom, snom:r.snom,
@@ -423,6 +426,11 @@ function cargarDesdeAPI(){
     jornadas=[];
     Object.keys(byFecha).sort().forEach(function(f){
       jornadas.push({fecha:f, registros:byFecha[f]});
+    });
+    gastosData={};
+    (gJson.gastos||[]).forEach(function(g){
+      if(!gastosData[g.fecha]) gastosData[g.fecha]=[];
+      gastosData[g.fecha].push(g);
     });
     if(jornadas.length>0){
       renderTodo();
@@ -507,14 +515,16 @@ function setPeriod(p, el){
 }
 
 function cargarRango(desde, hasta){
-  fetch(API_URL+'/registros/rango?desde='+desde+'&hasta='+hasta, {
-    headers: { 'X-Dashboard-Token': DASHBOARD_TOKEN }
-  })
-  .then(function(r){return r.json();})
-  .then(function(json){
-    if(!json.ok||!json.registros) throw new Error('sin datos');
+  var hdrs={'X-Dashboard-Token':DASHBOARD_TOKEN};
+  Promise.all([
+    fetch(API_URL+'/registros/rango?desde='+desde+'&hasta='+hasta,{headers:hdrs}).then(function(r){return r.json();}),
+    fetch(API_URL+'/gastos/rango?desde='+desde+'&hasta='+hasta,{headers:hdrs}).then(function(r){return r.json();}).catch(function(){return{ok:true,gastos:[]};})
+  ])
+  .then(function(results){
+    var rJson=results[0], gJson=results[1];
+    if(!rJson.ok||!rJson.registros) throw new Error('sin datos');
     var byFecha={};
-    json.registros.forEach(function(r){
+    rJson.registros.forEach(function(r){
       var f=r.fecha;
       if(!byFecha[f]) byFecha[f]=[];
       byFecha[f].push({bid:r.bid,bnom:r.bnom,snom:r.snom,
@@ -525,6 +535,11 @@ function cargarRango(desde, hasta){
     jornadas=[];
     Object.keys(byFecha).sort().forEach(function(f){
       jornadas.push({fecha:f,registros:byFecha[f]});
+    });
+    gastosData={};
+    (gJson.gastos||[]).forEach(function(g){
+      if(!gastosData[g.fecha]) gastosData[g.fecha]=[];
+      gastosData[g.fecha].push(g);
     });
     jornadas.sort(function(a,b){return a.fecha<b.fecha?-1:1;});
     renderTodo();
@@ -576,6 +591,12 @@ function getRegsFiltrados(){
   var all=[];
   js.forEach(function(j){all=all.concat(j.registros);});
   if(filtBarbero!=='todos') all=all.filter(function(r){return r.bnom===filtBarbero;});
+  return all;
+}
+function getGastosFiltrados(){
+  var js=getJornadasFiltradas();
+  var all=[];
+  js.forEach(function(j){ if(gastosData[j.fecha]) all=all.concat(gastosData[j.fecha]); });
   return all;
 }
 
@@ -683,15 +704,36 @@ function buildHTML(js, regs){
   h+='<div class="section">';
   h+='<div class="section-title">KPIs del período · '+js.length+' jornada'+(js.length!==1?'s':'')+' · '+regs.length+' servicios</div>';
   h+='<div class="kpi-grid">';
+  var gastosFiltrados=getGastosFiltrados();
+  var totalGastos=gastosFiltrados.reduce(function(a,g){return a+(g.monto||0);},0);
+  var utilidad=k.tNeg-totalGastos;
   h+=kpiCard('Facturación total',fmtK(k.tot),'warn','$'+fmt(k.tot));
   h+=kpiCard('Pago barberos',fmtK(k.tBB),'ok','$'+fmt(k.tBB));
   h+=kpiCard('Para el negocio',fmtK(k.tNeg),'info','$'+fmt(k.tNeg));
+  h+=kpiCard('Gastos período',fmtK(totalGastos),'err','$'+fmt(totalGastos)+' ('+gastosFiltrados.length+' registros)');
+  h+=kpiCard('Utilidad neta',fmtK(Math.abs(utilidad)),utilidad>=0?'ok':'err',(utilidad>=0?'':'−')+'$'+fmt(Math.abs(utilidad)));
   h+=kpiCard('Promedio / día',fmtK(k.promDia),'','$'+fmt(k.promDia)+' / jornada');
   h+=kpiCard('Servicios / día',k.promSvc.toFixed(1),'','promedio');
   h+=kpiCard('Ticket promedio',fmtK(k.ticket),'','$'+fmt(k.ticket));
   h+=kpiCard('Mejor jornada',mejorDia.fecha!='—'?'$'+fmt(mejorDia.tot):'—','ok',mejorDia.fecha);
   h+=kpiCard('Jornadas',js.length,'','registradas');
   h+='</div></div>';
+
+  // ── Gastos del período
+  if(gastosFiltrados.length>0){
+    h+='<div class="section"><div class="section-title">Gastos del período ('+gastosFiltrados.length+')</div>';
+    h+='<div class="table-wrap"><table class="data-table"><thead><tr>';
+    h+='<th>Fecha</th><th>Hora</th><th>Descripción</th><th class="r">Monto</th>';
+    h+='</tr></thead><tbody>';
+    gastosFiltrados.forEach(function(g){
+      h+='<tr><td class="mono">'+g.fecha+'</td><td class="mono">'+(g.hora||'—')+'</td>'
+        +'<td>'+(g.desc_gasto||'—')+'</td>'
+        +'<td class="r err mono">$'+fmt(g.monto)+'</td></tr>';
+    });
+    h+='<tr class="total-row"><td colspan="3">TOTAL GASTOS</td>'
+      +'<td class="r">$'+fmt(totalGastos)+'</td></tr>';
+    h+='</tbody></table></div></div>';
+  }
 
   // ── Evolución diaria
   h+='<div class="section"><div class="section-title">Evolución diaria</div>';
@@ -756,7 +798,7 @@ function buildHTML(js, regs){
   h+='<th>Fecha</th><th class="r">Svc</th><th class="r">Facturado</th>';
   var bbs=Object.keys(porBB);
   bbs.forEach(function(b){ h+='<th class="r">'+b+'</th>'; });
-  h+='<th class="r">Negocio</th><th>Top servicio</th>';
+  h+='<th class="r">Negocio</th><th class="r">Gastos</th><th class="r">Utilidad</th><th>Top servicio</th>';
   h+='</tr></thead><tbody>';
 
   var maxTotDia=Math.max.apply(null,porDia.map(function(d){return d.tot;}));
@@ -775,7 +817,11 @@ function buildHTML(js, regs){
       +'<td class="r mono">'+d.cnt+'</td>'
       +'<td class="r warn mono">$'+fmt(d.tot)+'</td>';
     bbs.forEach(function(b){ h+='<td class="r mono ok">$'+fmt(bbTots[b]||0)+'</td>'; });
+    var gastoDia=(gastosData[d.fecha]||[]).reduce(function(a,g){return a+(g.monto||0);},0);
+    var utilDia=d.tNeg-gastoDia;
     h+='<td class="r info mono">$'+fmt(d.tNeg)+'</td>'
+      +'<td class="r err mono">'+(gastoDia>0?'$'+fmt(gastoDia):'—')+'</td>'
+      +'<td class="r mono '+(utilDia>=0?'ok':'err')+'">'+(utilDia>=0?'':'−')+'$'+fmt(Math.abs(utilDia))+'</td>'
       +'<td style="font-size:11px;color:var(--text2)">'+topSvc+'</td>'
       +'</tr>';
   });
@@ -789,7 +835,12 @@ function buildHTML(js, regs){
     +'<td class="r">'+totCnt2+'</td>'
     +'<td class="r">$'+fmt(totD)+'</td>';
   bbs.forEach(function(b){ h+='<td class="r">$'+fmt(totBBx[b]||0)+'</td>'; });
-  h+='<td class="r">$'+fmt(totNeg2)+'</td><td></td></tr>';
+  var totGastos2=gastosFiltrados.reduce(function(a,g){return a+(g.monto||0);},0);
+  var totUtil2=totNeg2-totGastos2;
+  h+='<td class="r">$'+fmt(totNeg2)+'</td>'
+    +'<td class="r">$'+fmt(totGastos2)+'</td>'
+    +'<td class="r '+(totUtil2>=0?'ok':'err')+'">'+(totUtil2>=0?'':'−')+'$'+fmt(Math.abs(totUtil2))+'</td>'
+    +'<td></td></tr>';
   h+='</tbody></table></div></div>';
 
   // ── Footer
@@ -971,14 +1022,16 @@ function cargarDesdeAPI_silente(callback){
   var desdeStr=desde.toISOString().slice(0,10);
   var hastaStr=ahora.toISOString().slice(0,10);
 
-  fetch(API_URL+'/registros/rango?desde='+desdeStr+'&hasta='+hastaStr, {
-    headers: { 'X-Dashboard-Token': DASHBOARD_TOKEN }
-  })
-  .then(function(r){return r.json();})
-  .then(function(json){
-    if(!json.ok||!json.registros){callback(false);return;}
+  var hdrs={'X-Dashboard-Token':DASHBOARD_TOKEN};
+  Promise.all([
+    fetch(API_URL+'/registros/rango?desde='+desdeStr+'&hasta='+hastaStr,{headers:hdrs}).then(function(r){return r.json();}),
+    fetch(API_URL+'/gastos/rango?desde='+desdeStr+'&hasta='+hastaStr,{headers:hdrs}).then(function(r){return r.json();}).catch(function(){return{ok:true,gastos:[]};})
+  ])
+  .then(function(results){
+    var rJson=results[0], gJson=results[1];
+    if(!rJson.ok||!rJson.registros){callback(false);return;}
     var byFecha={};
-    json.registros.forEach(function(r){
+    rJson.registros.forEach(function(r){
       var f=r.fecha;
       if(!byFecha[f]) byFecha[f]=[];
       byFecha[f].push({bid:r.bid,bnom:r.bnom,snom:r.snom,
@@ -988,6 +1041,11 @@ function cargarDesdeAPI_silente(callback){
     jornadas=[];
     Object.keys(byFecha).sort().forEach(function(f){
       jornadas.push({fecha:f,registros:byFecha[f]});
+    });
+    gastosData={};
+    (gJson.gastos||[]).forEach(function(g){
+      if(!gastosData[g.fecha]) gastosData[g.fecha]=[];
+      gastosData[g.fecha].push(g);
     });
     jornadas.sort(function(a,b){return a.fecha<b.fecha?-1:1;});
     callback(jornadas.length>0);
