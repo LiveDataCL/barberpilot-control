@@ -454,9 +454,7 @@ function cargarDemoData(){
     jornadas.push({fecha:j.fecha, registros:j.registros.slice()});
   });
   filtPeriod='all';
-  // Resetear botones
   document.querySelectorAll('.ctrl-bar .pf').forEach(function(b){b.classList.remove('on');});
-  document.getElementById('btnAll').classList.add('on');
   renderTodo();
   showNotice('info','Mostrando datos de ejemplo (Martes–Jueves 5–7 Mayo 2026). Importa tus archivos JSON reales para análisis actualizados.');
   toast('📋 Datos demo cargados');
