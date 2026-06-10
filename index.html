@@ -368,6 +368,37 @@
       </div>
     </div>
     <button class="breg" id="btnR" onclick="registrar()" disabled>✂ Registrar y generar ticket</button>
+
+    <!-- VENTA DE PRODUCTO -->
+    <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
+      <button onclick="toggleProductos()" id="btnToggleProd"
+        style="width:100%;padding:10px 14px;background:var(--surface2);border:1.5px solid var(--border);border-radius:var(--r);color:var(--text2);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer;text-align:left;display:flex;align-items:center;gap:8px;transition:border-color .12s">
+        <span>Ceras</span><span>Venta de Producto</span><span id="prodArrow" style="margin-left:auto;font-size:10px;opacity:.5">▼</span>
+      </button>
+      <div id="prodPanel" style="display:none;padding-top:10px">
+        <div class="slbl">Barbero</div>
+        <div class="bgrid" id="prodBgrid"></div>
+        <div class="slbl" style="margin-top:8px">Producto</div>
+        <div style="display:flex;gap:5px">
+          <button class="pbtn" id="prodBtn_p01" onclick="selProducto(this,'p01')" style="flex:1"><span class="pn">Cera Media</span><span class="pc">$8.500</span></button>
+          <button class="pbtn" id="prodBtn_p02" onclick="selProducto(this,'p02')" style="flex:1"><span class="pn">Cera Fuerte</span><span class="pc">$8.500</span></button>
+        </div>
+        <div class="slbl" style="margin-top:8px">Forma de pago</div>
+        <div class="pgrid">
+          <button class="pbtn" data-prodpay="efectivo" onclick="selProdPago(this)"><span class="pn">Efectivo</span><span class="pc">10%</span></button>
+          <button class="pbtn" data-prodpay="debito" onclick="selProdPago(this)"><span class="pn">Debito</span><span class="pc">10%</span></button>
+          <button class="pbtn" data-prodpay="transferencia" onclick="selProdPago(this)"><span class="pn">Transf.</span><span class="pc">10%</span></button>
+        </div>
+        <div class="prev" id="prodPrev" style="margin-top:8px">
+          <div class="pr"><span class="pl2">Barbero</span><span class="pv" id="ppvB">—</span></div>
+          <div class="pr"><span class="pl2">Producto</span><span class="pv" id="ppvS">—</span></div>
+          <div class="pr"><span class="pl2">Precio</span><span class="pv" id="ppvM">—</span></div>
+          <div class="pr tot"><span class="pl2">Barbero recibe</span><span class="pv g" id="ppvBB">—</span></div>
+          <div class="pr"><span class="pl2">Negocio retiene</span><span class="pv b" id="ppvN">—</span></div>
+        </div>
+        <button class="breg" id="btnProd" onclick="registrarProducto()" disabled style="margin-top:8px">Registrar venta</button>
+      </div>
+    </div>
   </div>
 
   <!-- DERECHA -->
@@ -729,6 +760,11 @@ var SS=[
   {id:'s11',nombre:'Corte Express + Perfilado de barba', precio:15000,tiempo:'35 min'}
 ];
 var COM={efectivo:.5,debito:.43,transferencia:.5};
+var PRODUCTOS=[
+  {id:'p01',nombre:'Cera Modeladora Media', precio:8500},
+  {id:'p02',nombre:'Cera Modeladora Fuerte',precio:8500}
+];
+var COM_PRODUCTO=0.10;
 
 // ═══ GOOGLE SHEETS INTEGRATION ═══════════════════════════
 // Pega aquí la URL de tu Apps Script Web App deployment
@@ -802,6 +838,7 @@ function sincronizarGastoSheets(g, accion) {
 
 // ═══ ESTADO ══════════════════════════════════════════════
 var sel={b:null,s:null,p:null,propina:0,propinaTipo:'0'};
+var selProd={b:null,prod:null,p:null};
 var regs=[];
 var filtro='todos';
 var fechaHoy=fechaStr(new Date());
@@ -1199,7 +1236,7 @@ function showTabById(id){
 // ═══ INIT ════════════════════════════════════════════════
 function init(){
   tick();setInterval(tick,30000);
-  buildBarbers();buildServices();
+  buildBarbers();buildServices();buildProdBarbers();
   cargarSheetsUrl();cargar();cargarGastos();cargarLiquidaciones();cargarHorarios();cargarKpiEvals();renderAll();
   // Auto-refresh cada 60s cuando la página está visible
   setInterval(function(){
@@ -1282,6 +1319,101 @@ function buildServices(){
       +'</div>';
   }
   document.getElementById('slist').innerHTML=h;
+}
+
+// ═══ VENTA DE PRODUCTO ═══════════════════════════════════
+function buildProdBarbers(){
+  var h='';
+  for(var i=0;i<BB.length;i++){
+    var b=BB[i];
+    h+='<button class="bbtn" data-pid="'+b.id+'" onclick="selProdB(this)">'
+      +'<span class="bn">'+b.nombre+'</span>'
+      +'</button>';
+  }
+  document.getElementById('prodBgrid').innerHTML=h;
+}
+function toggleProductos(){
+  var panel=document.getElementById('prodPanel');
+  var arrow=document.getElementById('prodArrow');
+  var hidden=panel.style.display==='none';
+  panel.style.display=hidden?'block':'none';
+  arrow.textContent=hidden?'▲':'▼';
+}
+function selProdB(el){
+  selProd.b=el.dataset.pid;
+  var all=document.querySelectorAll('#prodBgrid .bbtn');
+  for(var i=0;i<all.length;i++)all[i].classList.remove('on');
+  el.classList.add('on');
+  updProdPrev();
+}
+function selProducto(el,pid){
+  selProd.prod=pid;
+  document.getElementById('prodBtn_p01').classList.remove('on');
+  document.getElementById('prodBtn_p02').classList.remove('on');
+  el.classList.add('on');
+  updProdPrev();
+}
+function selProdPago(el){
+  selProd.p=el.dataset.prodpay;
+  var all=document.querySelectorAll('[data-prodpay]');
+  for(var i=0;i<all.length;i++)all[i].classList.remove('on');
+  el.classList.add('on');
+  updProdPrev();
+}
+function updProdPrev(){
+  var b=selProd.b?find(BB,selProd.b):null;
+  var prod=selProd.prod?find(PRODUCTOS,selProd.prod):null;
+  var bb=prod?Math.round(prod.precio*COM_PRODUCTO):0;
+  var neg=prod?prod.precio-bb:0;
+  document.getElementById('ppvB').textContent=b?b.nombre:'—';
+  document.getElementById('ppvS').textContent=prod?prod.nombre:'—';
+  document.getElementById('ppvM').textContent=prod?'$'+fmt(prod.precio):'—';
+  document.getElementById('ppvBB').textContent=prod?'$'+fmt(bb):'—';
+  document.getElementById('ppvN').textContent=prod?'$'+fmt(neg):'—';
+  document.getElementById('btnProd').disabled=!(selProd.b&&selProd.prod&&selProd.p);
+}
+function registrarProducto(){
+  if(!selProd.b||!selProd.prod||!selProd.p)return;
+  var b=find(BB,selProd.b);
+  var prod=find(PRODUCTOS,selProd.prod);
+  var bb=Math.round(prod.precio*COM_PRODUCTO),neg=prod.precio-bb;
+  var msg='─── CONFIRMAR VENTA ───\n\n'
+    +'Barbero:   '+b.nombre+'\n'
+    +'Producto:  '+prod.nombre+'\n'
+    +'Pago:      '+selProd.p.charAt(0).toUpperCase()+selProd.p.slice(1)+'\n'
+    +'Precio:    $'+fmt(prod.precio)+'\n\n'
+    +'Barbero recibe: $'+fmt(bb)+'\n'
+    +'Negocio retiene: $'+fmt(neg)+'\n'
+    +'Confirmar y generar ticket?';
+  if(!window.confirm(msg))return;
+  var now=new Date();
+  var r={
+    id:'TK'+now.getTime(),
+    bid:b.id,bnom:b.nombre,
+    sid:prod.id,snom:prod.nombre,
+    precio:prod.precio,pago:selProd.p,
+    com:COM_PRODUCTO,bb:bb,neg:neg,
+    propina:0,
+    fecha:now.toLocaleDateString('es-CL'),
+    hora:pad(now.getHours())+':'+pad(now.getMinutes()),
+    ts:now.getTime()
+  };
+  var svcAnteriores=regs.filter(function(x){return x.bid===r.bid;});
+  r.numServicio=svcAnteriores.length+1;
+  regs.unshift(r);
+  var mismos=regs.filter(function(x){return x.bid===r.bid;});
+  r.totalServicios=mismos.length;
+  var acumBB=0,acumFact=0;
+  for(var i=0;i<mismos.length;i++){acumBB+=mismos[i].bb+(mismos[i].propina||0);acumFact+=mismos[i].precio;}
+  r.acumBB=acumBB;r.acumFact=acumFact;
+  guardar();enviarASheets(r);
+  selProd={b:null,prod:null,p:null};
+  var allBtns=document.querySelectorAll('#prodBgrid .bbtn,[data-prodpay],[id^="prodBtn_"]');
+  for(var i=0;i<allBtns.length;i++)allBtns[i].classList.remove('on');
+  updProdPrev();
+  renderAll();
+  toast('Venta registrada');
+  printTicket62(r);
 }
 
 // ═══ SERVICIO PERSONALIZADO ════════════════════════════════
