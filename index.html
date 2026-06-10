@@ -376,12 +376,18 @@
         <span>Ceras</span><span>Venta de Producto</span><span id="prodArrow" style="margin-left:auto;font-size:10px;opacity:.5">▼</span>
       </button>
       <div id="prodPanel" style="display:none;padding-top:10px">
-        <div class="slbl">Barbero</div>
+        <div class="slbl">Barbero <span style="font-weight:400;opacity:.5;font-size:10px">(opcional — sin barbero = sin comision)</span></div>
         <div class="bgrid" id="prodBgrid"></div>
         <div class="slbl" style="margin-top:8px">Producto</div>
         <div style="display:flex;gap:5px">
           <button class="pbtn" id="prodBtn_p01" onclick="selProducto(this,'p01')" style="flex:1"><span class="pn">Cera Media</span><span class="pc">$8.500</span></button>
           <button class="pbtn" id="prodBtn_p02" onclick="selProducto(this,'p02')" style="flex:1"><span class="pn">Cera Fuerte</span><span class="pc">$8.500</span></button>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+          <span class="slbl" style="margin:0;flex:1">Cantidad</span>
+          <button onclick="chgQty(-1)" style="width:32px;height:32px;border:1.5px solid var(--border);border-radius:var(--r);background:var(--surface2);color:var(--text);font-size:18px;font-weight:700;cursor:pointer;line-height:1;font-family:var(--sans)">−</button>
+          <span id="prodQtyDisplay" style="font-family:var(--mono);font-size:16px;font-weight:700;min-width:24px;text-align:center">1</span>
+          <button onclick="chgQty(1)" style="width:32px;height:32px;border:1.5px solid var(--border);border-radius:var(--r);background:var(--surface2);color:var(--text);font-size:18px;font-weight:700;cursor:pointer;line-height:1;font-family:var(--sans)">+</button>
         </div>
         <div class="slbl" style="margin-top:8px">Forma de pago</div>
         <div class="pgrid">
@@ -390,9 +396,9 @@
           <button class="pbtn" data-prodpay="transferencia" onclick="selProdPago(this)"><span class="pn">Transf.</span><span class="pc">10%</span></button>
         </div>
         <div class="prev" id="prodPrev" style="margin-top:8px">
-          <div class="pr"><span class="pl2">Barbero</span><span class="pv" id="ppvB">—</span></div>
+          <div class="pr"><span class="pl2">Barbero</span><span class="pv" id="ppvB">Sin asignar</span></div>
           <div class="pr"><span class="pl2">Producto</span><span class="pv" id="ppvS">—</span></div>
-          <div class="pr"><span class="pl2">Precio</span><span class="pv" id="ppvM">—</span></div>
+          <div class="pr"><span class="pl2">Total</span><span class="pv" id="ppvM">—</span></div>
           <div class="pr tot"><span class="pl2">Barbero recibe</span><span class="pv g" id="ppvBB">—</span></div>
           <div class="pr"><span class="pl2">Negocio retiene</span><span class="pv b" id="ppvN">—</span></div>
         </div>
@@ -838,7 +844,7 @@ function sincronizarGastoSheets(g, accion) {
 
 // ═══ ESTADO ══════════════════════════════════════════════
 var sel={b:null,s:null,p:null,propina:0,propinaTipo:'0'};
-var selProd={b:null,prod:null,p:null};
+var selProd={b:null,prod:null,p:null,qty:1};
 var regs=[];
 var filtro='todos';
 var fechaHoy=fechaStr(new Date());
@@ -1363,25 +1369,36 @@ function selProdPago(el){
 function updProdPrev(){
   var b=selProd.b?find(BB,selProd.b):null;
   var prod=selProd.prod?find(PRODUCTOS,selProd.prod):null;
-  var bb=prod?Math.round(prod.precio*COM_PRODUCTO):0;
-  var neg=prod?prod.precio-bb:0;
-  document.getElementById('ppvB').textContent=b?b.nombre:'—';
-  document.getElementById('ppvS').textContent=prod?prod.nombre:'—';
-  document.getElementById('ppvM').textContent=prod?'$'+fmt(prod.precio):'—';
-  document.getElementById('ppvBB').textContent=prod?'$'+fmt(bb):'—';
+  var qty=selProd.qty||1;
+  var total=prod?prod.precio*qty:0;
+  var bb=(prod&&b)?Math.round(total*COM_PRODUCTO):0;
+  var neg=prod?total-bb:0;
+  document.getElementById('ppvB').textContent=b?b.nombre:'Sin asignar';
+  document.getElementById('ppvS').textContent=prod?(qty>1?qty+'x '+prod.nombre:prod.nombre):'—';
+  document.getElementById('ppvM').textContent=prod?'$'+fmt(total):'—';
+  document.getElementById('ppvBB').textContent=prod?(b?'$'+fmt(bb):'$0'):'—';
   document.getElementById('ppvN').textContent=prod?'$'+fmt(neg):'—';
-  document.getElementById('btnProd').disabled=!(selProd.b&&selProd.prod&&selProd.p);
+  document.getElementById('btnProd').disabled=!(selProd.prod&&selProd.p);
+}
+function chgQty(delta){
+  selProd.qty=Math.max(1,(selProd.qty||1)+delta);
+  document.getElementById('prodQtyDisplay').textContent=selProd.qty;
+  updProdPrev();
 }
 function registrarProducto(){
-  if(!selProd.b||!selProd.prod||!selProd.p)return;
-  var b=find(BB,selProd.b);
+  if(!selProd.prod||!selProd.p)return;
+  var b=selProd.b?find(BB,selProd.b):null;
   var prod=find(PRODUCTOS,selProd.prod);
-  var bb=Math.round(prod.precio*COM_PRODUCTO),neg=prod.precio-bb;
+  var qty=selProd.qty||1;
+  var total=prod.precio*qty;
+  var bb=b?Math.round(total*COM_PRODUCTO):0;
+  var neg=total-bb;
+  var nomProducto=qty>1?qty+'x '+prod.nombre:prod.nombre;
   var msg='─── CONFIRMAR VENTA ───\n\n'
-    +'Barbero:   '+b.nombre+'\n'
-    +'Producto:  '+prod.nombre+'\n'
+    +'Barbero:   '+(b?b.nombre:'Sin asignar')+'\n'
+    +'Producto:  '+nomProducto+'\n'
     +'Pago:      '+selProd.p.charAt(0).toUpperCase()+selProd.p.slice(1)+'\n'
-    +'Precio:    $'+fmt(prod.precio)+'\n\n'
+    +'Total:     $'+fmt(total)+'\n\n'
     +'Barbero recibe: $'+fmt(bb)+'\n'
     +'Negocio retiene: $'+fmt(neg)+'\n'
     +'Confirmar y generar ticket?';
@@ -1389,10 +1406,10 @@ function registrarProducto(){
   var now=new Date();
   var r={
     id:'TK'+now.getTime(),
-    bid:b.id,bnom:b.nombre,
-    sid:prod.id,snom:prod.nombre,
-    precio:prod.precio,pago:selProd.p,
-    com:COM_PRODUCTO,bb:bb,neg:neg,
+    bid:b?b.id:'',bnom:b?b.nombre:'Sin asignar',
+    sid:prod.id,snom:nomProducto,
+    precio:total,pago:selProd.p,
+    com:b?COM_PRODUCTO:0,bb:bb,neg:neg,
     propina:0,
     fecha:now.toLocaleDateString('es-CL'),
     hora:pad(now.getHours())+':'+pad(now.getMinutes()),
@@ -1407,9 +1424,10 @@ function registrarProducto(){
   for(var i=0;i<mismos.length;i++){acumBB+=mismos[i].bb+(mismos[i].propina||0);acumFact+=mismos[i].precio;}
   r.acumBB=acumBB;r.acumFact=acumFact;
   guardar();enviarASheets(r);
-  selProd={b:null,prod:null,p:null};
+  selProd={b:null,prod:null,p:null,qty:1};
   var allBtns=document.querySelectorAll('#prodBgrid .bbtn,[data-prodpay],[id^="prodBtn_"]');
   for(var i=0;i<allBtns.length;i++)allBtns[i].classList.remove('on');
+  document.getElementById('prodQtyDisplay').textContent='1';
   updProdPrev();
   renderAll();
   toast('Venta registrada');
