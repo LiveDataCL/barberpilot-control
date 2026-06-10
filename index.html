@@ -1406,7 +1406,7 @@ function registrarProducto(){
   var now=new Date();
   var r={
     id:'TK'+now.getTime(),
-    bid:b?b.id:'',bnom:b?b.nombre:'Sin asignar',
+    bid:b?b.id:'none',bnom:b?b.nombre:'Sin asignar',
     sid:prod.id,snom:nomProducto,
     precio:total,pago:selProd.p,
     com:b?COM_PRODUCTO:0,bb:bb,neg:neg,
@@ -1423,7 +1423,16 @@ function registrarProducto(){
   var acumBB=0,acumFact=0;
   for(var i=0;i<mismos.length;i++){acumBB+=mismos[i].bb+(mismos[i].propina||0);acumFact+=mismos[i].precio;}
   r.acumBB=acumBB;r.acumFact=acumFact;
-  guardar();enviarASheets(r);
+  guardar();
+  fetch('https://barberpilot-api-production.up.railway.app/registros',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(r)
+  }).then(function(res){
+    if(!res.ok)return res.json().then(function(d){throw new Error(d.error||res.status);});
+  }).catch(function(e){
+    toast('⚠ No guardado en DB — venta en local solamente');
+    console.error('API producto:',e);
+  });
   selProd={b:null,prod:null,p:null,qty:1};
   var allBtns=document.querySelectorAll('#prodBgrid .bbtn,[data-prodpay],[id^="prodBtn_"]');
   for(var i=0;i<allBtns.length;i++)allBtns[i].classList.remove('on');
