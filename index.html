@@ -281,9 +281,11 @@
   .silla-card{background:var(--surface);border:2px solid var(--border);border-radius:var(--rl);overflow:hidden;transition:border-color .15s}
   .silla-card.libre{border-color:#b8e5c8}
   .silla-card.ocupada{border-color:var(--text)}
+  .silla-card.ausente{border-color:var(--border);opacity:.55}
   .silla-head{padding:13px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
   .silla-head.libre{background:#e6f4ea}
   .silla-head.ocupada{background:var(--text);color:#fff}
+  .silla-head.ausente{background:var(--surface2);color:var(--text3)}
   .silla-nombre{font-weight:700;font-size:15px;letter-spacing:.01em}
   .silla-status-lbl{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-top:2px}
   .silla-body{padding:14px 16px}
@@ -4833,11 +4835,26 @@ function renderSillas(){
   }
   Promise.all([
     fetch(API_URL+'/queue/control').then(function(r){return r.json();}),
-    fetch(API_URL+'/registros/dia?fecha='+fechaHoy).then(function(r){return r.json();})
+    fetch(API_URL+'/registros/dia?fecha='+fechaHoy).then(function(r){return r.json();}),
+    fetch(API_URL+'/horarios/'+fechaHoy).then(function(r){return r.json();}).catch(function(){return {ok:false};})
   ]).then(function(res){
-    var queue=res[0]; var regData=res[1];
+    var queue=res[0]; var regData=res[1]; var horData=res[2];
     if(!queue.ok) throw new Error(queue.error||'Error cola');
     var registros=regData.registros||regData||[];
+
+    // Horarios keyed by bid → determine presence
+    var horMap={};
+    if(horData.ok && horData.horarios){
+      horData.horarios.forEach(function(h){ horMap[h.bid]=h; });
+    }
+    function presente(bid){
+      var h=horMap[bid];
+      return h && h.entrada && !h.salida; // arrived and not yet left
+    }
+    function yaSeWas(bid){
+      var h=horMap[bid];
+      return h && h.entrada && h.salida;  // checked in AND checked out
+    }
 
     // Última hora de servicio por barbero hoy
     var lastSvc={};
@@ -4848,8 +4865,10 @@ function renderSillas(){
       }
     });
 
-    // Barberos libres → ordenados por última atención asc (el que atendió antes = primero en turno)
-    var libres=BB.filter(function(b){ return !(queue.barberos[b.id]&&queue.barberos[b.id].enServicio); });
+    // Barberos libres Y presentes → rotation candidates
+    var libres=BB.filter(function(b){
+      return !(queue.barberos[b.id]&&queue.barberos[b.id].enServicio) && presente(b.id);
+    });
     libres.sort(function(a,b){
       var ta=lastSvc[a.id]||'00:00:00';
       var tb=lastSvc[b.id]||'00:00:00';
@@ -4873,13 +4892,14 @@ function renderSillas(){
         '<div class="silla-next-reason">'+motivo+(resto?' · También libre: '+resto:'')+'</div>'+
         '</div></div>';
     } else {
+      var todosOcupados=BB.every(function(b){ return queue.barberos[b.id]&&queue.barberos[b.id].enServicio; });
       bannerEl.innerHTML=
-        '<div class="silla-next-banner" style="background:var(--warn)">'+
-        '<div style="font-size:36px;line-height:1">⏳</div>'+
+        '<div class="silla-next-banner" style="background:'+(todosOcupados?'var(--warn)':'var(--text3)')+'">'+
+        '<div style="font-size:36px;line-height:1">'+(todosOcupados?'⏳':'—')+'</div>'+
         '<div>'+
         '<div class="silla-next-label">Próximo turno en rotación</div>'+
-        '<div class="silla-next-name">Todos ocupados</div>'+
-        '<div class="silla-next-reason">El primero en liberar su silla toma el siguiente turno</div>'+
+        '<div class="silla-next-name">'+(todosOcupados?'Todos ocupados':'Sin barberos presentes')+'</div>'+
+        '<div class="silla-next-reason">'+(todosOcupados?'El primero en liberar su silla toma el siguiente turno':'No hay barberos disponibles en este momento')+'</div>'+
         '</div></div>';
     }
 
@@ -4889,7 +4909,11 @@ function renderSillas(){
       var bd=queue.barberos[b.id]||{};
       var sv=bd.enServicio||null;
       var nEspera=(bd.enEspera||[]).length;
+      var esPresente=presente(b.id);
+      var seWas=yaSeWas(b.id);
+
       if(sv){
+        // En corte
         var desde=sv.service_start
           ?new Date(sv.service_start).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'}):'—';
         h+='<div class="silla-card ocupada">';
@@ -4905,7 +4929,8 @@ function renderSillas(){
         h+='<div class="silla-desde">En silla desde las '+desde+'</div>';
         if(sv.service_start) h+='<input type="hidden" id="sstart-'+b.id+'" value="'+sv.service_start+'">';
         h+='</div></div>';
-      } else {
+      } else if(esPresente){
+        // Libre y presente
         h+='<div class="silla-card libre">';
         h+='<div class="silla-head libre">';
         h+='<div><div class="silla-nombre" style="color:var(--ok)">'+b.nombre+'</div>';
@@ -4916,6 +4941,21 @@ function renderSillas(){
         h+='<div style="font-size:28px;margin:6px 0;color:var(--ok)">✓</div>';
         h+='<div style="font-size:13px;color:var(--text2)">Sin cliente activo</div>';
         if(lastSvc[b.id]) h+='<div style="font-size:11px;color:var(--text3);margin-top:8px">Último servicio: '+lastSvc[b.id].slice(0,5)+'</div>';
+        h+='</div></div>';
+      } else {
+        // Ausente: ya salió o no ha llegado
+        var motivoAusente=seWas
+          ?'Salió a las '+(horMap[b.id].salida||'')
+          :'No ha llegado';
+        h+='<div class="silla-card ausente">';
+        h+='<div class="silla-head ausente">';
+        h+='<div><div class="silla-nombre">'+b.nombre+'</div>';
+        h+='<div class="silla-status-lbl">'+( seWas ? 'Fuera de turno' : 'Sin registrar llegada' )+'</div></div>';
+        h+='</div>';
+        h+='<div class="silla-body">';
+        h+='<div style="font-size:24px;margin:6px 0;color:var(--text3)">—</div>';
+        h+='<div style="font-size:12px;color:var(--text3)">'+motivoAusente+'</div>';
+        if(lastSvc[b.id]) h+='<div style="font-size:11px;color:var(--text3);margin-top:8px">Último servicio hoy: '+lastSvc[b.id].slice(0,5)+'</div>';
         h+='</div></div>';
       }
     });
