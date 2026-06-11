@@ -4624,11 +4624,12 @@ var _salaEditorData = {}; // { queue_id: { client_name, phone, service, cliente_
 var _editorQueueId  = null;
 var _editorClienteId = null;
 var SALA_PRECIOS = {
-  'Corte':12000,'Barba':10000,'Corte + Barba':20000,
+  'Corte':12000,'Corte clásico':12000,'Barba':10000,'Corte + Barba':20000,
   'Corte + Perfilado de barba':16000,'Perfilado de corte':6000,
   'Perfilado de cejas':4000,'Barba + Cejas':13000,
-  'Perfilado de barba':6000,'Matizado canas cabello':8000,
-  'Matizado canas barba':5000,'Corte Express + Perfilado de barba':15000
+  'Perfilado de barba':6000,'Matizado canas cabello':8000,'Matizado ganas de cabello':8000,
+  'Matizado canas barba':5000,'Matizado ganas de barba':5000,
+  'Corte Express + Perfilado de barba':15000
 };
 
 function salaAutoPreio(){
@@ -4699,12 +4700,14 @@ function salaIniciarSiguiente(queue_id){
     }).catch(function(e){toast('Error: '+e.message);});
 }
 
-function salaCerrarServicio(queue_id,bid,pago,propina){
+function salaCerrarServicio(queue_id,bid,pago,propina,precio){
   if(!API_URL) return;
   if(!window.confirm('¿Cerrar servicio y generar ticket?')) return;
+  var body={queue_id:queue_id,bid:bid,pago:pago,propina:propina||0};
+  if(precio>0) body.precio=precio;
   fetch(API_URL+'/queue/control/registrar',{
     method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({queue_id:queue_id,bid:bid,pago:pago,propina:propina||0})
+    body:JSON.stringify(body)
   }).then(function(r){return r.json();})
     .then(function(j){
       if(j.ok){
@@ -4760,7 +4763,7 @@ function renderSala(){
           var sv=b.enServicio;
           var desde=sv.service_start?new Date(sv.service_start).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'}):'—';
           h+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:5px">EN SERVICIO</div>';
-          _salaEditorData[sv.queue_id]={client_name:sv.client_name,phone:sv.phone||'',service:sv.service,cliente_id:sv.cliente_id||null};
+          _salaEditorData[sv.queue_id]={client_name:sv.client_name,phone:sv.phone||'',service:sv.service,precio:SALA_PRECIOS[sv.service]||12000,cliente_id:sv.cliente_id||null};
           h+='<div style="margin-bottom:8px">';
           h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">';
           h+='<div style="font-weight:500">'+sv.client_name+'</div>';
@@ -4771,7 +4774,10 @@ function renderSala(){
           h+='</div>';
           h+='<div style="font-size:12px;color:var(--text2)">'+sv.service+' · desde '+desde+'</div>';
           h+='</div>';
-          h+='<div style="display:flex;gap:6px;align-items:center;margin-bottom:10px">';
+          h+='<div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap">';
+          h+='<input id="prc-'+sv.queue_id+'" type="number" min="0" step="1000" ';
+          h+='value="'+(_salaEditorData[sv.queue_id]&&_salaEditorData[sv.queue_id].precio?_salaEditorData[sv.queue_id].precio:(SALA_PRECIOS[sv.service]||12000))+'" ';
+          h+='style="width:84px;padding:6px 8px;border:1.5px solid var(--border2);border-radius:var(--r);font-size:12px;font-family:var(--mono);background:var(--surface)" title="Precio"/>';
           h+='<select id="pago-'+sv.queue_id+'" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface);font-family:var(--sans)">';
           h+='<option value="efectivo">💵 Efectivo</option>';
           h+='<option value="debito">💳 Débito</option>';
@@ -4779,7 +4785,7 @@ function renderSala(){
           h+='</select>';
           h+='<input id="prop-'+sv.queue_id+'" type="number" placeholder="Propina" min="0" step="500" ';
           h+='style="width:78px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;font-family:var(--mono);background:var(--surface)"/>';
-          h+='<button onclick="salaCerrarServicio('+sv.queue_id+',\''+bid+'\',document.getElementById(\'pago-'+sv.queue_id+'\').value,parseInt(document.getElementById(\'prop-'+sv.queue_id+'\').value)||0)" ';
+          h+='<button onclick="salaCerrarServicio('+sv.queue_id+',\''+bid+'\',document.getElementById(\'pago-'+sv.queue_id+'\').value,parseInt(document.getElementById(\'prop-'+sv.queue_id+'\').value)||0,parseInt(document.getElementById(\'prc-'+sv.queue_id+'\').value)||0)" ';
           h+='style="padding:6px 12px;background:var(--ok);color:#fff;border:none;border-radius:var(--r);font-size:12px;font-weight:600;cursor:pointer">💳 Cerrar</button>';
           h+='</div>';
           h+='<div style="height:1px;background:var(--border);margin-bottom:10px"></div>';
@@ -4790,7 +4796,7 @@ function renderSala(){
         if(b.enEspera.length>0){
           h+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:6px">EN ESPERA</div>';
           b.enEspera.forEach(function(e,i){
-            _salaEditorData[e.queue_id]={client_name:e.client_name,phone:e.phone||'',service:e.service,cliente_id:e.cliente_id||null};
+            _salaEditorData[e.queue_id]={client_name:e.client_name,phone:e.phone||'',service:e.service,precio:SALA_PRECIOS[e.service]||12000,cliente_id:e.cliente_id||null};
             h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border)">';
             h+='<div style="font-size:13px"><span style="color:var(--text3);font-family:var(--mono);font-size:11px">'+(i+1)+'. </span>'+e.client_name+'</div>';
             h+='<div style="display:flex;align-items:center;gap:4px">';
@@ -5003,7 +5009,7 @@ function salaAbrirEditor(queue_id){
   document.getElementById('editor-nombre').value      =d.client_name||'';
   document.getElementById('editor-tel').value         =d.phone||'';
   document.getElementById('editor-svc').value         =d.service||'';
-  document.getElementById('editor-precio').value      =SALA_PRECIOS[d.service]||'';
+  document.getElementById('editor-precio').value      =d.precio||SALA_PRECIOS[d.service]||'';
   document.getElementById('editor-bid').value         ='';
   document.getElementById('editor-svc-extra').value   ='';
   document.getElementById('editor-extra-precio').value='';
@@ -5080,8 +5086,14 @@ function salaActualizarServicio(){
     body:JSON.stringify({service:svc,precio:precio})
   }).then(function(r){return r.json();})
     .then(function(j){
-      if(j.ok){toast('✓ Servicio actualizado');salaCerrarEditor();}
-      else toast('Error: '+(j.error||''));
+      if(j.ok){
+        toast('✓ Servicio actualizado');
+        if(_salaEditorData[_editorQueueId]){
+          _salaEditorData[_editorQueueId].service=svc;
+          _salaEditorData[_editorQueueId].precio=precio;
+        }
+        salaCerrarEditor();
+      } else toast('Error: '+(j.error||''));
     }).catch(function(e){toast('Error: '+e.message);});
 }
 
