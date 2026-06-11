@@ -4713,6 +4713,9 @@ function salaCerrarServicio(queue_id,bid,pago,propina){
         toast(msg);
         setTimeout(function(){cargarRegistrosDia();},500);
         renderSala();
+      } else if(j.error==='already_closed'){
+        toast('ℹ Ya cerrado por el barbero — sin duplicado');
+        renderSala();
       } else toast('Error: '+(j.error||''));
     }).catch(function(e){toast('Error: '+e.message);});
 }
