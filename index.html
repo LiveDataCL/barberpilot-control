@@ -143,6 +143,19 @@
   .toastel{position:fixed;bottom:22px;right:22px;background:var(--text);color:#fff;padding:10px 17px;border-radius:var(--rl);font-size:13px;z-index:9000;opacity:0;transform:translateY(8px);transition:all .2s;pointer-events:none}
   .toastel.on{opacity:1;transform:translateY(0)}
 
+  /* Alertas 15 min */
+  .alerta-stack{position:fixed;top:72px;right:18px;display:flex;flex-direction:column;gap:8px;z-index:8500;max-width:300px}
+  .alerta-card{background:#1a3a1a;border:1px solid #2d6e2d;border-left:4px solid #4caf50;border-radius:var(--rl);padding:12px 14px;color:#fff;box-shadow:0 4px 16px rgba(0,0,0,.35);animation:alerta-in .25s ease;display:flex;flex-direction:column;gap:4px}
+  .alerta-card.agenda{background:#1a2b3a;border-color:#2d5e8e;border-left-color:#4a9fd4}
+  .alerta-card-top{display:flex;align-items:center;gap:8px}
+  .alerta-ico{font-size:18px;flex-shrink:0}
+  .alerta-bnom{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.75}
+  .alerta-main{font-size:13px;font-weight:600;line-height:1.35}
+  .alerta-meta{font-size:11px;opacity:.65;font-family:var(--mono)}
+  .alerta-close{margin-left:auto;background:none;border:none;color:rgba(255,255,255,.5);cursor:pointer;font-size:16px;line-height:1;padding:0 0 0 6px;align-self:flex-start}
+  .alerta-close:hover{color:#fff}
+  @keyframes alerta-in{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:translateX(0)}}
+
   /* HISTÓRICO PANEL */
   .hist-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:500;align-items:center;justify-content:center}
   .hist-overlay.on{display:flex}
@@ -779,6 +792,7 @@
 
 <div id="printArea"></div>
 <div class="toastel" id="toastel"></div>
+<div class="alerta-stack" id="alertaStack"></div>
 
 <script>
 // ═══ DATOS ═══════════════════════════════════════════════
@@ -1296,6 +1310,7 @@ function init(){
     if(document.visibilityState==='visible' && API_URL) cargarPendientes();
   }, 30000);
   cargarPendientes(); // al abrir
+  iniciarSSE(); // alertas 15 min en tiempo real
 
   // ─── Sincronizar horarios y KPIs del día con Railway ─────────────────────
   if(API_URL){
@@ -4617,6 +4632,49 @@ function toast(msg){
   var el=document.getElementById('toastel');
   el.textContent=msg;el.classList.add('on');
   setTimeout(function(){el.classList.remove('on');},2600);
+}
+
+// ═══ ALERTAS 15 MIN (SSE) ════════════════════════════════
+var _sseConn = null;
+
+function mostrarAlerta15(data){
+  var stack = document.getElementById('alertaStack');
+  if(!stack) return;
+  var esAgenda = data.fuente === 'agenda';
+  var min = data.minutos != null ? data.minutos : '?';
+  var hora = data.hora ? ' · '+data.hora.slice(0,5) : '';
+  var turno = data.queue_position ? ' · Turno #'+data.queue_position : '';
+  var card = document.createElement('div');
+  card.className = 'alerta-card' + (esAgenda ? ' agenda' : '');
+  card.innerHTML =
+    '<div class="alerta-card-top">'
+    + '<span class="alerta-ico">'+(esAgenda?'📅':'⏰')+'</span>'
+    + '<span class="alerta-bnom">'+(data.bnom||data.barber_id||'Barbero')+'</span>'
+    + '<button class="alerta-close" onclick="this.closest(\'.alerta-card\').remove()">×</button>'
+    + '</div>'
+    + '<div class="alerta-main">'+escHtml(data.client_name||'Cliente')+' — '+escHtml(data.service||'')+'</div>'
+    + '<div class="alerta-meta">En ~'+min+' min'+(esAgenda?hora:turno)+'</div>';
+  stack.prepend(card);
+  // Auto-dismiss after 60s
+  setTimeout(function(){ if(card.parentNode) card.remove(); }, 60000);
+  // También registrar en consola
+  console.log('[15MIN]', data);
+}
+
+function escHtml(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function iniciarSSE(){
+  if(!API_URL) return;
+  if(_sseConn){ _sseConn.close(); }
+  _sseConn = new EventSource(API_URL + '/events');
+  _sseConn.addEventListener('alerta_15min', function(e){
+    try{ mostrarAlerta15(JSON.parse(e.data)); }catch(ex){}
+  });
+  _sseConn.onerror = function(){
+    // EventSource reconnects automatically; no action needed
+  };
 }
 
 // ═══ SALA DE ESPERA ══════════════════════════════════════
