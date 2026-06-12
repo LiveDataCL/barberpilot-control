@@ -4762,7 +4762,6 @@ function salaIniciarSiguiente(queue_id){
 
 function salaCerrarServicio(queue_id,bid,pago,propina,precio){
   if(!API_URL) return;
-  if(!window.confirm('¿Cerrar servicio y generar ticket?')) return;
   var body={queue_id:queue_id,bid:bid,pago:pago,propina:propina||0};
   if(precio>0) body.precio=precio;
   fetch(API_URL+'/queue/control/registrar',{
@@ -4774,8 +4773,27 @@ function salaCerrarServicio(queue_id,bid,pago,propina,precio){
         var msg='✓ Servicio cerrado · $'+fmt(j.precio)+' · bb $'+fmt(j.bb);
         if(j.propina>0) msg+=' + prop $'+fmt(j.propina);
         toast(msg);
-        setTimeout(function(){cargarRegistrosDia();},500);
-        renderSala();
+        var barber=null;
+        for(var bi=0;bi<BB.length;bi++){if(BB[bi].id===bid){barber=BB[bi];break;}}
+        if(!barber) barber={nombre:bid};
+        var ed=_salaEditorData[queue_id]||{};
+        var now=new Date();
+        var mismos=regs.filter(function(x){return x.bid===bid;});
+        var acumBB=j.bb+(j.propina||0),acumFact=j.precio;
+        mismos.forEach(function(x){acumBB+=x.bb+(x.propina||0);acumFact+=x.precio;});
+        var r2={
+          id:j.registro_id,bid:bid,bnom:barber.nombre,
+          snom:ed.service||'Servicio',
+          precio:j.precio,pago:pago,com:COM[pago]||0.5,
+          bb:j.bb,neg:j.neg,propina:j.propina||0,
+          fecha:String(now.getDate()).padStart(2,'0')+'/'+String(now.getMonth()+1).padStart(2,'0')+'/'+now.getFullYear(),
+          hora:String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0'),
+          ts:now.getTime(),
+          numServicio:mismos.length+1,totalServicios:mismos.length+1,
+          acumBB:acumBB,acumFact:acumFact
+        };
+        printTicket62(r2);
+        setTimeout(function(){cargarRegistrosDia();renderSala();},500);
       } else if(j.error==='already_closed'){
         toast('ℹ Ya cerrado por el barbero — sin duplicado');
         renderSala();
