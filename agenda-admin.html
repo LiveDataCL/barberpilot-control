@@ -351,6 +351,41 @@ button{cursor:pointer}
   </div>
 </div>
 
+<!-- ═══ EDIT APPOINTMENT MODAL ═══ -->
+<div class="ov" id="editOv" onclick="if(event.target===this)closeOv('editOv')">
+  <div class="modal">
+    <div class="m-handle"></div>
+    <div class="m-hdr">
+      <span class="m-title">Cambiar Fecha / Hora</span>
+      <button class="m-close" onclick="closeOv('editOv')">&#x2715;</button>
+    </div>
+    <div class="m-body">
+      <div class="fg">
+        <label class="flbl">Fecha</label>
+        <input type="date" class="finp" id="edFecha" onchange="edUpdHf()"/>
+      </div>
+      <div class="f2">
+        <div class="fg">
+          <label class="flbl">Hora inicio</label>
+          <input type="time" class="finp" id="edHI" step="900" onchange="edUpdHf()"/>
+        </div>
+        <div class="fg">
+          <label class="flbl">Hora fin (auto)</label>
+          <input type="time" class="finp" id="edHF" readonly style="opacity:.55;cursor:not-allowed"/>
+        </div>
+      </div>
+      <div class="fg">
+        <label class="flbl">Notas (opcional)</label>
+        <input type="text" class="finp" id="edNotas" placeholder="Indicaciones adicionales…"/>
+      </div>
+    </div>
+    <div class="m-foot">
+      <button class="btn b-dk" onclick="submitEdit()">GUARDAR CAMBIOS</button>
+      <button class="btn b-ghost" onclick="closeOv('editOv')">CANCELAR</button>
+    </div>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
@@ -704,8 +739,9 @@ function openApt(id) {
 
   if(est==='pendiente') add('✓ CONFIRMAR','b-ok',()=>patchEst(a.id,'confirmado'));
   if(est!=='cancelado'&&est!=='completado') {
+    add('✏ EDITAR','b-ghost',()=>openEdit(a.id));
+    add('↕ REASIGNAR','b-ghost',()=>{closeOv('aptOv');openRas(a.id,a.bid);});
     add('✕ CANCELAR','b-err',()=>{if(confirm('¿Cancelar esta cita?'))patchEst(a.id,'cancelado');});
-    add('↕ REASIGNAR','b-dk',()=>{closeOv('aptOv');openRas(a.id,a.bid);});
   }
   if(a.client_phone) {
     const ph=a.client_phone.replace(/\D/g,'');
@@ -795,6 +831,51 @@ async function submitBlock() {
     closeOv('blkOv');
     showToast('Horario bloqueado','ok');
     refresh();
+  } catch(e){ showToast('Error: '+e.message,'err'); }
+}
+
+// ── EDIT (RESCHEDULE) MODAL ───────────────────────────────────
+let editId=null, editDur=30;
+
+function openEdit(id) {
+  const a=apts.find(a=>String(a.id)===String(id));
+  if(!a)return;
+  editId=id; editDur=a.duracion||30;
+  const hi=(a.hora_inicio||a.hora||'09:00').slice(0,5);
+  document.getElementById('edFecha').value=a.fecha||ds();
+  document.getElementById('edHI').value=hi;
+  document.getElementById('edNotas').value=a.notas||'';
+  edUpdHf();
+  closeOv('aptOv');
+  document.getElementById('editOv').classList.add('on');
+}
+
+function edUpdHf() {
+  const hi=document.getElementById('edHI').value;
+  document.getElementById('edHF').value=hi?fromMin(toMin(hi)+editDur):'';
+}
+
+async function submitEdit() {
+  const fecha=document.getElementById('edFecha').value;
+  const hora_inicio=document.getElementById('edHI').value;
+  const notas=document.getElementById('edNotas').value||null;
+  if(!fecha||!hora_inicio){showToast('Completa fecha y hora de inicio','err');return;}
+  try {
+    const r=await fetch(`${API}/appointments/${editId}`,{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({fecha,hora_inicio,notas})
+    });
+    const j=await r.json();
+    if(!r.ok){
+      showToast(j.error==='conflicto_horario'?'Ese horario ya está ocupado — elige otro':'Error: '+(j.error||r.status),'err');
+      return;
+    }
+    closeOv('editOv');
+    showToast('Cita reagendada ✓','ok');
+    // Navigate to the new date
+    const [y,m,d]=fecha.split('-').map(Number);
+    cur=new Date(y,m-1,d); updateHdr(); refresh();
   } catch(e){ showToast('Error: '+e.message,'err'); }
 }
 
