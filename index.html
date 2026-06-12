@@ -343,12 +343,6 @@
       <div class="bgrid" id="bgrid"></div>
     </div>
     <div>
-      <div class="slbl">Cliente (opcional)</div>
-      <select id="clienteQueue" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--surface);font-family:var(--sans)">
-        <option value="">— Sin cliente —</option>
-      </select>
-    </div>
-    <div>
       <div class="slbl">2 · Servicio</div>
 
       <!-- SERVICIO PERSONALIZADO — siempre visible, sin scroll -->
@@ -1304,7 +1298,7 @@ function showTabById(id){
 function init(){
   tick();setInterval(tick,30000);
   buildBarbers();buildServices();buildProdBarbers();
-  cargarSheetsUrl();cargar();cargarGastos();cargarLiquidaciones();cargarHorarios();cargarKpiEvals();renderAll();cargarClientesQueue();
+  cargarSheetsUrl();cargar();cargarGastos();cargarLiquidaciones();cargarHorarios();cargarKpiEvals();renderAll();
   // Auto-refresh cada 60s cuando la página está visible
   setInterval(function(){
     if(document.visibilityState==='visible' && API_URL) cargarRegistrosDia();
@@ -1606,42 +1600,10 @@ function recalcPropina(){
 }
 
 // ═══ SELECCIONES ═════════════════════════════════════════
-// ─── CLIENTE EN COLA ────────────────────────────────────────
-var _queueEntries=[];
-var _queueMap={};
-function cargarClientesQueue(){
-  if(!API_URL) return;
-  fetch(API_URL+'/queue/control')
-    .then(function(r){return r.json();})
-    .then(function(j){
-      if(!j.ok) return;
-      _queueEntries=[];_queueMap={};
-      ['b1','b2','b3','b4'].forEach(function(bid){
-        var b=j.barberos[bid];if(!b)return;
-        var add=function(e){
-          _queueEntries.push({bid:bid,qid:String(e.queue_id),client_name:e.client_name,cliente_id:e.cliente_id||null,service:e.service||''});
-          _queueMap[String(e.queue_id)]={client_name:e.client_name,cliente_id:e.cliente_id||null};
-        };
-        if(b.enServicio) add(b.enServicio);
-        (b.enEspera||[]).forEach(add);
-      });
-      filtrarClientesQueue();
-    }).catch(function(){});
-}
-function filtrarClientesQueue(){
-  var el=document.getElementById('clienteQueue');if(!el)return;
-  var list=sel.b?_queueEntries.filter(function(e){return e.bid===sel.b;}):_queueEntries;
-  var h='<option value="">— Sin cliente —</option>';
-  list.forEach(function(e){
-    h+='<option value="'+e.qid+'">'+escHtml(e.client_name)+(e.service?' · '+escHtml(e.service):'')+'</option>';
-  });
-  el.innerHTML=h;
-}
 
 function selB(el){
   var all=document.querySelectorAll('.bbtn');for(var i=0;i<all.length;i++)all[i].classList.remove('on');
   el.classList.add('on');sel.b=el.dataset.id;updPrev();chkBtn();
-  filtrarClientesQueue();
 }
 function selS(el){
   var all=document.querySelectorAll('.sitem');for(var i=0;i<all.length;i++)all[i].classList.remove('on');
@@ -1714,11 +1676,6 @@ function registrar(){
     hora:pad(now.getHours())+':'+pad(now.getMinutes()),
     ts:now.getTime()
   };
-  var cqEl=document.getElementById('clienteQueue');
-  if(cqEl&&cqEl.value){
-    var cq=_queueMap[cqEl.value];
-    if(cq){r.cliente_nombre=cq.client_name;r.cliente_id=cq.cliente_id||null;}
-  }
   // Calcular número de servicio y acumulados para este barbero
   var svcAnteriores = regs.filter(function(x){ return x.bid === r.bid; });
   r.numServicio = svcAnteriores.length + 1;
@@ -1763,7 +1720,6 @@ function resetForm(){
   all=document.querySelectorAll('.bbtn');for(var i=0;i<all.length;i++)all[i].classList.remove('on');
   all=document.querySelectorAll('.sitem');for(var i=0;i<all.length;i++)all[i].classList.remove('on');
   all=document.querySelectorAll('.pbtn');for(var i=0;i<all.length;i++)all[i].classList.remove('on');
-  var cqEl=document.getElementById('clienteQueue');if(cqEl)cqEl.value='';
   updPrev();chkBtn();
 }
 
