@@ -982,6 +982,8 @@ function cargarRegistrosDia(){
           fecha: r.fecha_display || fechaHoy,
           hora: r.hora ? r.hora.slice(0,5) : '--',
           ts: parseInt(r.ts) || Date.now(),
+          cliente_nombre: r.cliente_nombre || null,
+          cliente_id: r.cliente_id || null,
           numServicio: 0, totalServicios: 0, acumBB: 0, acumFact: 0
         });
       });
