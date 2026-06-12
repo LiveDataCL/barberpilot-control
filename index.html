@@ -448,12 +448,12 @@
     <div class="tabs">
       <div class="tab on" onclick="showTab('pReg',this)">Registros del día</div>
       <div class="tab" onclick="showTab('pSum',this)">Resumen</div>
-      <div class="tab" id="tabAprob" onclick="showTab('pAprob',this)">✅ Aprobar <span id="badgeAprob" style="display:none;background:#d4a843;color:#0a0908;border-radius:20px;font-size:10px;font-weight:700;padding:1px 7px;margin-left:4px">0</span></div>
       <div class="tab" onclick="showTab('pSala',this)">🪑 Sala de espera</div>
       <div class="tab" onclick="showTab('pSillas',this)">📋 Sillas</div>
       <div class="tab" onclick="showTab('pCaja',this)">💰 Cierre de caja</div>
       <div class="tab" onclick="showTab('pKpis',this)">🏆 KPIs</div>
       <div class="tab" onclick="showTab('pHorarios',this)">🕐 Horarios</div>
+      <div class="tab" id="tabAprob" onclick="showTab('pAprob',this)">✅ Aprobar <span id="badgeAprob" style="display:none;background:#d4a843;color:#0a0908;border-radius:20px;font-size:10px;font-weight:700;padding:1px 7px;margin-left:4px">0</span></div>
       <div class="tab" onclick="showTab('pCierre',this)">Cierre jornada</div>
       <div class="tab" onclick="showTab('pHist',this)">Histórico</div>
       <div class="tab" onclick="showTab('pHistorico',this)">📥 Ingresar histórico</div>
@@ -523,6 +523,7 @@
               <option value="Perfilado de barba">Perfilado de barba</option>
               <option value="Matizado canas cabello">Matizado canas cabello</option>
               <option value="Matizado canas barba">Matizado canas barba</option>
+              <option value="Corte + Cejas">Corte + Cejas</option>
               <option value="Corte Express + Perfilado de barba">Corte Express + Perfilado de barba</option>
             </select>
           </div>
@@ -626,6 +627,7 @@
             <option value="Perfilado de barba">Perfilado de barba</option>
             <option value="Matizado canas cabello">Matizado canas cabello</option>
             <option value="Matizado canas barba">Matizado canas barba</option>
+            <option value="Corte + Cejas">Corte + Cejas</option>
             <option value="Corte Express + Perfilado de barba">Corte Express + Perfilado de barba</option>
           </select>
           <input id="editor-precio" type="number" placeholder="Precio"
@@ -645,6 +647,7 @@
             <option value="Perfilado de barba">Perfilado de barba</option>
             <option value="Matizado canas cabello">Matizado canas cabello</option>
             <option value="Matizado canas barba">Matizado canas barba</option>
+            <option value="Corte + Cejas">Corte + Cejas</option>
             <option value="Corte Express + Perfilado de barba">Corte Express + Perfilado de barba</option>
           </select>
           <input id="editor-extra-precio" type="number" placeholder="+"
@@ -4689,7 +4692,7 @@ var SALA_PRECIOS = {
   'Perfilado de cejas':4000,'Barba + Cejas':13000,
   'Perfilado de barba':6000,'Matizado canas cabello':8000,'Matizado ganas de cabello':8000,
   'Matizado canas barba':5000,'Matizado ganas de barba':5000,
-  'Corte Express + Perfilado de barba':15000
+  'Corte + Cejas':15000,'Corte Express + Perfilado de barba':15000
 };
 
 function salaAutoPreio(){
