@@ -299,7 +299,7 @@ button{cursor:pointer}
     </div>
     <div class="m-body">
       <!-- Tipo toggle -->
-      <div style="display:flex;gap:8px;margin-bottom:16px">
+      <div id="blkTipoRow" style="display:flex;gap:8px;margin-bottom:16px">
         <button id="bkTipoBloq" class="tipo-pill active" onclick="setBlkTipo('block')">🚫 Bloqueo</button>
         <button id="bkTipoSvc"  class="tipo-pill"        onclick="setBlkTipo('servicio')">✂️ Servicio</button>
       </div>
@@ -359,6 +359,7 @@ button{cursor:pointer}
     </div>
     <div class="m-foot">
       <button class="btn b-err" id="blkSubmitBtn" onclick="submitBlock()">BLOQUEAR</button>
+      <button class="btn b-err" id="blkDeleteBtn" style="display:none" onclick="deleteBlkEntry()">🗑 ELIMINAR</button>
       <button class="btn b-ghost" onclick="closeOv('blkOv')">CANCELAR</button>
     </div>
   </div>
@@ -650,11 +651,12 @@ function renderDay() {
       if(!bl.hora_inicio){sP=0;hP=totalPx;}
       else{const sm=toMin(bl.hora_inicio.slice(0,5)),em=toMin(bl.hora_fin.slice(0,5));sP=((sm-openM)/SLOT_M)*SLOT_H;hP=((em-sm)/SLOT_M)*SLOT_H;}
       if(sP<0||sP>=totalPx)return;
+      _svcBlkMap[String(bl.id)] = bl;
       if(bl.tipo==='servicio'){
         const clienteLbl = bl.client_name || 'Sin cliente';
         const svcLbl = bl.svc_nom || 'Servicio';
         const showSub = hP >= 36;
-        cHtml+=`<div class="blk-overlay servicio" style="top:${sP}px;height:${hP}px">
+        cHtml+=`<div class="blk-overlay servicio" style="top:${sP}px;height:${hP}px" onclick="openSvcEdit(${bl.id})">
           <div class="blk-lbl">✂️ ${svcLbl}</div>
           ${showSub?`<div class="blk-sub">${clienteLbl}</div>`:''}
         </div>`;
@@ -843,6 +845,8 @@ async function doReassign() {
 
 // ── BLOCK / SERVICE SLOT MODAL ────────────────────────────────
 let _blkTipo = 'block';
+let _editBlkId = null;
+let _svcBlkMap = {};
 
 function setBlkTipo(tipo) {
   _blkTipo = tipo;
@@ -856,6 +860,7 @@ function setBlkTipo(tipo) {
 }
 
 function openBlk(bid, dateStr, hi, hf) {
+  _editBlkId = null;
   document.getElementById('bkBid').innerHTML=BARBERS.map(b=>`<option value="${b.id}"${b.id===bid?' selected':''}>${b.name}</option>`).join('');
   document.getElementById('bkFecha').value=dateStr;
   document.getElementById('bkIni').value=hi;
@@ -864,8 +869,45 @@ function openBlk(bid, dateStr, hi, hf) {
   document.getElementById('bkIni').disabled=false;
   document.getElementById('bkFin').disabled=false;
   document.getElementById('bkCliente').value='';
+  document.getElementById('blkDeleteBtn').style.display='none';
+  document.getElementById('blkTipoRow').style.display='';
   setBlkTipo('block');
   document.getElementById('blkOv').classList.add('on');
+}
+
+function openSvcEdit(id) {
+  const bl = _svcBlkMap[String(id)];
+  if (!bl) return;
+  _editBlkId = id;
+  document.getElementById('bkBid').innerHTML=BARBERS.map(b=>`<option value="${b.id}"${b.id===bl.bid?' selected':''}>${b.name}</option>`).join('');
+  document.getElementById('bkFecha').value=(bl.fecha||'').slice(0,10);
+  document.getElementById('bkIni').value=(bl.hora_inicio||'').slice(0,5);
+  document.getElementById('bkFin').value=(bl.hora_fin||'').slice(0,5);
+  document.getElementById('bkIni').disabled=false;
+  document.getElementById('bkFin').disabled=false;
+  document.getElementById('bkFull').checked=false;
+  document.getElementById('bkCliente').value=bl.client_name||'';
+  setBlkTipo('servicio');
+  const svcEl=document.getElementById('bkSvc');
+  if(svcEl) svcEl.value=bl.svc_nom||'Corte';
+  document.getElementById('blkTipoRow').style.display='none';
+  document.getElementById('blkTitle').textContent='Editar Servicio';
+  document.getElementById('blkSubmitBtn').textContent='GUARDAR CAMBIOS';
+  document.getElementById('blkSubmitBtn').className='btn b-dk';
+  document.getElementById('blkDeleteBtn').style.display='';
+  document.getElementById('blkOv').classList.add('on');
+}
+
+async function deleteBlkEntry() {
+  if (!_editBlkId) return;
+  try {
+    const r=await fetch(`${API}/blocked-slots/${_editBlkId}`,{method:'DELETE'});
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    closeOv('blkOv');
+    showToast('Servicio eliminado','ok');
+    _editBlkId=null;
+    refresh();
+  } catch(e){ showToast('Error: '+e.message,'err'); }
 }
 function toggleFull() {
   const chk=document.getElementById('bkFull').checked;
@@ -888,15 +930,19 @@ async function submitBlock() {
     : { bid, fecha, hora_inicio:hi, hora_fin:hf, tipo:'block',
         motivo: document.getElementById('bkMotivo').value };
   try {
-    const r=await fetch(`${API}/blocked-slots`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const url=_editBlkId?`${API}/blocked-slots/${_editBlkId}`:`${API}/blocked-slots`;
+    const method=_editBlkId?'PATCH':'POST';
+    const r=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     if(!r.ok) throw new Error(`HTTP ${r.status}`);
     closeOv('blkOv');
-    showToast(_blkTipo==='servicio'?'✂️ Servicio reservado':'Horario bloqueado','ok');
+    const msg=_editBlkId?'Cambios guardados':(_blkTipo==='servicio'?'✂️ Servicio reservado':'Horario bloqueado');
+    _editBlkId=null;
+    showToast(msg,'ok');
     refresh();
   } catch(e){ showToast('Error: '+e.message,'err'); }
 }
 
-// ── EDIT (RESCHEDULE) MODAL ───────────────────────────────────
+//── EDIT (RESCHEDULE) MODAL ───────────────────────────────────
 let editId=null, editDur=30;
 
 function openEdit(id) {
