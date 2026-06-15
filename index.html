@@ -4818,6 +4818,23 @@ function salaEliminarEntrada(queue_id){
     }).catch(function(e){toast('Error: '+e.message);});
 }
 
+function toggleBarberAvailability(barberName, available){
+  if(!API_URL) return;
+  fetch(API_URL+'/barbers/'+barberName+'/availability',{
+    method:'PATCH',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({available:available})
+  }).then(function(r){return r.json();}).then(function(j){
+    if(j.ok){
+      var nm=barberName.charAt(0).toUpperCase()+barberName.slice(1);
+      toast(available ? nm+' marcado como disponible ✓' : nm+' marcado como ausente ⏸');
+      renderSala();
+    } else {
+      toast('Error: '+(j.error||'no se pudo actualizar'));
+    }
+  }).catch(function(e){ toast('Error de red: '+e.message); });
+}
+
 function salaWaHref(phone, name, barberNombre, enServicio){
   if(!phone) return '';
   var d = phone.replace(/\D/g,'');
@@ -4845,14 +4862,26 @@ function renderSala(){
         if(!b) return;
         var nEspera=b.enEspera.length;
         var enSvc=!!b.enServicio;
-        h+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden">';
+        var isAbsent=b.available===false;
+        h+='<div style="background:var(--surface);border:1px solid '+(isAbsent?'#fca5a5':'var(--border)')+';border-radius:var(--rl);overflow:hidden;transition:border-color .2s">';
         // card header
-        h+='<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">';
-        h+='<div style="font-weight:600;font-size:14px">'+b.nombre+'</div>';
-        var badgeBg=nEspera>0?'var(--warn)':'var(--ok)';
-        h+='<div style="font-size:11px;background:'+badgeBg+';color:#fff;padding:2px 8px;border-radius:20px">'+nEspera+' en espera</div>';
+        h+='<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:'+(isAbsent?'#fff5f5':'var(--surface)')+'">';
+        h+='<div style="display:flex;align-items:center;gap:8px">';
+        h+='<div style="font-weight:700;font-size:14px">'+b.nombre+'</div>';
+        if(isAbsent) h+='<span style="font-size:10px;font-weight:700;background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:20px;letter-spacing:.04em">AUSENTE</span>';
+        h+='</div>';
+        h+='<div style="display:flex;align-items:center;gap:6px">';
+        if(!isAbsent){
+          var badgeBg=nEspera>0?'var(--warn)':'var(--ok)';
+          h+='<span style="font-size:11px;background:'+badgeBg+';color:#fff;padding:2px 8px;border-radius:20px">'+nEspera+' en espera</span>';
+          h+='<button onclick="toggleBarberAvailability(\''+b.barber_id+'\',false)" title="Marcar como ausente temporalmente" style="padding:3px 10px;font-size:11px;font-weight:600;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;color:var(--err);font-family:var(--sans);white-space:nowrap">⏸ Salió</button>';
+        } else {
+          h+='<button onclick="toggleBarberAvailability(\''+b.barber_id+'\',true)" title="Marcar como disponible" style="padding:3px 10px;font-size:11px;font-weight:700;background:#16a34a;border:none;border-radius:var(--r);cursor:pointer;color:#fff;font-family:var(--sans);white-space:nowrap">▶ Regresó</button>';
+        }
+        h+='</div>';
         h+='</div>';
         h+='<div style="padding:12px 14px">';
+        if(isAbsent) h+='<div style="background:#fff5f5;border:1px solid #fecaca;border-radius:var(--r);padding:8px 12px;margin-bottom:10px;font-size:12px;color:#991b1b;display:flex;align-items:center;gap:6px">⚠ No recibirá nuevos clientes automáticamente hasta que regrese</div>';
         // EN SERVICIO
         if(enSvc){
           var sv=b.enServicio;
