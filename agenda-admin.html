@@ -234,6 +234,15 @@ button{cursor:pointer}
 .bpick-btn:hover{border-color:var(--text);background:var(--soft)}
 .bpick-btn.on{background:var(--text);color:#fff;border-color:var(--text)}
 
+/* Check-in arrival banner */
+.checkin-banner{background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1.5px solid #86efac;border-radius:var(--r);padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.checkin-banner-info{}
+.checkin-banner-ttl{font-size:13px;font-weight:700;color:#14532d;letter-spacing:-.01em}
+.checkin-banner-sub{font-size:11px;color:#16a34a;margin-top:2px;font-weight:500}
+.btn-checkin{background:#16a34a;color:#fff;border-radius:10px;padding:11px 20px;font-size:12px;font-weight:800;letter-spacing:.04em;border:none;cursor:pointer;white-space:nowrap;box-shadow:0 2px 8px rgba(22,163,74,.28);transition:all .15s;flex-shrink:0}
+.btn-checkin:hover:not(:disabled){background:#15803d;transform:translateY(-1px);box-shadow:0 4px 14px rgba(22,163,74,.36)}
+.btn-checkin:disabled{opacity:.55;cursor:not-allowed;transform:none}
+
 /* Toast */
 .toast{position:fixed;bottom:24px;right:20px;background:var(--text);color:#fff;padding:11px 18px;border-radius:12px;font-size:13px;font-weight:600;z-index:9999;opacity:0;transform:translateY(10px);transition:all .22s cubic-bezier(.34,1.5,.64,1);pointer-events:none;max-width:300px;box-shadow:var(--sh3)}
 .toast.on{opacity:1;transform:none}
@@ -465,7 +474,8 @@ const BARBERS = [
   {id:'b1',name:'Didian'},{id:'b2',name:'Emerson'},
   {id:'b3',name:'Samuel'},{id:'b4',name:'David'},
 ];
-const B_MAP = {b1:'Didian',b2:'Emerson',b3:'Samuel',b4:'David'};
+const B_MAP    = {b1:'Didian',b2:'Emerson',b3:'Samuel',b4:'David'};
+const BID_TO_QID = {b1:'didian',b2:'emerson',b3:'samuel',b4:'david'};
 const SCHED = {
   1:{o:'10:00',c:'20:00'},2:{o:'10:00',c:'20:00'},3:{o:'10:00',c:'20:00'},
   4:{o:'10:00',c:'20:00'},5:{o:'10:00',c:'20:00'},6:{o:'10:00',c:'15:00'},0:null
@@ -822,7 +832,15 @@ function openApt(id) {
   const hf=(a.hora_fin||fromMin(toMin(hi)+(a.duracion||30))).slice(0,5);
   const est=a.estado||'pendiente';
 
+  const canCheckin = (est==='pendiente'||est==='confirmado') && (a.fecha||ds())===fmtD(new Date());
   document.getElementById('aptBody').innerHTML=`
+    ${canCheckin?`<div class="checkin-banner">
+      <div class="checkin-banner-info">
+        <div class="checkin-banner-ttl">¿Llegó el cliente?</div>
+        <div class="checkin-banner-sub">Un clic lo pasa a la Sala de Espera</div>
+      </div>
+      <button class="btn-checkin" id="chkInBtn" onclick="checkInFromApt('${a.id}')">▶&nbsp;LLEGÓ</button>
+    </div>`:''}
     <div class="mrow"><span class="mlbl">Cliente</span><span class="mval">${a.client_name||'—'}</span></div>
     <div class="mrow"><span class="mlbl">Teléfono</span><span class="mval">${a.client_phone||'—'}</span></div>
     <div class="mrow"><span class="mlbl">Email</span><span class="mval">${a.client_email||'—'}</span></div>
@@ -866,6 +884,40 @@ async function patchEst(id, estado) {
     showToast(estado==='confirmado'?'Cita confirmada ✓':'Cita cancelada','ok');
     refresh();
   } catch(e){ showToast('Error: '+e.message,'err'); }
+}
+
+// ── CHECK-IN FROM AGENDA ──────────────────────────────────────
+async function checkInFromApt(aptId) {
+  const a = apts.find(a=>String(a.id)===String(aptId));
+  if (!a) return;
+  const btn = document.getElementById('chkInBtn');
+  if (btn) { btn.disabled=true; btn.textContent='⏳ Procesando…'; }
+  try {
+    const r = await fetch(`${API}/queue/checkin`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        client_name: a.client_name || 'Cliente',
+        phone: a.client_phone || null,
+        barber_id: BID_TO_QID[a.bid] || a.bid,
+        service: a.svc_nom || a.service || 'Corte',
+        drink: null
+      })
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    // Mark appointment as en_curso (non-blocking)
+    fetch(`${API}/appointments/${aptId}`, {
+      method:'PATCH',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({estado:'en_curso'})
+    }).catch(()=>{});
+    closeOv('aptOv');
+    showToast(`${a.client_name||'Cliente'} ingresó a la cola ✓`, 'ok');
+    refresh();
+  } catch(e) {
+    if (btn) { btn.disabled=false; btn.textContent='▶ LLEGÓ'; }
+    showToast('Error al hacer check-in: '+e.message, 'err');
+  }
 }
 
 // ── REASSIGN MODAL ────────────────────────────────────────────
