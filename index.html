@@ -4818,6 +4818,17 @@ function salaEliminarEntrada(queue_id){
     }).catch(function(e){toast('Error: '+e.message);});
 }
 
+function salaWaHref(phone, name, barberNombre, enServicio){
+  if(!phone) return '';
+  var d = phone.replace(/\D/g,'');
+  if(!d) return '';
+  if(d.length<=9) d = '56'+d;
+  var msg = enServicio
+    ? '✂️ Hola '+name+', ¡es tu turno con '+barberNombre+'! Te esperamos en Salon Men Saúl Fino · Local 222.'
+    : '🔔 Hola '+name+', en unos minutos es tu turno con '+barberNombre+'. Acércate a Salon Men Saúl Fino · Local 222.';
+  return '<a href="https://wa.me/'+d+'?text='+encodeURIComponent(msg)+'" target="_blank" title="Enviar WhatsApp" style="padding:2px 8px;font-size:11px;background:#25D366;color:#fff;border-radius:var(--r);text-decoration:none;display:inline-flex;align-items:center;font-family:var(--sans);white-space:nowrap">💬 WA</a>';
+}
+
 function renderSala(){
   if(!API_URL){
     document.getElementById('salaGrid').innerHTML='<div class="empty" style="grid-column:1/-1"><div class="empty-ico">⚙</div><div>Conecta Railway en ⚙ Config</div></div>';
@@ -4851,8 +4862,9 @@ function renderSala(){
           h+='<div style="margin-bottom:8px">';
           h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">';
           h+='<div style="font-weight:500">'+sv.client_name+'</div>';
-          h+='<div style="display:flex;gap:4px">';
+          h+='<div style="display:flex;gap:4px;align-items:center">';
           h+='<button onclick="salaAbrirEditor('+sv.queue_id+')" style="padding:2px 8px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;font-family:var(--sans)">✏ Editar</button>';
+          h+=salaWaHref(sv.phone, sv.client_name, b.nombre, true);
           h+='<button onclick="salaEliminarEntrada('+sv.queue_id+')" style="padding:2px 7px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;color:var(--err)">✕</button>';
           h+='</div>';
           h+='</div>';
@@ -4886,6 +4898,7 @@ function renderSala(){
             h+='<div style="display:flex;align-items:center;gap:4px">';
             h+='<div style="font-size:11px;color:var(--text2)">'+e.service+'</div>';
             h+='<button onclick="salaAbrirEditor('+e.queue_id+')" style="padding:2px 7px;font-size:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer">✏</button>';
+            h+=salaWaHref(e.phone, e.client_name, b.nombre, false);
             h+='<button onclick="salaEliminarEntrada('+e.queue_id+')" style="padding:2px 6px;font-size:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;color:var(--err)">✕</button>';
             h+='</div>';
             h+='</div>';
