@@ -114,6 +114,12 @@ button{cursor:pointer}
 /* Block overlays */
 .blk-overlay{position:absolute;left:4px;right:4px;background:repeating-linear-gradient(45deg,#fef2f2,#fef2f2 7px,#fecaca 7px,#fecaca 14px);border-radius:6px;border-left:3px solid #EF4444;padding:5px 8px;overflow:hidden;pointer-events:none}
 .blk-lbl{font-size:11px;font-weight:700;color:#9f1239;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.blk-overlay.servicio{background:#ede9fe;background-image:none;border-left-color:#7c3aed;pointer-events:all;cursor:pointer}
+.blk-overlay.servicio .blk-lbl{color:#4c1d95}
+.blk-sub{font-size:10px;color:#7c3aed;opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+/* Tipo-pill toggle */
+.tipo-pill{flex:1;padding:7px 10px;border-radius:8px;border:1.5px solid var(--border);background:var(--bg);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans);color:var(--text2);transition:all .15s}
+.tipo-pill.active{background:var(--text);color:#fff;border-color:var(--text)}
 
 /* Skeleton */
 .skel{background:linear-gradient(90deg,var(--soft) 0%,var(--bg) 50%,var(--soft) 100%);background-size:200% 100%;animation:shimmer 1.3s infinite;border-radius:6px;height:48px;margin:4px}
@@ -283,15 +289,20 @@ button{cursor:pointer}
   </div>
 </div>
 
-<!-- ═══ BLOCK SLOT MODAL ═══ -->
+<!-- ═══ BLOCK / SERVICE SLOT MODAL ═══ -->
 <div class="ov" id="blkOv" onclick="if(event.target===this)closeOv('blkOv')">
   <div class="modal">
     <div class="m-handle"></div>
     <div class="m-hdr">
-      <span class="m-title">Bloquear Horario</span>
+      <span class="m-title" id="blkTitle">Nuevo Bloqueo</span>
       <button class="m-close" onclick="closeOv('blkOv')">&#x2715;</button>
     </div>
     <div class="m-body">
+      <!-- Tipo toggle -->
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button id="bkTipoBloq" class="tipo-pill active" onclick="setBlkTipo('block')">🚫 Bloqueo</button>
+        <button id="bkTipoSvc"  class="tipo-pill"        onclick="setBlkTipo('servicio')">✂️ Servicio</button>
+      </div>
       <div class="fg">
         <label class="flbl">Barbero</label>
         <select class="fsel" id="bkBid"></select>
@@ -310,23 +321,44 @@ button{cursor:pointer}
           <input type="time" class="finp" id="bkFin" step="1800"/>
         </div>
       </div>
-      <div class="fg">
-        <label class="flbl">Motivo</label>
-        <select class="fsel" id="bkMotivo">
-          <option>Almuerzo</option>
-          <option>Día libre</option>
-          <option>Feriado</option>
-          <option>Capacitación</option>
-          <option>Otro</option>
-        </select>
+      <!-- BLOQUEO fields -->
+      <div id="bkBlockFields">
+        <div class="fg">
+          <label class="flbl">Motivo</label>
+          <select class="fsel" id="bkMotivo">
+            <option>Almuerzo</option>
+            <option>Día libre</option>
+            <option>Feriado</option>
+            <option>Capacitación</option>
+            <option>Otro</option>
+          </select>
+        </div>
+        <label class="fck">
+          <input type="checkbox" id="bkFull" onchange="toggleFull()"/>
+          Bloquear día completo
+        </label>
       </div>
-      <label class="fck">
-        <input type="checkbox" id="bkFull" onchange="toggleFull()"/>
-        Bloquear día completo
-      </label>
+      <!-- SERVICIO fields -->
+      <div id="bkSvcFields" style="display:none">
+        <div class="fg">
+          <label class="flbl">Servicio</label>
+          <select class="fsel" id="bkSvc">
+            <option value="Corte">Corte</option>
+            <option value="Barba">Barba</option>
+            <option value="Corte + Barba">Corte + Barba</option>
+            <option value="Corte + Barba + Black Mask">Corte + Barba + Black Mask</option>
+            <option value="Black Mask">Black Mask</option>
+            <option value="Masaje craneal">Masaje craneal</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label class="flbl">Cliente <span style="font-weight:400;opacity:.55">(opcional)</span></label>
+          <input type="text" class="finp" id="bkCliente" placeholder="Sin nombre de cliente"/>
+        </div>
+      </div>
     </div>
     <div class="m-foot">
-      <button class="btn b-err" onclick="submitBlock()">BLOQUEAR</button>
+      <button class="btn b-err" id="blkSubmitBtn" onclick="submitBlock()">BLOQUEAR</button>
       <button class="btn b-ghost" onclick="closeOv('blkOv')">CANCELAR</button>
     </div>
   </div>
@@ -618,7 +650,17 @@ function renderDay() {
       if(!bl.hora_inicio){sP=0;hP=totalPx;}
       else{const sm=toMin(bl.hora_inicio.slice(0,5)),em=toMin(bl.hora_fin.slice(0,5));sP=((sm-openM)/SLOT_M)*SLOT_H;hP=((em-sm)/SLOT_M)*SLOT_H;}
       if(sP<0||sP>=totalPx)return;
-      cHtml+=`<div class="blk-overlay" style="top:${sP}px;height:${hP}px"><div class="blk-lbl">🚫 ${bl.motivo||'Bloqueado'}</div></div>`;
+      if(bl.tipo==='servicio'){
+        const clienteLbl = bl.client_name || 'Sin cliente';
+        const svcLbl = bl.svc_nom || 'Servicio';
+        const showSub = hP >= 36;
+        cHtml+=`<div class="blk-overlay servicio" style="top:${sP}px;height:${hP}px">
+          <div class="blk-lbl">✂️ ${svcLbl}</div>
+          ${showSub?`<div class="blk-sub">${clienteLbl}</div>`:''}
+        </div>`;
+      } else {
+        cHtml+=`<div class="blk-overlay" style="top:${sP}px;height:${hP}px"><div class="blk-lbl">🚫 ${bl.motivo||'Bloqueado'}</div></div>`;
+      }
     });
 
     // Appointment cards
@@ -799,7 +841,20 @@ async function doReassign() {
   } catch(e){ showToast('Error: '+e.message,'err'); }
 }
 
-// ── BLOCK SLOT MODAL ──────────────────────────────────────────
+// ── BLOCK / SERVICE SLOT MODAL ────────────────────────────────
+let _blkTipo = 'block';
+
+function setBlkTipo(tipo) {
+  _blkTipo = tipo;
+  document.getElementById('bkTipoBloq').classList.toggle('active', tipo==='block');
+  document.getElementById('bkTipoSvc').classList.toggle('active', tipo==='servicio');
+  document.getElementById('bkBlockFields').style.display = tipo==='block' ? '' : 'none';
+  document.getElementById('bkSvcFields').style.display   = tipo==='servicio' ? '' : 'none';
+  document.getElementById('blkTitle').textContent = tipo==='servicio' ? 'Reservar Servicio' : 'Nuevo Bloqueo';
+  document.getElementById('blkSubmitBtn').textContent    = tipo==='servicio' ? 'GUARDAR SERVICIO' : 'BLOQUEAR';
+  document.getElementById('blkSubmitBtn').className      = tipo==='servicio' ? 'btn b-dk' : 'btn b-err';
+}
+
 function openBlk(bid, dateStr, hi, hf) {
   document.getElementById('bkBid').innerHTML=BARBERS.map(b=>`<option value="${b.id}"${b.id===bid?' selected':''}>${b.name}</option>`).join('');
   document.getElementById('bkFecha').value=dateStr;
@@ -808,6 +863,8 @@ function openBlk(bid, dateStr, hi, hf) {
   document.getElementById('bkFull').checked=false;
   document.getElementById('bkIni').disabled=false;
   document.getElementById('bkFin').disabled=false;
+  document.getElementById('bkCliente').value='';
+  setBlkTipo('block');
   document.getElementById('blkOv').classList.add('on');
 }
 function toggleFull() {
@@ -822,14 +879,19 @@ async function submitBlock() {
   const fecha=document.getElementById('bkFecha').value;
   const hi=document.getElementById('bkIni').value;
   const hf=document.getElementById('bkFin').value;
-  const motivo=document.getElementById('bkMotivo').value;
   if(!fecha||!hi||!hf){showToast('Completa todos los campos','err');return;}
   if(toMin(hi)>=toMin(hf)){showToast('La hora fin debe ser posterior al inicio','err');return;}
+  const body = _blkTipo==='servicio'
+    ? { bid, fecha, hora_inicio:hi, hora_fin:hf, tipo:'servicio',
+        svc_nom: document.getElementById('bkSvc').value,
+        client_name: document.getElementById('bkCliente').value.trim()||null }
+    : { bid, fecha, hora_inicio:hi, hora_fin:hf, tipo:'block',
+        motivo: document.getElementById('bkMotivo').value };
   try {
-    const r=await fetch(`${API}/blocked-slots`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({bid,fecha,hora_inicio:hi,hora_fin:hf,motivo})});
+    const r=await fetch(`${API}/blocked-slots`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     if(!r.ok) throw new Error(`HTTP ${r.status}`);
     closeOv('blkOv');
-    showToast('Horario bloqueado','ok');
+    showToast(_blkTipo==='servicio'?'✂️ Servicio reservado':'Horario bloqueado','ok');
     refresh();
   } catch(e){ showToast('Error: '+e.message,'err'); }
 }
