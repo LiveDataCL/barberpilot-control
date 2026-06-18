@@ -520,10 +520,7 @@
     <div class="pane on" id="pReg">
       <div class="fbar">
         <button class="fb on" onclick="filtrar('todos',this)">Todos</button>
-        <button class="fb" onclick="filtrar('b1',this)">Didian</button>
-        <button class="fb" onclick="filtrar('b2',this)">Emerson</button>
-        <button class="fb" onclick="filtrar('b3',this)">Samuel</button>
-        <button class="fb" onclick="filtrar('b4',this)">David</button>
+        <span id="barberFilterBtns"></span>
         <button class="fb" style="margin-left:auto;color:var(--info);font-weight:600" onclick="descargarJornadaHoy()" title="Guarda el JSON del día — ábrelo luego en el Dashboard">💾 Guardar jornada</button>
         <button class="fb" style="color:var(--err)" onclick="limpiarHoy()">Limpiar día</button>
       </div>
@@ -560,10 +557,6 @@
             <select id="sala-bid" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--surface);font-family:var(--sans)">
               <option value="">Elegir…</option>
               <option value="any">⚡ Primer disponible</option>
-              <option value="b1">Didian</option>
-              <option value="b2">Emerson</option>
-              <option value="b3">Samuel</option>
-              <option value="b4">David</option>
             </select>
           </div>
           <div>
@@ -1553,7 +1546,7 @@ function showTabById(id){
 function init(){
   tick();setInterval(tick,30000);
   loadStaffConfig();
-  buildBarbers();buildServices();buildProdBarbers();
+  buildBarbers();buildServices();buildProdBarbers();buildBarberFilters();buildSalaBidOptions();
   cargarSheetsUrl();cargar();cargarGastos();cargarLiquidaciones();cargarHorarios();cargarKpiEvals();renderAll();
   // Auto-refresh cada 60s cuando la página está visible
   setInterval(function(){
@@ -1594,6 +1587,9 @@ function init(){
       programarAutoEnvioKpi();
     }
   }, 60000);
+  // Auto-sync staff roster from API if token available
+  if(API_URL && staffGetToken()) staffRefreshFromAPI();
+
   // Fechas default en selectores histórico
   try{
     var hoyD=new Date();
@@ -1621,6 +1617,26 @@ function fmt(n){return Math.round(n).toLocaleString('es-CL');}
 function find(arr,id){for(var i=0;i<arr.length;i++)if(arr[i].id===id)return arr[i];return null;}
 
 // ═══ BUILD UI ════════════════════════════════════════════
+function buildBarberFilters(){
+  // All barbers (including inactive) — for filtering historical registros
+  var h='';
+  BB.forEach(function(b){
+    h+='<button class="fb" onclick="filtrar(\''+b.id+'\',this)">'+b.nombre+'</button>';
+  });
+  var el=document.getElementById('barberFilterBtns');
+  if(el) el.innerHTML=h;
+}
+function buildSalaBidOptions(){
+  // Only active barbers — for new check-in assignment
+  var el=document.getElementById('sala-bid');
+  if(!el) return;
+  while(el.options.length>2) el.remove(2);
+  BB.filter(function(b){return b.active!==false;}).forEach(function(b){
+    var opt=document.createElement('option');
+    opt.value=b.id; opt.textContent=b.nombre;
+    el.appendChild(opt);
+  });
+}
 function buildBarbers(){
   var h='';
   for(var i=0;i<BB.length;i++){
@@ -3696,10 +3712,7 @@ function renderIngresarHistorico(){
     +'<div style="font-size:11px;color:var(--text2);margin-bottom:4px">Barbero</div>'
     +'<select id="hBarbero" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--sans)">'
     +'<option value="">Seleccionar</option>'
-    +'<option value="b1">Didian</option>'
-    +'<option value="b2">Emerson</option>'
-    +'<option value="b3">Samuel</option>'
-    +'<option value="b4">David</option>'
+    +BB.filter(function(b){return b.active!==false;}).map(function(b){return '<option value="'+b.id+'">'+b.nombre+'</option>';}).join('')
     +'</select></div>'
 
     +'<div>'
@@ -5314,7 +5327,7 @@ function renderSillas(){
 
     // Tarjetas de silla
     var h='';
-    BB.forEach(function(b){
+    BB.filter(function(b){return b.active!==false;}).forEach(function(b){
       var bd=queue.barberos[b.id]||{};
       var sv=bd.enServicio||null;
       var nEspera=(bd.enEspera||[]).length;
@@ -5593,7 +5606,7 @@ function loadStaffConfig(){
 function saveStaffConfig(){
   try{
     localStorage.setItem(STAFF_KEY,JSON.stringify({BB:BB,SS:SS,PRODUCTOS:PRODUCTOS,COM:COM}));
-    buildBarbers();buildServices();buildProdBarbers();
+    buildBarbers();buildServices();buildProdBarbers();buildBarberFilters();buildSalaBidOptions();
     var el=document.getElementById('staffSaved');
     if(el){el.classList.add('show');setTimeout(function(){el.classList.remove('show');},2000);}
   }catch(e){}
@@ -5642,7 +5655,7 @@ function staffRefreshFromAPI(){
         BB.push({id:s.bid,nombre:s.name,active:s.active});
       }
     });
-    saveStaffConfig();
+    saveStaffConfig(); // triggers buildBarbers, buildSalaBidOptions, buildBarberFilters
     renderStaffBB();
   })
   .catch(function(){renderStaffBB();});
