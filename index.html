@@ -5665,15 +5665,19 @@ var PRODUCTOS_DEFAULT=[
 ];
 var COM_DEFAULT={efectivo:.5,debito:.43,transferencia:.5};
 
+// Canonical bid→name — must match constants.js in the app and BARBER_NAME_MAP in the API
+var BB_CANONICAL_NAMES = {b1:'Didian',b2:'Emerson',b3:'Samuel',b4:'David'};
+
 function loadStaffConfig(){
   try{
     var s=localStorage.getItem(STAFF_KEY);
     if(!s)return;
     var cfg=JSON.parse(s);
     if(cfg.BB){
-      // Merge saved entries; preserve active field
-      BB=cfg.BB.map(function(b){
-        return {id:b.id,nombre:b.nombre,active:b.active!==false};
+      // Only restore active status — canonical bid→name comes from BB_CANONICAL_NAMES
+      cfg.BB.forEach(function(saved){
+        var match=BB.find(function(b){return b.id===saved.id;});
+        if(match) match.active=saved.active!==false;
       });
     }
     if(cfg.SS)SS=cfg.SS;
@@ -5724,14 +5728,11 @@ function staffRefreshFromAPI(){
   .then(function(r){return r.json();})
   .then(function(j){
     if(!j.ok){toast('Error al cargar staff: '+(j.error||'?'));renderStaffBB();return;}
-    // Merge API data into BB: preserve names, update active status
+    // Only sync active status from API — canonical names come from BB_CANONICAL_NAMES
     j.staff.forEach(function(s){
       var existing=BB.find(function(b){return b.id===s.bid;});
       if(existing){
-        existing.nombre=s.name;
         existing.active=s.active;
-      } else {
-        BB.push({id:s.bid,nombre:s.name,active:s.active});
       }
     });
     saveStaffConfig(); // triggers buildBarbers, buildSalaBidOptions, buildBarberFilters
