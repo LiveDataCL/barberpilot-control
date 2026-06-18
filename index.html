@@ -1210,20 +1210,18 @@ function guardar(){
 }
 
 function cargar(){
-  // 1) Cargar desde localStorage como caché inmediato
+  // Cargar desde localStorage como caché inmediato
   try{
     var d=localStorage.getItem(LSKEY);
     if(d){regs=JSON.parse(d);}
   }catch(e){regs=[];}
-  // 2) Si hay API_URL, cargar registros del día directamente (fuente de verdad)
-  if(API_URL){
-    cargarRegistrosDia();
-  }
+  // API fetch is triggered separately by init() after renderAll()
 }
 
+var API_URL_BASE = 'https://barberpilot-api-production.up.railway.app';
 function cargarRegistrosDia(){
-  if(!API_URL) return;
-  fetch(API_URL + '/registros/dia?fecha=' + fechaHoy)
+  var url = (API_URL || API_URL_BASE) + '/registros/dia?fecha=' + fechaHoy;
+  fetch(url)
     .then(function(r){ return r.json(); })
     .then(function(json){
       if(!json.ok || !json.registros) return;
@@ -1566,6 +1564,7 @@ function init(){
   loadStaffConfig();
   buildBarbers();buildServices();buildProdBarbers();buildBarberFilters();buildSalaBidOptions();
   cargarSheetsUrl();cargar();cargarGastos();cargarLiquidaciones();cargarHorarios();cargarKpiEvals();renderAll();
+  cargarRegistrosDia(); // explicit call — bypasses any API_URL guard inside cargar()
   // Auto-refresh cada 60s cuando la página está visible
   setInterval(function(){
     if(document.visibilityState==='visible' && API_URL) cargarRegistrosDia();

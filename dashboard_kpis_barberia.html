@@ -234,7 +234,7 @@ table.data-table .total-row td{background:var(--text)!important;color:#fff!impor
     <button class="pf" onclick="setBarbero('Didian',this)">Didian</button>
     <button class="pf" onclick="setBarbero('Emerson',this)">Emerson</button>
     <button class="pf" onclick="setBarbero('Samuel',this)">Samuel</button>
-    <button class="pf" onclick="setBarbero('David',this)">David</button>
+    <!-- David deactivated — removed from active filter -->
   </div>
   <div class="ctrl-right">
     <button class="btn btn-dark btn-sm" id="btnSync" onclick="cargarDesdeAPI()">☁ Cargar API</button>
@@ -280,9 +280,10 @@ var gastosData = {}; // { fecha: [{id, hora, desc_gasto, monto}] }
 var BB_COLORS = {
   'Didian':  { head:'b1', bar:'#1a1916', line:'#1a1916', fill:'rgba(26,25,22,.1)' },
   'Emerson': { head:'b2', bar:'#1a6b3a', line:'#1a6b3a', fill:'rgba(26,107,58,.1)' },
-  'Samuel':  { head:'b3', bar:'#1a4b8b', line:'#1a4b8b', fill:'rgba(26,75,139,.1)' },
-  'David':   { head:'b4', bar:'#5c1a6b', line:'#5c1a6b', fill:'rgba(92,26,107,.1)' }
+  'Samuel':  { head:'b3', bar:'#1a4b8b', line:'#1a4b8b', fill:'rgba(26,75,139,.1)' }
 };
+// Active barbers — David (b4) deactivated; historical amounts included in totals only
+var ACTIVE_BARBERS = Object.keys(BB_COLORS);
 var DEFAULT_COLOR = { head:'b1', bar:'#9c9a93', line:'#9c9a93', fill:'rgba(156,154,147,.1)' };
 
 // ═══ DATOS DEMO ══════════════════════════════════════════
@@ -748,8 +749,8 @@ function buildHTML(js, regs){
   h+='<div style="padding:8px 0">'+buildPagoList(porPago)+'</div>';
   h+='</div></div></div>';
 
-  // ── Por barbero
-  var barberos=Object.keys(porBB);
+  // ── Por barbero (active only — historical David amounts counted in totals above)
+  var barberos=Object.keys(porBB).filter(function(b){return ACTIVE_BARBERS.indexOf(b)>-1;});
   h+='<div class="section"><div class="section-title">Por barbero</div>';
   h+='<div class="bb-grid" style="grid-template-columns:repeat('+Math.min(barberos.length,4)+',1fr)">';
   barberos.forEach(function(b){
@@ -882,7 +883,7 @@ function buildCharts(js, regs){
   var porPago=datosPorPago(regs);
   var porSvc=datosPorServicio(regs);
   var porBB=datosPorBarbero(regs);
-  var barberos=Object.keys(porBB);
+  var barberos=Object.keys(porBB).filter(function(b){return ACTIVE_BARBERS.indexOf(b)>-1;});
 
   var base={
     responsive:true, maintainAspectRatio:false,
