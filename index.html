@@ -5829,15 +5829,31 @@ function staffSaveCOM(key,val){
 function renderStaffSS(){
   var el=document.getElementById('staffSS');if(!el)return;
   var h='';
+  var btnBase='padding:2px 6px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;line-height:1;font-family:var(--sans)';
+  var btnDis=btnBase+';opacity:.3;cursor:default';
   for(var i=0;i<SS.length;i++){
     var s=SS[i];
+    var isFirst=i===0, isLast=i===SS.length-1;
     h+='<div class="staff-row">'
+      +'<div style="display:flex;flex-direction:column;gap:2px;margin-right:4px">'
+      +'<button '+(isFirst?'disabled style="'+btnDis+'"':'style="'+btnBase+'"')+' onclick="staffMoveSvc(\''+s.id+'\',-1)" title="Subir">▲</button>'
+      +'<button '+(isLast?'disabled style="'+btnDis+'"':'style="'+btnBase+'"')+' onclick="staffMoveSvc(\''+s.id+'\',1)" title="Bajar">▼</button>'
+      +'</div>'
       +'<input class="staff-input" type="text" value="'+escAttr(s.nombre)+'" placeholder="Nombre" onblur="staffSaveSvcName(\''+s.id+'\',this.value)" style="flex:2">'
       +'<input class="staff-input" type="number" min="0" value="'+s.precio+'" placeholder="Precio" onblur="staffSaveSvcPrecio(\''+s.id+'\',this.value)" style="max-width:100px">'
       +'<button class="staff-del-btn" onclick="staffDelSvc(\''+s.id+'\')" title="Eliminar">&times;</button>'
       +'</div>';
   }
   el.innerHTML=h;
+}
+function staffMoveSvc(id, dir){
+  var idx=-1;
+  for(var i=0;i<SS.length;i++) if(SS[i].id===id){idx=i;break;}
+  if(idx<0) return;
+  var nxt=idx+dir;
+  if(nxt<0||nxt>=SS.length) return;
+  var tmp=SS[idx]; SS[idx]=SS[nxt]; SS[nxt]=tmp;
+  renderStaffSS(); saveStaffConfig();
 }
 function staffSaveSvcName(id,val){
   val=(val||'').trim();if(!val)return;
