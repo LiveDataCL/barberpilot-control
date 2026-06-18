@@ -341,6 +341,29 @@
   .staff-reset-btn:hover{color:var(--text)}
   .staff-saved{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:#1a6b3a;background:#e8f5ed;border-radius:20px;padding:3px 10px;margin-left:8px;opacity:0;transition:opacity .3s}
   .staff-saved.show{opacity:1}
+  .staff-barber-card{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--border);border-radius:var(--rl);background:var(--surface);margin-bottom:8px;transition:opacity .2s}
+  .staff-barber-card.inactive{opacity:.55;background:#fafafa}
+  .staff-barber-avatar{width:38px;height:38px;border-radius:50%;background:var(--text);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0}
+  .staff-barber-card.inactive .staff-barber-avatar{background:#bbb}
+  .staff-barber-info{flex:1;min-width:0}
+  .staff-barber-name{font-size:13px;font-weight:600;color:var(--text)}
+  .staff-barber-bid{font-size:11px;color:var(--text3);font-family:var(--mono)}
+  .staff-status-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:4px}
+  .staff-status-dot.active{background:#16a34a}
+  .staff-status-dot.inactive{background:#dc2626}
+  .staff-status-label{font-size:11px;font-weight:500}
+  .staff-status-label.active{color:#16a34a}
+  .staff-status-label.inactive{color:#dc2626}
+  .staff-action-btn{font-size:11px;font-weight:600;padding:5px 12px;border-radius:var(--r);cursor:pointer;font-family:var(--sans);border:1.5px solid;transition:all .15s}
+  .staff-action-btn.deactivate{border-color:#fca5a5;color:#dc2626;background:#fff5f5}
+  .staff-action-btn.deactivate:hover{background:#fee2e2}
+  .staff-action-btn.reactivate{border-color:#86efac;color:#16a34a;background:#f0fdf4}
+  .staff-action-btn.reactivate:hover{background:#dcfce7}
+  .staff-token-box{background:var(--surface2,#f7f7f7);border:1px solid var(--border);border-radius:var(--rl);padding:14px 16px;margin-bottom:20px;font-size:12px}
+  .staff-token-row{display:flex;gap:8px;margin-top:8px}
+  .staff-add-card{border:1.5px dashed var(--border);border-radius:var(--rl);padding:16px;margin-top:8px}
+  .staff-add-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+  @media(max-width:480px){.staff-add-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -812,21 +835,63 @@
     </div>
 
     <div class="pane" id="pStaff">
-      <div style="max-width:600px;padding-bottom:40px">
+      <div style="max-width:620px;padding-bottom:40px">
 
-        <!-- Barberos -->
+        <!-- Admin token -->
+        <div class="staff-token-box" id="staffTokenSection">
+          <div style="font-weight:600;font-size:12px;margin-bottom:2px">Token de administrador</div>
+          <div style="color:var(--text3);font-size:12px">Necesario para gestionar barberos. Cópialo de Railway Variables (<code>DASHBOARD_READ_TOKEN</code>).</div>
+          <div class="staff-token-row">
+            <input id="staffTokenInput" type="password" placeholder="Pega el token aquí" style="flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;font-family:var(--mono)">
+            <button onclick="staffSetToken()" style="padding:7px 14px;font-size:12px;background:var(--text);color:#fff;border:none;border-radius:var(--r);cursor:pointer;font-family:var(--sans);font-weight:600">Guardar</button>
+          </div>
+          <div id="staffTokenStatus" style="margin-top:6px;font-size:11px;color:var(--text3)">Sin token — gestión de barberos deshabilitada</div>
+        </div>
+
+        <!-- Personal (from API) -->
         <div style="margin-bottom:26px">
           <div class="staff-section-hdr">
-            <span>👤 Barberos <span class="staff-saved" id="staffSaved">✓ Guardado</span></span>
-            <span class="staff-note">Edita los nombres de los 4 puestos</span>
+            <span>Personal <span class="staff-saved" id="staffSaved">✓ Guardado</span></span>
+            <button class="staff-add-btn" onclick="staffRefreshFromAPI()" style="font-size:11px">↺ Actualizar</button>
           </div>
           <div id="staffBB"></div>
+
+          <!-- Agregar barbero -->
+          <div class="staff-add-card" id="staffAddCard" style="display:none">
+            <div style="font-size:12px;font-weight:600;margin-bottom:10px">Nuevo barbero</div>
+            <div class="staff-add-grid">
+              <div>
+                <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Nombre</div>
+                <input id="newBarberName" type="text" placeholder="Ej: Carlos" class="staff-input">
+              </div>
+              <div>
+                <div style="font-size:11px;color:var(--text3);margin-bottom:4px">ID (bid) <span style="color:var(--text3);font-size:10px">único, sin espacios</span></div>
+                <input id="newBarberBid" type="text" placeholder="Ej: b5" class="staff-input" style="font-family:var(--mono)">
+              </div>
+              <div>
+                <div style="font-size:11px;color:var(--text3);margin-bottom:4px">PIN (4-6 dígitos)</div>
+                <input id="newBarberPin" type="password" placeholder="••••" class="staff-input" inputmode="numeric" maxlength="6">
+              </div>
+              <div>
+                <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Rol</div>
+                <select id="newBarberRole" class="staff-input">
+                  <option value="barber">Barbero</option>
+                  <option value="owner">Dueño</option>
+                </select>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button onclick="staffSubmitNewBarber()" class="staff-add-btn" style="flex:1;padding:9px;font-size:12px">✓ Crear barbero</button>
+              <button onclick="staffHideAddCard()" style="padding:9px 14px;font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;font-family:var(--sans)">Cancelar</button>
+            </div>
+          </div>
+          <button onclick="staffShowAddCard()" id="staffShowAddBtn" class="staff-add-btn" style="margin-top:10px;width:100%;padding:10px;font-size:12px;background:var(--surface2)">+ Agregar barbero</button>
         </div>
 
         <!-- Comisiones -->
         <div style="margin-bottom:26px">
           <div class="staff-section-hdr">
-            <span>💰 Comisiones</span>
+            <span>Comisiones</span>
             <span class="staff-note">% que recibe el barbero por método de pago</span>
           </div>
           <div id="staffCOM"></div>
@@ -835,7 +900,7 @@
         <!-- Servicios -->
         <div style="margin-bottom:26px">
           <div class="staff-section-hdr">
-            <span>✂ Servicios</span>
+            <span>Servicios</span>
             <button class="staff-add-btn" onclick="staffAddSvc()">+ Agregar</button>
           </div>
           <div id="staffSS"></div>
@@ -844,7 +909,7 @@
         <!-- Productos -->
         <div style="margin-bottom:26px">
           <div class="staff-section-hdr">
-            <span>🧴 Productos</span>
+            <span>Productos</span>
             <button class="staff-add-btn" onclick="staffAddProd()">+ Agregar</button>
           </div>
           <div id="staffProds"></div>
@@ -879,10 +944,10 @@
 <script>
 // ═══ DATOS ═══════════════════════════════════════════════
 var BB=[
-  {id:'b1',nombre:'Didian'},
-  {id:'b2',nombre:'Emerson'},
-  {id:'b3',nombre:'Samuel'},
-  {id:'b4',nombre:'David'}
+  {id:'b1',nombre:'Didian',  active:true},
+  {id:'b2',nombre:'Emerson', active:true},
+  {id:'b3',nombre:'Samuel',  active:true},
+  {id:'b4',nombre:'David',   active:false}
 ];
 var SS=[
   {id:'s01',nombre:'Corte',                       precio:12000,tiempo:'30 min'},
@@ -1561,6 +1626,7 @@ function buildBarbers(){
   var h='';
   for(var i=0;i<BB.length;i++){
     var b=BB[i];
+    if(b.active===false) continue;
     h+='<button class="bbtn" data-id="'+b.id+'" onclick="selB(this)">'
       +'<span class="bn">'+b.nombre+'</span>'
       +'<span class="bc" id="cnt'+b.id+'">0 svc</span>'
@@ -1585,6 +1651,7 @@ function buildProdBarbers(){
   var h='';
   for(var i=0;i<BB.length;i++){
     var b=BB[i];
+    if(b.active===false) continue;
     h+='<button class="bbtn" data-pid="'+b.id+'" onclick="selProdB(this)">'
       +'<span class="bn">'+b.nombre+'</span>'
       +'</button>';
@@ -4932,7 +4999,7 @@ function salaCheckin(){
   }).then(function(r){return r.json();})
     .then(function(j){
       if(!j.ok){toast('Error: '+(j.error||'sin respuesta'));return;}
-      var nb={b1:'Didian',b2:'Emerson',b3:'Samuel',b4:'David'}[bid]||bid;
+      var nb=(BB.find(function(b){return b.id===bid;})||{}).nombre||bid;
       toast('✓ '+nombre+' en cola de '+nb+' · ~'+j.estimated_wait_min+' min');
       document.getElementById('sala-tel').value='';
       document.getElementById('sala-nombre').value='';
@@ -5064,7 +5131,7 @@ function renderSala(){
       if(!j.ok) throw new Error(j.error);
       _salaEditorData={};
       var h='';
-      ['b1','b2','b3','b4'].forEach(function(bid){
+      BB.filter(function(b){return b.active!==false;}).map(function(b){return b.id;}).forEach(function(bid){
         var b=j.barberos[bid];
         if(!b) return;
         var nEspera=b.enEspera.length;
@@ -5471,10 +5538,10 @@ function salaActualizarServicio(){
 // ═══ STAFF MANAGEMENT ════════════════════════════════════
 var STAFF_KEY='bp_staff_v1';
 var BB_DEFAULT=[
-  {id:'b1',nombre:'Didian'},
-  {id:'b2',nombre:'Emerson'},
-  {id:'b3',nombre:'Samuel'},
-  {id:'b4',nombre:'David'}
+  {id:'b1',nombre:'Didian',  active:true},
+  {id:'b2',nombre:'Emerson', active:true},
+  {id:'b3',nombre:'Samuel',  active:true},
+  {id:'b4',nombre:'David',   active:false}
 ];
 var SS_DEFAULT=[
   {id:'s01',nombre:'Corte',                              precio:12000,tiempo:'30 min'},
@@ -5500,7 +5567,12 @@ function loadStaffConfig(){
     var s=localStorage.getItem(STAFF_KEY);
     if(!s)return;
     var cfg=JSON.parse(s);
-    if(cfg.BB)BB=cfg.BB;
+    if(cfg.BB){
+      // Merge saved entries; preserve active field
+      BB=cfg.BB.map(function(b){
+        return {id:b.id,nombre:b.nombre,active:b.active!==false};
+      });
+    }
     if(cfg.SS)SS=cfg.SS;
     if(cfg.PRODUCTOS)PRODUCTOS=cfg.PRODUCTOS;
     if(cfg.COM)COM=cfg.COM;
@@ -5516,20 +5588,170 @@ function saveStaffConfig(){
   }catch(e){}
 }
 
+// ── Admin token (sessionStorage per session) ──────────────────────────────────
+function staffGetToken(){return sessionStorage.getItem('staffAdminToken')||'';}
+function staffSetToken(){
+  var t=(document.getElementById('staffTokenInput').value||'').trim();
+  if(!t){toast('Token vacío');return;}
+  sessionStorage.setItem('staffAdminToken',t);
+  document.getElementById('staffTokenInput').value='';
+  staffUpdateTokenStatus();
+  staffRefreshFromAPI();
+}
+function staffUpdateTokenStatus(){
+  var el=document.getElementById('staffTokenStatus');
+  if(!el)return;
+  if(staffGetToken()){
+    el.textContent='Token activo para esta sesión';
+    el.style.color='#16a34a';
+  } else {
+    el.textContent='Sin token — gestión de barberos deshabilitada';
+    el.style.color='var(--text3)';
+  }
+}
+
+// ── Fetch staff from API ──────────────────────────────────────────────────────
+function staffRefreshFromAPI(){
+  var token=staffGetToken();
+  if(!token){renderStaffBB();return;}
+  if(!API_URL){renderStaffBB();return;}
+  fetch(API_URL+'/api/v2/staff?tenant_id=saulfino',{
+    headers:{'x-dashboard-token':token}
+  })
+  .then(function(r){return r.json();})
+  .then(function(j){
+    if(!j.ok){toast('Error al cargar staff: '+(j.error||'?'));renderStaffBB();return;}
+    // Merge API data into BB: preserve names, update active status
+    j.staff.forEach(function(s){
+      var existing=BB.find(function(b){return b.id===s.bid;});
+      if(existing){
+        existing.nombre=s.name;
+        existing.active=s.active;
+      } else {
+        BB.push({id:s.bid,nombre:s.name,active:s.active});
+      }
+    });
+    saveStaffConfig();
+    renderStaffBB();
+  })
+  .catch(function(){renderStaffBB();});
+}
+
+// ── Deactivate / Reactivate ───────────────────────────────────────────────────
+function staffDeactivate(bid,name){
+  if(!confirm('¿Desactivar a '+name+'? Ya no podrá acceder a la app. Sus registros históricos se conservan.'))return;
+  var token=staffGetToken();
+  if(!token){toast('Token requerido');return;}
+  fetch(API_URL+'/api/v2/staff/'+bid+'/deactivate',{
+    method:'PATCH',
+    headers:{'Content-Type':'application/json','x-dashboard-token':token},
+    body:JSON.stringify({tenant_id:'saulfino'})
+  })
+  .then(function(r){return r.json();})
+  .then(function(j){
+    if(!j.ok){toast('Error: '+(j.error||'?'));return;}
+    var b=BB.find(function(b){return b.id===bid;});
+    if(b)b.active=false;
+    saveStaffConfig();
+    renderStaffBB();
+    toast(name+' desactivado');
+  })
+  .catch(function(){toast('Error de red');});
+}
+
+function staffReactivate(bid,name){
+  var token=staffGetToken();
+  if(!token){toast('Token requerido');return;}
+  fetch(API_URL+'/api/v2/staff/'+bid+'/reactivate',{
+    method:'PATCH',
+    headers:{'Content-Type':'application/json','x-dashboard-token':token},
+    body:JSON.stringify({tenant_id:'saulfino'})
+  })
+  .then(function(r){return r.json();})
+  .then(function(j){
+    if(!j.ok){toast('Error: '+(j.error||'?'));return;}
+    var b=BB.find(function(b){return b.id===bid;});
+    if(b)b.active=true;
+    saveStaffConfig();
+    renderStaffBB();
+    toast(name+' reactivado');
+  })
+  .catch(function(){toast('Error de red');});
+}
+
+// ── Add barber form ───────────────────────────────────────────────────────────
+function staffShowAddCard(){
+  document.getElementById('staffAddCard').style.display='';
+  document.getElementById('staffShowAddBtn').style.display='none';
+}
+function staffHideAddCard(){
+  document.getElementById('staffAddCard').style.display='none';
+  document.getElementById('staffShowAddBtn').style.display='';
+}
+function staffSubmitNewBarber(){
+  var name=(document.getElementById('newBarberName').value||'').trim();
+  var bid=(document.getElementById('newBarberBid').value||'').trim().toLowerCase();
+  var pin=(document.getElementById('newBarberPin').value||'').trim();
+  var role=document.getElementById('newBarberRole').value;
+  if(!name||!bid||!pin){toast('Completa todos los campos');return;}
+  if(!/^\d{4,6}$/.test(pin)){toast('PIN debe ser 4-6 dígitos numéricos');return;}
+  if(!/^[a-z0-9_-]+$/.test(bid)){toast('bid: solo letras, números, guiones');return;}
+  var token=staffGetToken();
+  if(!token){toast('Token requerido');return;}
+  fetch(API_URL+'/api/v2/staff',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','x-dashboard-token':token},
+    body:JSON.stringify({tenant_id:'saulfino',bid:bid,name:name,pin:pin,role:role})
+  })
+  .then(function(r){return r.json();})
+  .then(function(j){
+    if(!j.ok){toast('Error: '+(j.error||'?'));return;}
+    var existing=BB.find(function(b){return b.id===bid;});
+    if(existing){existing.nombre=name;existing.active=true;}
+    else BB.push({id:bid,nombre:name,active:true});
+    saveStaffConfig();
+    renderStaffBB();
+    staffHideAddCard();
+    document.getElementById('newBarberName').value='';
+    document.getElementById('newBarberBid').value='';
+    document.getElementById('newBarberPin').value='';
+    toast(name+' agregado');
+  })
+  .catch(function(){toast('Error de red');});
+}
+
 function renderStaffPanel(){
-  renderStaffBB();renderStaffCOM();renderStaffSS();renderStaffProds();
+  staffUpdateTokenStatus();
+  staffRefreshFromAPI();
+  renderStaffCOM();renderStaffSS();renderStaffProds();
 }
 
 function escAttr(s){return(s||'').toString().replace(/&/g,'&amp;').replace(/"/g,'&quot;');}
 
 function renderStaffBB(){
   var h='';
+  var token=staffGetToken();
   for(var i=0;i<BB.length;i++){
     var b=BB[i];
-    h+='<div class="staff-row">'
-      +'<span class="staff-label">Puesto '+b.id+'</span>'
-      +'<input class="staff-input" type="text" value="'+escAttr(b.nombre)+'" onblur="staffSaveBB(\''+b.id+'\',this.value)">'
-      +'</div>';
+    var isActive=b.active!==false;
+    var initials=b.nombre.split(' ').map(function(w){return w[0]||'';}).join('').substring(0,2).toUpperCase();
+    h+='<div class="staff-barber-card'+(isActive?'':' inactive')+'">'
+      +'<div class="staff-barber-avatar">'+escAttr(initials)+'</div>'
+      +'<div class="staff-barber-info">'
+        +'<div class="staff-barber-name">'+escAttr(b.nombre)+'</div>'
+        +'<div class="staff-barber-bid">'+escAttr(b.id)+'</div>'
+      +'</div>'
+      +'<div style="display:flex;align-items:center;gap:10px">'
+        +'<span><span class="staff-status-dot '+(isActive?'active':'inactive')+'"></span>'
+        +'<span class="staff-status-label '+(isActive?'active':'inactive')+'">'+(isActive?'Activo':'Inactivo')+'</span></span>';
+    if(token){
+      if(isActive){
+        h+='<button class="staff-action-btn deactivate" onclick="staffDeactivate(\''+escAttr(b.id)+'\',\''+escAttr(b.nombre)+'\')">Desactivar</button>';
+      } else {
+        h+='<button class="staff-action-btn reactivate" onclick="staffReactivate(\''+escAttr(b.id)+'\',\''+escAttr(b.nombre)+'\')">Reactivar</button>';
+      }
+    }
+    h+='</div></div>';
   }
   var el=document.getElementById('staffBB');if(el)el.innerHTML=h;
 }
