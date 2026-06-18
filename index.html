@@ -1676,9 +1676,8 @@ function find(arr,id){for(var i=0;i<arr.length;i++)if(arr[i].id===id)return arr[
 
 // ═══ BUILD UI ════════════════════════════════════════════
 function buildBarberFilters(){
-  // All barbers (including inactive) — for filtering historical registros
   var h='';
-  BB.forEach(function(b){
+  BB.filter(function(b){return b.active!==false;}).forEach(function(b){
     h+='<button class="fb" onclick="filtrar(\''+b.id+'\',this)">'+b.nombre+'</button>';
   });
   var el=document.getElementById('barberFilterBtns');
@@ -2140,8 +2139,9 @@ function renderSum(){
     +'<div class="sc"><div class="scl">Pago barberos</div><div class="scv g">$'+fmt(tBB)+'</div></div>'
     +'<div class="sc"><div class="scl">Para negocio</div><div class="scv b">$'+fmt(tNeg)+'</div></div>';
   var g='';
-  for(var i=0;i<BB.length;i++){
-    var b=BB[i],br=[],bt=0,bBB=0,bNeg=0;
+  var activeBB=BB.filter(function(b){return b.active!==false;});
+  for(var i=0;i<activeBB.length;i++){
+    var b=activeBB[i],br=[],bt=0,bBB=0,bNeg=0;
     for(var j=0;j<regs.length;j++)if(regs[j].bid===b.id)br.push(regs[j]);
     for(var j=0;j<br.length;j++){bt+=br[j].precio;bBB+=br[j].bb+(br[j].propina||0);bNeg+=br[j].neg;}
     var tk=br.length>0?Math.round(bt/br.length):0;
@@ -2165,8 +2165,9 @@ function renderSum(){
 function renderCierre(){
   var fecha=new Date().toLocaleDateString('es-CL');
   var h='';
-  for(var i=0;i<BB.length;i++){
-    var b=BB[i],br=[],tot=0,tBB=0,tNeg=0;
+  var activeBB=BB.filter(function(b){return b.active!==false;});
+  for(var i=0;i<activeBB.length;i++){
+    var b=activeBB[i],br=[],tot=0,tBB=0,tNeg=0;
     for(var j=0;j<regs.length;j++)if(regs[j].bid===b.id)br.push(regs[j]);
     if(br.length===0){
       h+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:12px;margin-bottom:11px;opacity:.4"><strong>'+b.nombre+'</strong> — Sin servicios hoy</div>';
