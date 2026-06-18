@@ -2749,6 +2749,10 @@ function cargarGastos(){
     var d = localStorage.getItem('sfsf_gastos_'+fechaHoy);
     if(d) gastos = JSON.parse(d);
   }catch(e){ gastos=[]; }
+  try{
+    var b = localStorage.getItem('sfsf_base_caja_'+fechaHoy);
+    if(b) BASE_CAJA = parseInt(b)||50000;
+  }catch(e){}
 }
 
 function guardarLiquidaciones(){
@@ -3096,6 +3100,7 @@ function renderResumenFinal(){
 
 function cambiarBase(val){
   BASE_CAJA = parseInt(val)||30000;
+  try{ localStorage.setItem('sfsf_base_caja_'+fechaHoy, BASE_CAJA); }catch(e){}
   renderCaja();
 }
 
@@ -4944,7 +4949,12 @@ function iniciarSSE(){
 
 var _salaInterval   = null;
 var _salaEditorData = {}; // { queue_id: { client_name, phone, service, cliente_id } }
+var _pagoSelections = {}; // { queue_id: 'efectivo'|'debito'|'transferencia' } — persists across polls
 var _editorQueueId  = null;
+
+function salaGuardarPago(queueId, val){
+  _pagoSelections[queueId] = val;
+}
 var _editorClienteId = null;
 var SALA_PRECIOS = {
   'Corte':12000,'Corte clásico':12000,'Barba':10000,'Corte + Barba':20000,
@@ -5054,6 +5064,7 @@ function salaCerrarServicio(queue_id,bid,pago,propina,precio){
   }).then(function(r){return r.json();})
     .then(function(j){
       if(j.ok){
+        delete _pagoSelections[queue_id]; // clear persisted selection for this queue item
         var msg='✓ Servicio cerrado · $'+fmt(j.precio)+' · bb $'+fmt(j.bb);
         if(j.propina>0) msg+=' + prop $'+fmt(j.propina);
         toast(msg);
@@ -5177,10 +5188,11 @@ function renderSala(){
           h+='<input id="prc-'+sv.queue_id+'" type="number" min="0" step="1000" ';
           h+='value="'+(_salaEditorData[sv.queue_id]&&_salaEditorData[sv.queue_id].precio?_salaEditorData[sv.queue_id].precio:(SALA_PRECIOS[sv.service]||12000))+'" ';
           h+='style="width:84px;padding:6px 8px;border:1.5px solid var(--border2);border-radius:var(--r);font-size:12px;font-family:var(--mono);background:var(--surface)" title="Precio"/>';
-          h+='<select id="pago-'+sv.queue_id+'" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface);font-family:var(--sans)">';
-          h+='<option value="efectivo">💵 Efectivo</option>';
-          h+='<option value="debito">💳 Débito</option>';
-          h+='<option value="transferencia">📲 Transferencia</option>';
+          var _sp=_pagoSelections[sv.queue_id]||'efectivo';
+          h+='<select id="pago-'+sv.queue_id+'" onchange="salaGuardarPago('+sv.queue_id+',this.value)" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface);font-family:var(--sans)">';
+          h+='<option value="efectivo"'+(_sp==='efectivo'?' selected':'')+'>💵 Efectivo</option>';
+          h+='<option value="debito"'+(_sp==='debito'?' selected':'')+'>💳 Débito</option>';
+          h+='<option value="transferencia"'+(_sp==='transferencia'?' selected':'')+'>📲 Transferencia</option>';
           h+='</select>';
           h+='<input id="prop-'+sv.queue_id+'" type="number" placeholder="Propina" min="0" step="500" ';
           h+='style="width:78px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;font-family:var(--mono);background:var(--surface)"/>';
