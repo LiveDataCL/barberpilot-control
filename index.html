@@ -625,6 +625,45 @@
       </div>
     </div>
 
+    <!-- ── Modal editar pago de registro ── -->
+    <div id="editPagoOverlay" onclick="if(event.target===this)cerrarEditPago()"
+      style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.45);z-index:600;align-items:center;justify-content:center">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:20px;width:380px;max-width:94vw;box-shadow:0 8px 32px rgba(0,0,0,.15)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div style="font-size:14px;font-weight:700">✏ Editar pago</div>
+          <button onclick="cerrarEditPago()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text3);padding:2px 6px;line-height:1">✕</button>
+        </div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Registro</div>
+        <div id="editPagoInfo" style="font-size:13px;font-weight:500;margin-bottom:14px;color:var(--text2)">—</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+          <div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Método de pago</div>
+            <select id="editPagoSel" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--surface);font-family:var(--sans)">
+              <option value="efectivo">💵 Efectivo</option>
+              <option value="debito">💳 Débito</option>
+              <option value="transferencia">📲 Transferencia</option>
+            </select>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Precio ($)</div>
+            <input id="editPagoPrecio" type="number" min="0" step="1000"
+              style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--mono);background:var(--surface)"/>
+          </div>
+        </div>
+        <div style="margin-bottom:14px">
+          <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Modificado por (tu nombre)</div>
+          <input id="editPagoPor" type="text" placeholder="Ej: Saúl"
+            style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--sans);background:var(--surface)"/>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button onclick="guardarEditPago()"
+            style="flex:1;padding:9px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans)">Actualizar</button>
+          <button onclick="cerrarEditPago()"
+            style="padding:9px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);font-size:13px;cursor:pointer;font-family:var(--sans)">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ── Modal editor de cliente en cola ── -->
     <div id="salaEditorOverlay" onclick="if(event.target===this)salaCerrarEditor()"
       style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.45);z-index:500;align-items:center;justify-content:center">
@@ -1994,6 +2033,45 @@ function resetForm(){
   updPrev();chkBtn();
 }
 
+// ═══ EDITAR PAGO ════════════════════════════════════════
+var _editPagoId = null;
+function abrirEditPago(id, pagoActual, precioActual, info){
+  _editPagoId = id;
+  document.getElementById('editPagoInfo').textContent = info || id;
+  document.getElementById('editPagoSel').value = pagoActual || 'efectivo';
+  document.getElementById('editPagoPrecio').value = precioActual || '';
+  var por = sessionStorage.getItem('auditModificadoPor') || '';
+  document.getElementById('editPagoPor').value = por;
+  document.getElementById('editPagoOverlay').style.display = 'flex';
+}
+function cerrarEditPago(){
+  document.getElementById('editPagoOverlay').style.display = 'none';
+  _editPagoId = null;
+}
+function guardarEditPago(){
+  if(!API_URL || !_editPagoId) return;
+  if(!staffGetToken()){ toast('Token de dashboard requerido — ve a ⚙ Personal'); return; }
+  var pago = document.getElementById('editPagoSel').value;
+  var precio = document.getElementById('editPagoPrecio').value;
+  var por = (document.getElementById('editPagoPor').value || '').trim();
+  if(!por){ toast('Escribe tu nombre en "Modificado por"'); return; }
+  sessionStorage.setItem('auditModificadoPor', por);
+  var body = { pago: pago, modificado_por: por };
+  if(precio) body.precio = parseInt(precio);
+  fetch(API_URL+'/registros/'+_editPagoId+'/pago', {
+    method: 'PATCH',
+    headers: {'Content-Type':'application/json','x-dashboard-token': staffGetToken()},
+    body: JSON.stringify(body)
+  }).then(function(r){return r.json();})
+    .then(function(j){
+      if(j.ok){
+        toast('✓ Pago actualizado');
+        cerrarEditPago();
+        cargarRegistrosDia();
+      } else { toast('Error: '+(j.error||'?')); }
+    }).catch(function(e){ toast('Error de red: '+e.message); });
+}
+
 // ═══ RENDER ══════════════════════════════════════════════
 function renderAll(){renderReg();renderSum();renderCierre();updCnts();}
 
@@ -2024,8 +2102,9 @@ function renderReg(){
       +'<td style="font-family:var(--mono);font-weight:600">$'+fmt(r.precio)+'</td>'
       +'<td style="font-family:var(--mono);font-weight:600;color:var(--ok)">$'+fmt(r.bb+(r.propina||0))+(r.propina>0?'<br><span style="font-size:10px;color:#8b5e00">+$'+fmt(r.propina)+' prop.</span>':'')+'</td>'
       +'<td><span style="font-size:12px;color:var(--text2);display:block;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(r.cliente_nombre||r.cliente_id||'')+'">'+( r.cliente_nombre||r.cliente_id||'—')+'</span></td>'
-      +'<td>'
+      +'<td style="white-space:nowrap">'
       +'<button class="bsm" onclick="verTkt(\''+r.id+'\')">Ver</button>'
+      +'<button class="bsm" onclick="abrirEditPago(\''+r.id+'\',\''+r.pago+'\','+r.precio+',\''+escAttr(r.bnom)+' – '+escAttr(r.snom)+'\')" title="Editar pago">✏</button>'
       +'<button class="bsm dx" onclick="del(\''+r.id+'\')">✕</button>'
       +'</td></tr>';
   }
