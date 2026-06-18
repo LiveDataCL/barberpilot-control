@@ -2499,9 +2499,10 @@ function printCierre58mm(){
   if(regs.length===0){toast('Sin registros para imprimir');return;}
   var fecha=new Date().toLocaleDateString('es-CL');
   var partes=[];
+  var activeBB=BB.filter(function(b){return b.active!==false;});
 
-  for(var i=0;i<BB.length;i++){
-    var b=BB[i],br=[],tot=0,tBB=0,tNeg=0;
+  for(var i=0;i<activeBB.length;i++){
+    var b=activeBB[i],br=[],tot=0,tBB=0,tNeg=0;
     for(var j=0;j<regs.length;j++)if(regs[j].bid===b.id)br.push(regs[j]);
     if(br.length===0)continue;
     for(var j=0;j<br.length;j++){tot+=br[j].precio;tBB+=br[j].bb;tNeg+=br[j].neg;}
@@ -2639,8 +2640,9 @@ function generarHTMLA4(fecha, recs, gastosParam){
   for(var ii=0;ii<horHoyA4.length;ii++) regMap[horHoyA4[ii].bid]=horHoyA4[ii];
 
   h+='<div class="section-title">Resumen por barbero</div><div class="bb-grid">';
-  for(var i=0;i<BB.length;i++){
-    var b=BB[i],br=[],bt=0,bBB=0,bNeg=0;
+  var activeBBA4=BB.filter(function(b){return b.active!==false;});
+  for(var i=0;i<activeBBA4.length;i++){
+    var b=activeBBA4[i],br=[],bt=0,bBB=0,bNeg=0;
     for(var j=0;j<recs.length;j++)if(recs[j].bid===b.id)br.push(recs[j]);
     for(var j=0;j<br.length;j++){bt+=br[j].precio;bBB+=br[j].bb+(br[j].propina||0);bNeg+=br[j].neg;}
     var tk=br.length>0?Math.round(bt/br.length):0;
@@ -2667,8 +2669,8 @@ function generarHTMLA4(fecha, recs, gastosParam){
   // Solo mostrar si hay horarios registrados
   if(hayHorarios){
     h+='<div class="section-title">Horarios y productividad</div><div class="hor-grid">';
-    for(var i=0;i<BB.length;i++){
-      var b=BB[i];
+    for(var i=0;i<activeBBA4.length;i++){
+      var b=activeBBA4[i];
       var reg=regMap[b.id]||{};
       var br=recs.filter(function(r){return r.bid===b.id;});
       var bt=0,bBB=0;
@@ -2715,8 +2717,8 @@ function generarHTMLA4(fecha, recs, gastosParam){
   // FIRMAS
   h+='<div class="section-title">Conformidad de pago</div>'
     +'<div class="firma-grid">';
-  for(var i=0;i<BB.length;i++){
-    var b=BB[i],br=[],bBB2=0;
+  for(var i=0;i<activeBBA4.length;i++){
+    var b=activeBBA4[i],br=[],bBB2=0;
     for(var j=0;j<recs.length;j++)if(recs[j].bid===b.id)br.push(recs[j]);
     for(var j=0;j<br.length;j++)bBB2+=br[j].bb;
     h+='<div class="firma-box">'
@@ -2926,10 +2928,11 @@ function actualizarFilaPendiente(bid){
   }
   // Actualizar totales
   var totalPend=0, totalEf=0, totalTr=0;
-  for(var i=0;i<BB.length;i++){
-    var br=regs.filter(function(r){return r.bid===BB[i].id;});
+  var _aBB=BB.filter(function(b){return b.active!==false;});
+  for(var i=0;i<_aBB.length;i++){
+    var br=regs.filter(function(r){return r.bid===_aBB[i].id;});
     var cor=0; for(var j=0;j<br.length;j++) cor+=br[j].bb+(br[j].propina||0);
-    var lq=liquidaciones[BB[i].id]||{efectivo:0,transferencia:0};
+    var lq=liquidaciones[_aBB[i].id]||{efectivo:0,transferencia:0};
     totalPend+=cor-lq.efectivo-lq.transferencia;
     totalEf+=lq.efectivo; totalTr+=lq.transferencia;
   }
@@ -3029,9 +3032,10 @@ function renderCaja(){
     +'</tr></thead><tbody>';
 
   var totalPagoEfectivo=0, totalPagoTransf=0, totalPendiente=0, totalCorresponde=0, totalPropinas=0;
+  var activeBB=BB.filter(function(b){return b.active!==false;});
 
-  for(var i=0;i<BB.length;i++){
-    var b=BB[i];
+  for(var i=0;i<activeBB.length;i++){
+    var b=activeBB[i];
     var bbRegs=regs.filter(function(r){return r.bid===b.id;});
     var corresponde=0, propinas=0;
     for(var j=0;j<bbRegs.length;j++){corresponde+=bbRegs[j].bb;propinas+=(bbRegs[j].propina||0);}
@@ -3154,8 +3158,9 @@ function renderResumenFinal(){
   for(var i=0;i<gastos.length;i++) totalGastos+=gastos[i].monto;
 
   var totalPagoEfectivo=0,totalPagoTransf=0,totalPendiente=0,totalCorresponde=0;
-  for(var i=0;i<BB.length;i++){
-    var b=BB[i];
+  var activeBBRes=BB.filter(function(b){return b.active!==false;});
+  for(var i=0;i<activeBBRes.length;i++){
+    var b=activeBBRes[i];
     var bbRegs=regs.filter(function(r){return r.bid===b.id;});
     var corresponde=0;
     for(var j=0;j<bbRegs.length;j++) corresponde+=bbRegs[j].bb+(bbRegs[j].propina||0);
@@ -3232,8 +3237,9 @@ function printCaja(){
 
   var totalPagoEfectivo=0,totalPagoTransf=0,totalPendiente=0,totalCorresponde=0;
   var lineasLiq='';
-  for(var i=0;i<BB.length;i++){
-    var b=BB[i];
+  var activeBBPrint=BB.filter(function(b){return b.active!==false;});
+  for(var i=0;i<activeBBPrint.length;i++){
+    var b=activeBBPrint[i];
     var bbRegs=regs.filter(function(r){return r.bid===b.id;});
     var corresponde=0;
     for(var j=0;j<bbRegs.length;j++) corresponde+=bbRegs[j].bb+(bbRegs[j].propina||0);
@@ -3428,8 +3434,9 @@ function printCajaA4(){
 
   var totalCorresponde=0,totalPagoEf=0,totalPagoTr=0,totalPend=0;
   var bbRows='';
-  for(var i=0;i<BB.length;i++){
-    var b=BB[i];
+  var activeBBCajaA4=BB.filter(function(b){return b.active!==false;});
+  for(var i=0;i<activeBBCajaA4.length;i++){
+    var b=activeBBCajaA4[i];
     var br=regs.filter(function(r){return r.bid===b.id;});
     var cor=0; for(var j=0;j<br.length;j++) cor+=br[j].bb+(br[j].propina||0);
     totalCorresponde+=cor;
@@ -3683,9 +3690,10 @@ function renderHorarios(){
     +'Registra la entrada y salida de cada barbero. Usa los botones para marcar la hora actual, o escribe manualmente si lo registras después.</p>';
 
   h+='<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">';
+  var activeBBHor=BB.filter(function(b){return b.active!==false;});
 
-  for(var i=0;i<BB.length;i++){
-    var b=BB[i];
+  for(var i=0;i<activeBBHor.length;i++){
+    var b=activeBBHor[i];
     var reg=regMap[b.id]||{bid:b.id,bnom:b.nombre,entrada:'',salida:''};
     var svcCnt=regs.filter(function(r){return r.bid===b.id;}).length;
     var hasEntrada = reg.entrada!=='';
@@ -3750,8 +3758,8 @@ function renderHorarios(){
     +'<th style="padding:8px 12px;text-align:right;font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--text3)">Servicios</th>'
     +'</tr></thead><tbody>';
 
-  for(var i=0;i<BB.length;i++){
-    var b=BB[i];
+  for(var i=0;i<activeBBHor.length;i++){
+    var b=activeBBHor[i];
     var reg=regMap[b.id]||{entrada:'',salida:''};
     var svcCnt=regs.filter(function(r){return r.bid===b.id;}).length;
     var jornada='—';
@@ -3772,7 +3780,7 @@ function renderHorarios(){
 
   c.innerHTML=h;
   // Calcular horas después de render
-  for(var i=0;i<BB.length;i++) renderHorasCalc(BB[i].id);
+  for(var i=0;i<activeBBHor.length;i++) renderHorasCalc(activeBBHor[i].id);
 }
 
 // ═══ INGRESO HISTÓRICO ═══════════════════════════════════════
