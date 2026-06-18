@@ -1215,31 +1215,10 @@ function cargar(){
     var d=localStorage.getItem(LSKEY);
     if(d){regs=JSON.parse(d);}
   }catch(e){regs=[];}
-  // 2) Si hay API_URL, sincronizar desde Railway (fuente de verdad)
+  // 2) Si hay API_URL, cargar registros del día directamente (fuente de verdad)
   if(API_URL){
-    cargarDesdeApi();
+    cargarRegistrosDia();
   }
-}
-
-function cargarDesdeApi(){
-  var url = API_URL + '/resumen?fecha=' + fechaHoy;
-  fetch(url)
-    .then(function(r){ return r.json(); })
-    .then(function(json){
-      if(!json.ok || !json.data) return;
-      var d = json.data;
-      // Convertir formato de la API al formato interno del sistema
-      if(d.registros && d.registros.length > 0){
-        // La API devuelve los registros completos desde /resumen
-        // Necesitamos el endpoint de registros del día directamente
-        cargarRegistrosDia();
-      }
-      // Sincronizar gastos
-      if(d.listaGastos && d.listaGastos.length > 0 && gastos.length === 0){
-        // Los gastos se cargan desde la API también
-      }
-    })
-    .catch(function(){});
 }
 
 function cargarRegistrosDia(){
