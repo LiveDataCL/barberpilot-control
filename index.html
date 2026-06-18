@@ -521,6 +521,7 @@
       <div class="fbar">
         <button class="fb on" onclick="filtrar('todos',this)">Todos</button>
         <span id="barberFilterBtns"></span>
+        <button class="fb" id="syncNubeBtn" style="color:var(--ok);font-weight:600" onclick="forzarSyncNube()" title="Borra caché local y trae los datos limpios desde la base de datos">🔄 Desde nube</button>
         <button class="fb" style="margin-left:auto;color:var(--info);font-weight:600" onclick="descargarJornadaHoy()" title="Guarda el JSON del día — ábrelo luego en el Dashboard">💾 Guardar jornada</button>
         <button class="fb" style="color:var(--err)" onclick="limpiarHoy()">Limpiar día</button>
       </div>
@@ -1265,6 +1266,46 @@ function cargarRegistrosDia(){
       }
     })
     .catch(function(e){ console.warn('Sync error:', e.message); });
+}
+
+// Nuke local cache for today and pull a clean copy from the DB
+function forzarSyncNube(){
+  var btn=document.getElementById('syncNubeBtn');
+  if(btn){btn.textContent='⟳ Sincronizando…';btn.disabled=true;}
+  // Wipe today's cached registros so no stale offline records bleed in
+  regs=[];
+  guardar();
+  var url=(API_URL||API_URL_BASE)+'/registros/dia?fecha='+fechaHoy;
+  fetch(url)
+    .then(function(r){return r.json();})
+    .then(function(json){
+      if(!json.ok||!json.registros){toast('Error al conectar con la nube');return;}
+      var apiRegs=json.registros;
+      regs=apiRegs.map(function(r){
+        return {
+          id:r.id,bid:r.bid,bnom:r.bnom,
+          sid:r.sid||'custom',snom:r.snom,
+          precio:parseInt(r.precio),pago:r.pago,
+          com:parseFloat(r.com),bb:parseInt(r.bb),
+          neg:parseInt(r.neg),propina:parseInt(r.propina||0),
+          fecha:r.fecha_display||fechaHoy,
+          hora:r.hora?r.hora.slice(0,5):'--',
+          ts:parseInt(r.ts)||Date.now(),
+          cliente_nombre:r.cliente_nombre||null,
+          cliente_id:r.cliente_id||null,
+          numServicio:0,totalServicios:0,acumBB:0,acumFact:0
+        };
+      });
+      regs.sort(function(a,b){return b.ts-a.ts;});
+      guardar();
+      renderAll();
+      updCnts();
+      toast('✓ '+regs.length+' servicios cargados desde la nube');
+    })
+    .catch(function(e){toast('Error: '+e.message);})
+    .finally(function(){
+      if(btn){btn.textContent='🔄 Desde nube';btn.disabled=false;}
+    });
 }
 
 function descargarJSON(){
