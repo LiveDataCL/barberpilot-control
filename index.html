@@ -591,7 +591,7 @@
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3)">Cola en tiempo real</div>
         <button onclick="renderSala()" style="font-size:11px;padding:4px 11px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);cursor:pointer;font-family:var(--sans)">↺ Actualizar</button>
       </div>
-      <div id="salaGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div id="salaGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px">
         <div class="empty" style="grid-column:1/-1"><div class="empty-ico">⟳</div><div>Cargando cola…</div></div>
       </div>
 
@@ -4961,7 +4961,17 @@ function iniciarSSE(){
 
 var _salaInterval   = null;
 var _salaEditorData = {}; // { queue_id: { client_name, phone, service, cliente_id } }
-var _pagoSelections = {}; // { queue_id: 'efectivo'|'debito'|'transferencia' } — persists across polls
+var _pagoSelections = {}; // { queue_id: 'efectivo'|'debito'|'transferencia' }
+
+// Per-barber accent colors — deterministic by bid, separate from brand & sync-state variables
+var SALA_BARBER_COLORS = {
+  b1: {accent:'#c9a84c', bg:'rgba(201,168,76,0.08)', text:'#7a5f20', initials:'D'},
+  b2: {accent:'#4db87a', bg:'rgba(77,184,122,0.08)', text:'#1a5c34', initials:'E'},
+  b3: {accent:'#5580d4', bg:'rgba(85,128,212,0.08)', text:'#1a4b8b', initials:'S'},
+};
+function salaBarberColor(bid){
+  return SALA_BARBER_COLORS[bid]||{accent:'var(--text3)',bg:'rgba(0,0,0,0.04)',text:'var(--text2)',initials:'?'};
+} — persists across polls
 var _editorQueueId  = null;
 
 function salaGuardarPago(queueId, val){
@@ -5160,23 +5170,35 @@ function renderSala(){
         var nEspera=b.enEspera.length;
         var enSvc=!!b.enServicio;
         var isAbsent=b.available===false;
-        h+='<div style="background:var(--surface);border:1px solid '+(isAbsent?'#fca5a5':'var(--border)')+';border-radius:var(--rl);overflow:hidden;transition:border-color .2s">';
-        // card header
-        h+='<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:'+(isAbsent?'#fff5f5':'var(--surface)')+'">';
-        h+='<div style="display:flex;align-items:center;gap:8px">';
-        h+='<div style="font-weight:700;font-size:14px">'+b.nombre+'</div>';
-        if(isAbsent) h+='<span style="font-size:10px;font-weight:700;background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:20px;letter-spacing:.04em">AUSENTE</span>';
-        h+='</div>';
-        h+='<div style="display:flex;align-items:center;gap:6px">';
-        if(!isAbsent){
-          var badgeBg=nEspera>0?'var(--warn)':'var(--ok)';
-          h+='<span style="font-size:11px;background:'+badgeBg+';color:#fff;padding:2px 8px;border-radius:20px">'+nEspera+' en espera</span>';
-          h+='<button onclick="toggleBarberAvailability(\''+b.barber_id+'\',false)" title="Marcar como ausente temporalmente" style="padding:3px 10px;font-size:11px;font-weight:600;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;color:var(--err);font-family:var(--sans);white-space:nowrap">⏸ Salió</button>';
+        var clr=salaBarberColor(bid);
+        // ── Card shell ──
+        h+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;transition:border-color .2s;'+(isAbsent?'opacity:.82':'')+(enSvc?';box-shadow:0 0 0 2px '+clr.accent+'33':'')+ '">';
+        // ── Accent strip ──
+        h+='<div style="height:4px;background:'+clr.accent+';'+(isAbsent?'filter:grayscale(1)':'')+'"></div>';
+        // ── Section header ──
+        h+='<div style="padding:11px 14px 10px;background:'+clr.bg+';border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">';
+        h+='<div style="display:flex;align-items:center;gap:10px">';
+        // initials badge
+        h+='<div style="width:34px;height:34px;border-radius:50%;background:'+clr.accent+';color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;letter-spacing:-.5px;flex-shrink:0;'+(isAbsent?'filter:grayscale(1)':'')+'">'+clr.initials+'</div>';
+        h+='<div>';
+        h+='<div style="font-weight:800;font-size:15px;color:'+clr.text+';letter-spacing:-.02em">'+b.nombre+'</div>';
+        if(isAbsent){
+          h+='<div style="font-size:10px;font-weight:700;color:#991b1b;letter-spacing:.06em">AUSENTE</div>';
         } else {
-          h+='<button onclick="toggleBarberAvailability(\''+b.barber_id+'\',true)" title="Marcar como disponible" style="padding:3px 10px;font-size:11px;font-weight:700;background:#16a34a;border:none;border-radius:var(--r);cursor:pointer;color:#fff;font-family:var(--sans);white-space:nowrap">▶ Regresó</button>';
+          var qLbl=enSvc?(nEspera+' en espera'):(nEspera>0?nEspera+' esperando':'Libre');
+          var qColor=enSvc&&nEspera>0?'var(--warn)':enSvc?'var(--text2)':nEspera>0?'var(--warn)':'var(--ok)';
+          h+='<div style="font-size:11px;color:'+qColor+';font-weight:600">'+qLbl+'</div>';
         }
         h+='</div>';
         h+='</div>';
+        // toggle button
+        if(!isAbsent){
+          h+='<button onclick="toggleBarberAvailability(\''+b.barber_id+'\',false)" title="Marcar como ausente temporalmente" style="padding:4px 10px;font-size:11px;font-weight:600;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;color:var(--err);font-family:var(--sans);white-space:nowrap">⏸ Salió</button>';
+        } else {
+          h+='<button onclick="toggleBarberAvailability(\''+b.barber_id+'\',true)" title="Marcar como disponible" style="padding:4px 10px;font-size:11px;font-weight:700;background:#16a34a;border:none;border-radius:var(--r);cursor:pointer;color:#fff;font-family:var(--sans);white-space:nowrap">▶ Regresó</button>';
+        }
+        h+='</div>';
+        // ── Card body ──
         h+='<div style="padding:12px 14px">';
         if(isAbsent) h+='<div style="background:#fff5f5;border:1px solid #fecaca;border-radius:var(--r);padding:8px 12px;margin-bottom:10px;font-size:12px;color:#991b1b;display:flex;align-items:center;gap:6px">⚠ No recibirá nuevos clientes automáticamente hasta que regrese</div>';
         // EN SERVICIO
