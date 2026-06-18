@@ -15,6 +15,16 @@
     --ok:#1a6b3a; --info:#1a4b8b; --warn:#8b5e00; --err:#c0392b;
     --r:6px; --rl:10px;
     --mono:'Consolas','Courier New',monospace; --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;
+    /* ── Theme tokens — brand colors are tenant-configurable via applyTheme() ── */
+    --color-primary: #1a1916;
+    --color-accent:  #c9a84c;
+    --color-bg:      #ffffff;
+    --color-text:    #1a1916;
+    --color-muted:   #9c9a93;
+    /* Semantic state colors — NOT tenant-overridable (green=safe, red=failing) */
+    --color-pending: #8b5e00;
+    --color-synced:  #1a6b3a;
+    --color-error:   #c0392b;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;font-size:14px}
@@ -29,6 +39,9 @@
   .hdr-right{display:flex;align-items:center;gap:16px}
   .hdr-hist{font-size:11px;opacity:.7;cursor:pointer;padding:5px 10px;border:1px solid rgba(255,255,255,.3);border-radius:20px;transition:opacity .12s}
   .hdr-hist:hover{opacity:1}
+  .sync-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border:1px solid var(--color-accent);border-radius:20px;font-size:11px;cursor:pointer;transition:opacity .12s;opacity:.8}
+  .sync-badge:hover{opacity:1}
+  .sync-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
 
   /* LAYOUT */
   .layout{display:grid;grid-template-columns:340px 1fr;min-height:calc(100vh - 62px)}
@@ -312,6 +325,22 @@
   .silla-next-name{font-size:24px;font-weight:700;letter-spacing:.01em}
   .silla-next-label{font-size:10px;letter-spacing:.1em;text-transform:uppercase;opacity:.55;margin-bottom:3px}
   .silla-next-reason{font-size:12px;opacity:.6;margin-top:5px}
+  /* ── Staff panel ── */
+  .staff-section-hdr{display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+  .staff-note{font-size:11px;font-weight:400;color:var(--text3)}
+  .staff-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f0f0f0}
+  .staff-row:last-child{border-bottom:none}
+  .staff-label{font-size:12px;color:var(--text3);width:90px;flex-shrink:0}
+  .staff-input{flex:1;border:1px solid var(--border);border-radius:var(--r);padding:6px 10px;font-size:13px;font-family:var(--sans);background:var(--surface);color:var(--text)}
+  .staff-input:focus{outline:none;border-color:#888}
+  .staff-del-btn{width:28px;height:28px;border:1px solid var(--border);border-radius:var(--r);background:transparent;color:var(--text3);cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .staff-del-btn:hover{background:#fee2e2;color:#c00;border-color:#fca5a5}
+  .staff-add-btn{font-size:12px;padding:4px 12px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);cursor:pointer;font-family:var(--sans);color:var(--text)}
+  .staff-add-btn:hover{background:var(--surface2,#f7f7f7)}
+  .staff-reset-btn{font-size:12px;padding:7px 14px;border:1px solid var(--border);border-radius:var(--r);background:transparent;cursor:pointer;font-family:var(--sans);color:var(--text3)}
+  .staff-reset-btn:hover{color:var(--text)}
+  .staff-saved{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:#1a6b3a;background:#e8f5ed;border-radius:20px;padding:3px 10px;margin-left:8px;opacity:0;transition:opacity .3s}
+  .staff-saved.show{opacity:1}
 </style>
 </head>
 <body>
@@ -327,6 +356,10 @@
   <div class="hdr-right">
     <div id="sheetsStatus" style="font-size:11px;opacity:.5;display:none">
       <span id="sheetsIndicator">⬤</span> <span id="sheetsText">Sheets</span>
+    </div>
+    <div id="syncBadge" class="sync-badge" onclick="drainOutbox()" title="Sincronizar ahora">
+      <span class="sync-dot" id="syncDot" style="background:var(--color-synced)"></span>
+      <span id="syncTxt">Al día</span>
     </div>
     <a href="agenda-admin.html" class="hdr-hist" style="text-decoration:none">📅 Agenda</a>
     <span class="hdr-hist" onclick="abrirHistorico()">📁 Histórico</span>
@@ -458,6 +491,7 @@
       <div class="tab" onclick="showTab('pHist',this)">Histórico</div>
       <div class="tab" onclick="showTab('pHistorico',this)">📥 Ingresar histórico</div>
       <div class="tab" onclick="showTab('pConfig',this)">⚙ Config</div>
+      <div class="tab" onclick="showTab('pStaff',this)">👥 Staff</div>
     </div>
 
     <div class="pane on" id="pReg">
@@ -776,6 +810,51 @@
     <div class="pane" id="pKpis">
       <div id="kpisContent"></div>
     </div>
+
+    <div class="pane" id="pStaff">
+      <div style="max-width:600px;padding-bottom:40px">
+
+        <!-- Barberos -->
+        <div style="margin-bottom:26px">
+          <div class="staff-section-hdr">
+            <span>👤 Barberos <span class="staff-saved" id="staffSaved">✓ Guardado</span></span>
+            <span class="staff-note">Edita los nombres de los 4 puestos</span>
+          </div>
+          <div id="staffBB"></div>
+        </div>
+
+        <!-- Comisiones -->
+        <div style="margin-bottom:26px">
+          <div class="staff-section-hdr">
+            <span>💰 Comisiones</span>
+            <span class="staff-note">% que recibe el barbero por método de pago</span>
+          </div>
+          <div id="staffCOM"></div>
+        </div>
+
+        <!-- Servicios -->
+        <div style="margin-bottom:26px">
+          <div class="staff-section-hdr">
+            <span>✂ Servicios</span>
+            <button class="staff-add-btn" onclick="staffAddSvc()">+ Agregar</button>
+          </div>
+          <div id="staffSS"></div>
+        </div>
+
+        <!-- Productos -->
+        <div style="margin-bottom:26px">
+          <div class="staff-section-hdr">
+            <span>🧴 Productos</span>
+            <button class="staff-add-btn" onclick="staffAddProd()">+ Agregar</button>
+          </div>
+          <div id="staffProds"></div>
+        </div>
+
+        <div style="padding-top:12px;border-top:1px solid var(--border);text-align:right">
+          <button class="staff-reset-btn" onclick="staffReset()">↩ Restaurar valores por defecto</button>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -830,24 +909,128 @@ var COM_PRODUCTO=0.10;
 var API_URL    = 'https://barberpilot-api-production.up.railway.app'; // Railway — preconfigurado
 var SHEETS_URL = ''; // legacy — ya no se usa
 
-function enviarAApi(r){
-  var url = API_URL || SHEETS_URL;
-  if(!url) return;
-  if(API_URL){
-    fetch(API_URL+'/registros', {
+// ═══ OUTBOX — local-first offline sync ════════════════════
+// Pending items survive page reload via localStorage.
+// Items are pruned after 24 h once sent; pending/error items are never pruned.
+
+var _draining = false;
+
+function readOutbox(){
+  try{ return JSON.parse(localStorage.getItem('bp_outbox')||'[]'); }catch(e){ return []; }
+}
+function writeOutbox(arr){
+  try{ localStorage.setItem('bp_outbox', JSON.stringify(arr)); }catch(e){}
+}
+function addToOutbox(item){
+  var arr = readOutbox();
+  arr.push(item);
+  writeOutbox(arr);
+}
+function updateOutboxItem(key, patch){
+  var arr = readOutbox();
+  for(var i=0;i<arr.length;i++){
+    if(arr[i].idempotency_key===key){
+      var keys=Object.keys(patch);
+      for(var k=0;k<keys.length;k++) arr[i][keys[k]]=patch[keys[k]];
+      break;
+    }
+  }
+  writeOutbox(arr);
+}
+
+function pruneOutbox(){
+  var arr = readOutbox();
+  var cutoff = Date.now() - 24*60*60*1000;
+  var pending = arr.filter(function(i){ return i.status==='pending'||i.status==='error'; });
+  var sent    = arr.filter(function(i){ return i.status==='sent' && new Date(i.sent_at).getTime()>cutoff; });
+  if(sent.length>200) sent=sent.slice(-200);
+  writeOutbox(pending.concat(sent));
+}
+
+function updateSyncBadge(){
+  var dot = document.getElementById('syncDot');
+  var txt = document.getElementById('syncTxt');
+  if(!dot||!txt) return;
+  var arr = readOutbox();
+  var pending = arr.filter(function(i){ return i.status==='pending'||i.status==='error'; });
+  var hasError = arr.some(function(i){ return i.status==='error'&&(i.attempts||0)>=5; });
+  if(hasError){
+    dot.style.background = 'var(--color-error)';
+    txt.textContent = 'Error de sync';
+  } else if(pending.length>0){
+    dot.style.background = 'var(--color-pending)';
+    txt.textContent = pending.length+' pendiente'+(pending.length!==1?'s':'');
+  } else {
+    dot.style.background = 'var(--color-synced)';
+    txt.textContent = 'Al día';
+  }
+}
+
+function drainOutbox(){
+  if(_draining||!API_URL) return;
+  var arr = readOutbox();
+  var toSend = arr.filter(function(i){ return i.status==='pending'||i.status==='error'; });
+  if(toSend.length===0){ updateSyncBadge(); return; }
+  _draining = true;
+  // Oldest first — stable ordering avoids hammering a recovering server out of order
+  toSend.sort(function(a,b){ return new Date(a.created_at)-new Date(b.created_at); });
+  var idx=0;
+  function next(){
+    if(idx>=toSend.length){ _draining=false; pruneOutbox(); updateSyncBadge(); return; }
+    var item=toSend[idx++];
+    fetch(API_URL+item.endpoint,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(r)
-    }).catch(function(){});
-  } else {
-    // Compatibilidad Apps Script legacy
-    var payload = {accion:'registrar',id:r.id,fecha:r.fecha,hora:r.hora,
-      bid:r.bid,bnom:r.bnom,sid:r.sid,snom:r.snom,precio:r.precio,
-      pago:r.pago,com:r.com,bb:r.bb,neg:r.neg,propina:r.propina||0};
-    fetch(SHEETS_URL, {method:'POST',mode:'no-cors',
-      headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)
-    }).catch(function(){});
+      body:JSON.stringify(item.payload)
+    }).then(function(res){
+      if(res.ok){
+        updateOutboxItem(item.idempotency_key,{status:'sent',sent_at:new Date().toISOString()});
+      } else {
+        updateOutboxItem(item.idempotency_key,{
+          attempts:(item.attempts||0)+1,
+          last_error:'HTTP '+res.status
+        });
+      }
+      updateSyncBadge();
+      next();
+    }).catch(function(e){
+      var attempts=(item.attempts||0)+1;
+      updateOutboxItem(item.idempotency_key,{
+        attempts:attempts,
+        status:attempts>=5?'error':'pending',
+        last_error:e.message
+      });
+      updateSyncBadge();
+      next();
+    });
   }
+  updateSyncBadge();
+  next();
+}
+
+// applyTheme — sets brand CSS variables from tenant config
+// THEME SEAM: replace with applyTheme(await API.getTenant()) on multi-tenant migration
+function applyTheme(theme){
+  var root=document.documentElement;
+  if(theme&&theme.primary_color) root.style.setProperty('--color-primary',theme.primary_color);
+  if(theme&&theme.accent_color)  root.style.setProperty('--color-accent', theme.accent_color);
+}
+
+function enviarAApi(r){
+  var iKey = crypto.randomUUID();
+  r.idempotency_key = iKey;
+  addToOutbox({
+    idempotency_key: iKey,
+    endpoint: '/registros',
+    payload: r,
+    status: 'pending',
+    attempts: 0,
+    last_error: null,
+    created_at: new Date().toISOString(),
+    sent_at: null
+  });
+  updateSyncBadge();
+  drainOutbox();
 }
 var enviarASheets = enviarAApi;
 
@@ -871,12 +1054,21 @@ function eliminarDeSheets(id) {
 function sincronizarGastoSheets(g, accion) {
   if (API_URL) {
     if (accion === 'gasto') {
-      // Crear gasto en Railway
-      fetch(API_URL + '/gastos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: g.id, fecha: g.fecha, hora: g.hora, desc: g.desc, monto: g.monto })
-      }).catch(function(e){ console.warn('Gasto API error:', e); });
+      // Crear gasto — via outbox so it survives Railway outages
+      var iKey = crypto.randomUUID();
+      var payload = { id: g.id, fecha: g.fecha, hora: g.hora, desc: g.desc, monto: g.monto, idempotency_key: iKey };
+      addToOutbox({
+        idempotency_key: iKey,
+        endpoint: '/gastos',
+        payload: payload,
+        status: 'pending',
+        attempts: 0,
+        last_error: null,
+        created_at: new Date().toISOString(),
+        sent_at: null
+      });
+      updateSyncBadge();
+      drainOutbox();
     } else {
       // Eliminar gasto de Railway
       fetch(API_URL + '/gastos/' + encodeURIComponent(g.id), {
@@ -917,9 +1109,8 @@ function guardar(){
     var idx=JSON.parse(localStorage.getItem('sfsf_idx')||'[]');
     if(idx.indexOf(fechaHoy)<0){idx.push(fechaHoy);localStorage.setItem('sfsf_idx',JSON.stringify(idx));}
   }catch(e){}
-  // 3) Badge de sincronización
-  var badge = document.getElementById('syncBadge');
-  if(badge && API_URL) badge.style.display='inline';
+  // 3) Refresh sync badge
+  updateSyncBadge();
 }
 
 function cargar(){
@@ -1297,6 +1488,7 @@ function showTabById(id){
 // ═══ INIT ════════════════════════════════════════════════
 function init(){
   tick();setInterval(tick,30000);
+  loadStaffConfig();
   buildBarbers();buildServices();buildProdBarbers();
   cargarSheetsUrl();cargar();cargarGastos();cargarLiquidaciones();cargarHorarios();cargarKpiEvals();renderAll();
   // Auto-refresh cada 60s cuando la página está visible
@@ -1316,6 +1508,11 @@ function init(){
   }, 30000);
   cargarPendientes(); // al abrir
   iniciarSSE(); // alertas 15 min en tiempo real
+
+  // ── Outbox auto-sync ────────────────────────────────────
+  drainOutbox();                                       // on page load
+  window.addEventListener('online', drainOutbox);     // when connectivity returns
+  setInterval(drainOutbox, 30000);                    // every 30 s as fallback
 
   // ─── Sincronizar horarios y KPIs del día con Railway ─────────────────────
   if(API_URL){
@@ -1480,15 +1677,7 @@ function registrarProducto(){
   for(var i=0;i<mismos.length;i++){acumBB+=mismos[i].bb+(mismos[i].propina||0);acumFact+=mismos[i].precio;}
   r.acumBB=acumBB;r.acumFact=acumFact;
   guardar();
-  fetch('https://barberpilot-api-production.up.railway.app/registros',{
-    method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify(r)
-  }).then(function(res){
-    if(!res.ok)return res.json().then(function(d){throw new Error(d.error||res.status);});
-  }).catch(function(e){
-    toast('⚠ No guardado en DB — venta en local solamente');
-    console.error('API producto:',e);
-  });
+  enviarAApi(r);
   selProd={b:null,prod:null,p:null,qty:1};
   var allBtns=document.querySelectorAll('#prodBgrid .bbtn,[data-prodpay],[id^="prodBtn_"]');
   for(var i=0;i<allBtns.length;i++)allBtns[i].classList.remove('on');
@@ -2030,6 +2219,7 @@ function showTab(id,el){
   }
   if(id==='pKpis')renderKpis();
   if(id==='pConfig') cargarAvatares();
+  if(id==='pStaff') renderStaffPanel();
 }
 function filtrar(f,el){
   var all=document.querySelectorAll('.fb');for(var i=0;i<all.length;i++)all[i].classList.remove('on');
@@ -4768,6 +4958,27 @@ function salaIniciarSiguiente(queue_id){
 
 function salaCerrarServicio(queue_id,bid,pago,propina,precio){
   if(!API_URL) return;
+  // Resolve barber and editor data before showing the confirm
+  var barber=null;
+  for(var bi=0;bi<BB.length;bi++){if(BB[bi].id===bid){barber=BB[bi];break;}}
+  if(!barber) barber={nombre:bid};
+  var ed=_salaEditorData[queue_id]||{};
+  var precioPreview=precio>0?precio:(SALA_PRECIOS[ed.service]||0);
+  var bbPreview=precioPreview>0?Math.round(precioPreview*(COM[pago]||0.5)):0;
+  var negPreview=precioPreview-bbPreview;
+  var confirmMsg='─── RESUMEN DEL SERVICIO ───\n\n'
+    +'Cliente:   '+(ed.client_name||'—')+'\n'
+    +'Barbero:   '+barber.nombre+'\n'
+    +'Servicio:  '+(ed.service||'—')+'\n'
+    +'Pago:      '+pago.charAt(0).toUpperCase()+pago.slice(1)+'\n'
+    +'Precio:    $'+fmt(precioPreview)+'\n'
+    +(propina>0?'Propina:   $'+fmt(propina)+'\n':'')
+    +'\n'
+    +'→ Barbero recibe: $'+fmt(bbPreview)+(propina>0?' + propina $'+fmt(propina)+' = $'+fmt(bbPreview+propina):'')+'\n'
+    +'Negocio retiene: $'+fmt(negPreview)+'\n\n'
+    +'¿Cerrar servicio y generar ticket?';
+  if(!window.confirm(confirmMsg)) return;
+  // Confirmed — close the service in the API
   var body={queue_id:queue_id,bid:bid,pago:pago,propina:propina||0};
   if(precio>0) body.precio=precio;
   fetch(API_URL+'/queue/control/registrar',{
@@ -4779,10 +4990,6 @@ function salaCerrarServicio(queue_id,bid,pago,propina,precio){
         var msg='✓ Servicio cerrado · $'+fmt(j.precio)+' · bb $'+fmt(j.bb);
         if(j.propina>0) msg+=' + prop $'+fmt(j.propina);
         toast(msg);
-        var barber=null;
-        for(var bi=0;bi<BB.length;bi++){if(BB[bi].id===bid){barber=BB[bi];break;}}
-        if(!barber) barber={nombre:bid};
-        var ed=_salaEditorData[queue_id]||{};
         var now=new Date();
         var mismos=regs.filter(function(x){return x.bid===bid;});
         var acumBB=j.bb+(j.propina||0),acumFact=j.precio;
@@ -5259,6 +5466,173 @@ function salaActualizarServicio(){
         salaCerrarEditor();
       } else toast('Error: '+(j.error||''));
     }).catch(function(e){toast('Error: '+e.message);});
+}
+
+// ═══ STAFF MANAGEMENT ════════════════════════════════════
+var STAFF_KEY='bp_staff_v1';
+var BB_DEFAULT=[
+  {id:'b1',nombre:'Didian'},
+  {id:'b2',nombre:'Emerson'},
+  {id:'b3',nombre:'Samuel'},
+  {id:'b4',nombre:'David'}
+];
+var SS_DEFAULT=[
+  {id:'s01',nombre:'Corte',                              precio:12000,tiempo:'30 min'},
+  {id:'s02',nombre:'Barba',                              precio:10000,tiempo:'20 min'},
+  {id:'s03',nombre:'Corte + Barba',                      precio:20000,tiempo:'50 min'},
+  {id:'s04',nombre:'Corte + Perfilado de barba',         precio:16000,tiempo:'45 min'},
+  {id:'s05',nombre:'Perfilado de corte',                 precio:6000, tiempo:'15 min'},
+  {id:'s06',nombre:'Perfilado de cejas',                 precio:4000, tiempo:'10 min'},
+  {id:'s07',nombre:'Barba + Cejas',                      precio:13000,tiempo:'30 min'},
+  {id:'s08',nombre:'Perfilado de barba',                 precio:6000, tiempo:'15 min'},
+  {id:'s09',nombre:'Matizado canas cabello',             precio:8000, tiempo:'20 min'},
+  {id:'s10',nombre:'Matizado canas barba',               precio:5000, tiempo:'15 min'},
+  {id:'s11',nombre:'Corte Express + Perfilado de barba', precio:15000,tiempo:'35 min'}
+];
+var PRODUCTOS_DEFAULT=[
+  {id:'p01',nombre:'Cera Modeladora Media', precio:8500},
+  {id:'p02',nombre:'Cera Modeladora Fuerte',precio:8500}
+];
+var COM_DEFAULT={efectivo:.5,debito:.43,transferencia:.5};
+
+function loadStaffConfig(){
+  try{
+    var s=localStorage.getItem(STAFF_KEY);
+    if(!s)return;
+    var cfg=JSON.parse(s);
+    if(cfg.BB)BB=cfg.BB;
+    if(cfg.SS)SS=cfg.SS;
+    if(cfg.PRODUCTOS)PRODUCTOS=cfg.PRODUCTOS;
+    if(cfg.COM)COM=cfg.COM;
+  }catch(e){}
+}
+
+function saveStaffConfig(){
+  try{
+    localStorage.setItem(STAFF_KEY,JSON.stringify({BB:BB,SS:SS,PRODUCTOS:PRODUCTOS,COM:COM}));
+    buildBarbers();buildServices();buildProdBarbers();
+    var el=document.getElementById('staffSaved');
+    if(el){el.classList.add('show');setTimeout(function(){el.classList.remove('show');},2000);}
+  }catch(e){}
+}
+
+function renderStaffPanel(){
+  renderStaffBB();renderStaffCOM();renderStaffSS();renderStaffProds();
+}
+
+function escAttr(s){return(s||'').toString().replace(/&/g,'&amp;').replace(/"/g,'&quot;');}
+
+function renderStaffBB(){
+  var h='';
+  for(var i=0;i<BB.length;i++){
+    var b=BB[i];
+    h+='<div class="staff-row">'
+      +'<span class="staff-label">Puesto '+b.id+'</span>'
+      +'<input class="staff-input" type="text" value="'+escAttr(b.nombre)+'" onblur="staffSaveBB(\''+b.id+'\',this.value)">'
+      +'</div>';
+  }
+  var el=document.getElementById('staffBB');if(el)el.innerHTML=h;
+}
+function staffSaveBB(id,val){
+  val=(val||'').trim();if(!val)return;
+  for(var i=0;i<BB.length;i++)if(BB[i].id===id){BB[i].nombre=val;break;}
+  saveStaffConfig();
+}
+
+function renderStaffCOM(){
+  var el=document.getElementById('staffCOM');if(!el)return;
+  var keys=[['efectivo','Efectivo'],['debito','Débito'],['transferencia','Transferencia']];
+  var h='';
+  for(var i=0;i<keys.length;i++){
+    var k=keys[i][0];var label=keys[i][1];
+    var pct=Math.round((COM[k]||0)*100);
+    h+='<div class="staff-row">'
+      +'<span class="staff-label">'+label+'</span>'
+      +'<input class="staff-input" type="number" min="0" max="100" value="'+pct+'" onblur="staffSaveCOM(\''+k+'\',this.value)" style="max-width:80px"> %'
+      +'</div>';
+  }
+  el.innerHTML=h;
+}
+function staffSaveCOM(key,val){
+  var n=parseFloat(val);if(isNaN(n)||n<0||n>100)return;
+  COM[key]=n/100;saveStaffConfig();
+}
+
+function renderStaffSS(){
+  var el=document.getElementById('staffSS');if(!el)return;
+  var h='';
+  for(var i=0;i<SS.length;i++){
+    var s=SS[i];
+    h+='<div class="staff-row">'
+      +'<input class="staff-input" type="text" value="'+escAttr(s.nombre)+'" placeholder="Nombre" onblur="staffSaveSvcName(\''+s.id+'\',this.value)" style="flex:2">'
+      +'<input class="staff-input" type="number" min="0" value="'+s.precio+'" placeholder="Precio" onblur="staffSaveSvcPrecio(\''+s.id+'\',this.value)" style="max-width:100px">'
+      +'<button class="staff-del-btn" onclick="staffDelSvc(\''+s.id+'\')" title="Eliminar">&times;</button>'
+      +'</div>';
+  }
+  el.innerHTML=h;
+}
+function staffSaveSvcName(id,val){
+  val=(val||'').trim();if(!val)return;
+  for(var i=0;i<SS.length;i++)if(SS[i].id===id){SS[i].nombre=val;break;}
+  saveStaffConfig();
+}
+function staffSaveSvcPrecio(id,val){
+  var n=parseInt(val);if(isNaN(n)||n<0)return;
+  for(var i=0;i<SS.length;i++)if(SS[i].id===id){SS[i].precio=n;break;}
+  saveStaffConfig();
+}
+function staffDelSvc(id){
+  if(!confirm('¿Eliminar este servicio?'))return;
+  SS=SS.filter(function(s){return s.id!==id;});
+  renderStaffSS();saveStaffConfig();
+}
+function staffAddSvc(){
+  var newId='s'+Date.now().toString().slice(-7);
+  SS.push({id:newId,nombre:'Nuevo servicio',precio:0,tiempo:'30 min'});
+  renderStaffSS();saveStaffConfig();
+}
+
+function renderStaffProds(){
+  var el=document.getElementById('staffProds');if(!el)return;
+  var h='';
+  for(var i=0;i<PRODUCTOS.length;i++){
+    var p=PRODUCTOS[i];
+    h+='<div class="staff-row">'
+      +'<input class="staff-input" type="text" value="'+escAttr(p.nombre)+'" placeholder="Nombre" onblur="staffSaveProdNombre(\''+p.id+'\',this.value)" style="flex:2">'
+      +'<input class="staff-input" type="number" min="0" value="'+p.precio+'" placeholder="Precio" onblur="staffSaveProdPrecio(\''+p.id+'\',this.value)" style="max-width:100px">'
+      +'<button class="staff-del-btn" onclick="staffDelProd(\''+p.id+'\')" title="Eliminar">&times;</button>'
+      +'</div>';
+  }
+  el.innerHTML=h;
+}
+function staffSaveProdNombre(id,val){
+  val=(val||'').trim();if(!val)return;
+  for(var i=0;i<PRODUCTOS.length;i++)if(PRODUCTOS[i].id===id){PRODUCTOS[i].nombre=val;break;}
+  saveStaffConfig();
+}
+function staffSaveProdPrecio(id,val){
+  var n=parseInt(val);if(isNaN(n)||n<0)return;
+  for(var i=0;i<PRODUCTOS.length;i++)if(PRODUCTOS[i].id===id){PRODUCTOS[i].precio=n;break;}
+  saveStaffConfig();
+}
+function staffDelProd(id){
+  if(!confirm('¿Eliminar este producto?'))return;
+  PRODUCTOS=PRODUCTOS.filter(function(p){return p.id!==id;});
+  renderStaffProds();saveStaffConfig();
+}
+function staffAddProd(){
+  var newId='p'+Date.now().toString().slice(-7);
+  PRODUCTOS.push({id:newId,nombre:'Nuevo producto',precio:0});
+  renderStaffProds();saveStaffConfig();
+}
+function staffReset(){
+  if(!confirm('¿Restaurar los valores por defecto? Se perderán los cambios guardados.'))return;
+  BB=JSON.parse(JSON.stringify(BB_DEFAULT));
+  SS=JSON.parse(JSON.stringify(SS_DEFAULT));
+  PRODUCTOS=JSON.parse(JSON.stringify(PRODUCTOS_DEFAULT));
+  COM=Object.assign({},COM_DEFAULT);
+  localStorage.removeItem(STAFF_KEY);
+  renderStaffPanel();buildBarbers();buildServices();buildProdBarbers();
 }
 
 // ═══ ARRANCAR ════════════════════════════════════════════
