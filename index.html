@@ -5133,6 +5133,70 @@ function salaCheckin(){
   if(!nombre){toast('Escribe el nombre del cliente');return;}
   if(!bid){toast('Elige el barbero');return;}
   if(!svc){toast('Elige el servicio');return;}
+
+  if(bid==='any'){
+    // Resolve primer disponible live before submitting
+    toast('Buscando primer disponible…');
+    _resolverPrimerDisponible(function(resolvedBid, resolvedNombre){
+      if(!resolvedBid){
+        toast('⚠ Sin barberos disponibles en este momento');
+        return;
+      }
+      toast('⚡ Asignando a '+resolvedNombre+'…');
+      _doCheckin(nombre, resolvedBid, svc, tel);
+    });
+  } else {
+    _doCheckin(nombre, bid, svc, tel);
+  }
+}
+
+function _resolverPrimerDisponible(callback){
+  Promise.all([
+    fetch(API_URL+'/queue/control').then(function(r){return r.json();}),
+    fetch(API_URL+'/registros/dia?fecha='+fechaHoy).then(function(r){return r.json();}),
+    fetch(API_URL+'/horarios/'+fechaHoy).then(function(r){return r.json();}).catch(function(){return {ok:false};})
+  ]).then(function(res){
+    var queue=res[0]; var regData=res[1]; var horData=res[2];
+    var registros=regData.registros||regData||[];
+
+    var horMap={};
+    if(horData.ok&&horData.horarios){
+      horData.horarios.forEach(function(h){horMap[h.bid]=h;});
+    }
+    function presente(bid){var h=horMap[bid];return h&&h.entrada&&!h.salida;}
+
+    var lastSvc={};
+    registros.forEach(function(r){
+      if(r.bid&&r.bid!=='none'){
+        var hora=r.hora||'';
+        if(!lastSvc[r.bid]||hora>lastSvc[r.bid]) lastSvc[r.bid]=hora;
+      }
+    });
+
+    // Free = present + not currently in service + not marked absent
+    var libres=BB.filter(function(b){
+      if(b.active===false) return false;
+      var bd=queue.barberos&&queue.barberos[b.id];
+      var enServicio=bd&&bd.enServicio;
+      var ausente=bd&&bd.ausente;
+      return !enServicio && !ausente && presente(b.id);
+    });
+    // Sort: barber who finished their last service earliest goes first
+    libres.sort(function(a,b){
+      var ta=lastSvc[a.id]||'00:00:00';
+      var tb=lastSvc[b.id]||'00:00:00';
+      return ta<tb?-1:ta>tb?1:0;
+    });
+
+    var winner=libres[0]||null;
+    callback(winner?winner.id:null, winner?winner.nombre:null);
+  }).catch(function(e){
+    toast('Error al buscar disponible: '+e.message);
+    callback(null, null);
+  });
+}
+
+function _doCheckin(nombre, bid, svc, tel){
   fetch(API_URL+'/queue/control/checkin',{
     method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({client_name:nombre,phone:tel||null,bid:bid,service:svc})
