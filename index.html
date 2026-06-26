@@ -3696,9 +3696,12 @@ function renderHorarios(){
   for(var i=0;i<activeBBHor.length;i++){
     var b=activeBBHor[i];
     var reg=regMap[b.id]||{bid:b.id,bnom:b.nombre,entrada:'',salida:''};
+    // Normalise null from API → empty string (avoids value="null" on time inputs)
+    var entradaVal = reg.entrada||'';
+    var salidaVal  = reg.salida||'';
     var svcCnt=regs.filter(function(r){return r.bid===b.id;}).length;
-    var hasEntrada = reg.entrada!=='';
-    var hasSalida  = reg.salida!=='';
+    var hasEntrada = entradaVal!=='';
+    var hasSalida  = salidaVal!=='';
 
     h+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden">'
       // Header barbero
@@ -3712,12 +3715,12 @@ function renderHorarios(){
       +'<div>'
       +'<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:6px">Entrada</div>'
       +'<div style="display:flex;gap:6px;align-items:center">'
-      +'<input type="time" value="'+reg.entrada+'" data-bid="'+b.id+'" data-tipo="entrada" '
+      +'<input type="time" value="'+entradaVal+'" data-bid="'+b.id+'" data-tipo="entrada" '
       +'oninput="guardarHoraManual(this.dataset.bid,this.dataset.tipo,this.value)" '
       +'style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--mono);font-size:14px;'+(hasEntrada?'border-color:var(--ok);background:var(--ok-soft)':'')+'">'
       +'<button data-bid="'+b.id+'" data-tipo="entrada" onclick="marcarHora(this.dataset.bid,this.dataset.tipo)" '
       +'style="padding:6px 10px;background:'+(hasEntrada?'var(--ok)':'var(--text)')+';color:#fff;border:none;border-radius:var(--r);font-size:11px;cursor:pointer;white-space:nowrap">'
-      +(hasEntrada?'✓ '+reg.entrada:'Marcar ahora')
+      +(hasEntrada?'✓ '+entradaVal:'Marcar ahora')
       +'</button>'
       +'</div>'
       +'</div>'
@@ -3726,12 +3729,12 @@ function renderHorarios(){
       +'<div>'
       +'<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:6px">Salida</div>'
       +'<div style="display:flex;gap:6px;align-items:center">'
-      +'<input type="time" value="'+reg.salida+'" data-bid="'+b.id+'" data-tipo="salida" '
+      +'<input type="time" value="'+salidaVal+'" data-bid="'+b.id+'" data-tipo="salida" '
       +'oninput="guardarHoraManual(this.dataset.bid,this.dataset.tipo,this.value)" '
       +'style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--mono);font-size:14px;'+(hasSalida?'border-color:var(--info);background:var(--info-soft)':'')+'">'
       +'<button data-bid="'+b.id+'" data-tipo="salida" onclick="marcarHora(this.dataset.bid,this.dataset.tipo)" '
       +'style="padding:6px 10px;background:'+(hasSalida?'var(--info)':'var(--text)')+';color:#fff;border:none;border-radius:var(--r);font-size:11px;cursor:pointer;white-space:nowrap">'
-      +(hasSalida?'✓ '+reg.salida:'Marcar ahora')
+      +(hasSalida?'✓ '+salidaVal:'Marcar ahora')
       +'</button>'
       +'</div>'
       +'</div>'
