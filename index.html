@@ -5134,20 +5134,7 @@ function salaCheckin(){
   if(!bid){toast('Elige el barbero');return;}
   if(!svc){toast('Elige el servicio');return;}
 
-  if(bid==='any'){
-    // Resolve primer disponible live before submitting
-    toast('Buscando primer disponible…');
-    _resolverPrimerDisponible(function(resolvedBid, resolvedNombre){
-      if(!resolvedBid){
-        toast('⚠ Sin barberos disponibles en este momento');
-        return;
-      }
-      toast('⚡ Asignando a '+resolvedNombre+'…');
-      _doCheckin(nombre, resolvedBid, svc, tel);
-    });
-  } else {
-    _doCheckin(nombre, bid, svc, tel);
-  }
+  _doCheckin(nombre, bid, svc, tel);
 }
 
 function _resolverPrimerDisponible(callback){
@@ -5203,8 +5190,9 @@ function _doCheckin(nombre, bid, svc, tel){
   }).then(function(r){return r.json();})
     .then(function(j){
       if(!j.ok){toast('Error: '+(j.error||'sin respuesta'));return;}
-      var nb=(BB.find(function(b){return b.id===bid;})||{}).nombre||bid;
-      toast('✓ '+nombre+' en cola de '+nb+' · ~'+j.estimated_wait_min+' min');
+      var nb=bid==='any'?'sala de espera':(BB.find(function(b){return b.id===bid;})||{}).nombre||bid;
+      var waitLbl=bid==='any'?'esperando barbero':'~'+j.estimated_wait_min+' min';
+      toast('✓ '+nombre+' en '+nb+' · '+waitLbl);
       document.getElementById('sala-tel').value='';
       document.getElementById('sala-nombre').value='';
       document.getElementById('sala-bid').value='';
@@ -5433,11 +5421,51 @@ function renderSala(){
         }
         h+='</div></div>';
       });
+      // ── Pool / sala de espera sin barbero ─────────────────
+      if(j.pool && j.pool.length>0){
+        h+='<div style="background:var(--surface);border:2px dashed var(--border2);border-radius:var(--rl);overflow:hidden;grid-column:1/-1">';
+        h+='<div style="height:4px;background:repeating-linear-gradient(90deg,#d97706 0,#d97706 8px,transparent 8px,transparent 16px)"></div>';
+        h+='<div style="padding:11px 14px 10px;background:var(--surface2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">';
+        h+='<div style="width:34px;height:34px;border-radius:50%;background:#d97706;color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">⏳</div>';
+        h+='<div><div style="font-weight:800;font-size:15px;color:var(--text);letter-spacing:-.02em">Sala de Espera</div>';
+        h+='<div style="font-size:11px;color:#d97706;font-weight:600">'+j.pool.length+' cliente'+(j.pool.length>1?'s':'')+' esperando barbero disponible</div>';
+        h+='</div></div>';
+        h+='<div style="padding:12px 14px">';
+        j.pool.forEach(function(e,i){
+          var espera=Math.round((Date.now()-new Date(e.checkin_at).getTime())/60000);
+          h+='<div style="display:flex;align-items:center;justify-content:space-between;padding:'+(i>0?'10':'6')+'px 0 6px;'+(i>0?'border-top:1px solid var(--border)':'')+'">';
+          h+='<div>';
+          h+='<div style="font-weight:600;font-size:13px">'+e.client_name+'</div>';
+          h+='<div style="font-size:11px;color:var(--text2)">'+e.service+' · hace '+espera+' min</div>';
+          h+='</div>';
+          h+='<div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end">';
+          BB.filter(function(b){return b.active!==false;}).forEach(function(b){
+            var clr=salaBarberColor(b.id);
+            h+='<button onclick="salaAsignarDePool('+e.queue_id+',\''+b.id+'\')" ';
+            h+='style="padding:4px 9px;font-size:11px;font-weight:700;background:'+clr.accent+';color:#fff;border:none;border-radius:var(--r);cursor:pointer;white-space:nowrap">▶ '+b.nombre.split(' ')[0]+'</button>';
+          });
+          h+='</div></div>';
+        });
+        h+='</div></div>';
+      }
       if(!h) h='<div class="empty" style="grid-column:1/-1"><div class="empty-ico">✓</div><div>Cola vacía</div></div>';
       document.getElementById('salaGrid').innerHTML=h;
     }).catch(function(e){
       document.getElementById('salaGrid').innerHTML='<div class="empty" style="grid-column:1/-1"><div class="empty-ico">⚠</div><div>Error: '+e.message+'</div></div>';
     });
+}
+
+function salaAsignarDePool(queue_id, bid){
+  if(!API_URL) return;
+  fetch(API_URL+'/queue/control/assign',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({queue_id:queue_id,bid:bid})
+  }).then(function(r){return r.json();})
+    .then(function(j){
+      if(!j.ok){toast('Error: '+(j.error||'sin respuesta'));return;}
+      toast('✓ Asignado a '+j.barber_nombre+' · posición #'+j.queue_position);
+      renderSala();
+    }).catch(function(e){toast('Error de conexión: '+e.message);});
 }
 
 // ═══ SILLAS (estado de sillas + rotación) ════════════════
