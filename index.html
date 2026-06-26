@@ -5514,9 +5514,13 @@ function renderSillas(){
       return !(queue.barberos[b.id]&&queue.barberos[b.id].enServicio) && presente(b.id);
     });
     libres.sort(function(a,b){
-      var ta=lastSvc[a.id]||'00:00:00';
-      var tb=lastSvc[b.id]||'00:00:00';
-      return ta<tb?-1:ta>tb?1:0;
+      var ta=lastSvc[a.id]||'';
+      var tb=lastSvc[b.id]||'';
+      if(ta!==tb) return ta<tb?-1:1;
+      // Tiebreaker: quien llegó primero al trabajo va primero
+      var ea=(horMap[a.id]&&horMap[a.id].entrada)||'99:99';
+      var eb=(horMap[b.id]&&horMap[b.id].entrada)||'99:99';
+      return ea<eb?-1:ea>eb?1:0;
     });
 
     // Banner próximo turno
@@ -5524,9 +5528,10 @@ function renderSillas(){
     if(libres.length>0){
       var next=libres[0];
       var resto=libres.slice(1).map(function(b){return b.nombre;}).join(', ');
+      var llegadaNext=horMap[next.id]&&horMap[next.id].entrada?horMap[next.id].entrada.slice(0,5):'';
       var motivo=lastSvc[next.id]
-        ?'Terminó su último corte a las '+lastSvc[next.id].slice(0,5)
-        :'Sin servicios registrados hoy (primero del día)';
+        ?'Terminó su último servicio a las '+lastSvc[next.id].slice(0,5)
+        :'Primer turno del día'+(llegadaNext?' · llegó '+llegadaNext:'');
       bannerEl.innerHTML=
         '<div class="silla-next-banner">'+
         '<div style="font-size:36px;line-height:1">✂</div>'+
