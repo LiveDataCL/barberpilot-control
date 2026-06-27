@@ -406,6 +406,22 @@ function cargarDesdeAPI(){
   var desdeStr = desde.toISOString().slice(0,10);
   var hastaStr = ahora.toISOString().slice(0,10);
 
+  if(!DASHBOARD_TOKEN){
+    _cargarPorDia(desdeStr,hastaStr,function(ok){
+      if(ok&&jornadas.length>0){
+        renderTodo();
+        if(st) st.textContent='✓ '+jornadas.length+' jornadas · '+new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
+        toast('✓ '+jornadas.length+' jornadas cargadas');
+        clearNotice();
+      } else {
+        showNotice('warn','No se obtuvieron datos de la API. Usa "Importar JSON" o "Demo" para continuar.');
+        renderTodo();
+      }
+      btn.textContent='☁ Cargar API'; btn.disabled=false;
+    });
+    return;
+  }
+
   var hdrs={'X-Dashboard-Token':DASHBOARD_TOKEN};
   Promise.all([
     fetch(API_URL+'/registros/rango?desde='+desdeStr+'&hasta='+hastaStr,{headers:hdrs}).then(function(r){return r.json();}),
@@ -499,6 +515,29 @@ function lunesDe(d){
 }
 function isoDate(d){ return d.toISOString().slice(0,10); }
 
+// Carga pública día por día — no requiere token
+function _cargarPorDia(desde, hasta, done){
+  var dias=[], cur=new Date(desde+'T12:00:00'), fin=new Date(hasta+'T12:00:00');
+  while(cur<=fin){ dias.push(isoDate(cur)); cur.setDate(cur.getDate()+1); }
+  Promise.all(dias.map(function(fecha){
+    return fetch(API_URL+'/registros/dia?fecha='+fecha,{mode:'cors'})
+      .then(function(r){return r.json();})
+      .catch(function(){return{ok:false,fecha:fecha,registros:[]};});
+  })).then(function(results){
+    jornadas=[];
+    results.forEach(function(json){
+      if(!json.ok||!json.registros||json.registros.length===0) return;
+      jornadas.push({fecha:json.fecha,registros:json.registros.map(function(r){
+        return{bid:r.bid,bnom:r.bnom,snom:r.snom,
+          precio:parseInt(r.precio)||0,pago:r.pago,
+          bb:parseInt(r.bb)||0,neg:parseInt(r.neg)||0,propina:parseInt(r.propina||0)};
+      })});
+    });
+    jornadas.sort(function(a,b){return a.fecha<b.fecha?-1:1;});
+    done(jornadas.length>0);
+  }).catch(function(){ done(false); });
+}
+
 function setPeriod(p, el){
   document.querySelectorAll('.ctrl-bar .pf').forEach(function(b){
     if(b.onclick&&b.onclick.toString().indexOf('setPeriod')>=0) b.classList.remove('on');
@@ -525,6 +564,14 @@ function setPeriod(p, el){
 }
 
 function cargarRango(desde, hasta){
+  if(!DASHBOARD_TOKEN){
+    _cargarPorDia(desde,hasta,function(){
+      var st=document.getElementById('syncStatus');
+      if(st) st.textContent='✓ '+new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
+      renderTodo();
+    });
+    return;
+  }
   var hdrs={'X-Dashboard-Token':DASHBOARD_TOKEN};
   Promise.all([
     fetch(API_URL+'/registros/rango?desde='+desde+'&hasta='+hasta,{headers:hdrs}).then(function(r){return r.json();}),
@@ -1020,6 +1067,10 @@ function cargarDesdeAPI_silente(callback){
   var desdeStr=isoDate(lunesDe(ahora));
   var hastaStr=isoDate(ahora);
 
+  if(!DASHBOARD_TOKEN){
+    _cargarPorDia(desdeStr,hastaStr,callback);
+    return;
+  }
   var hdrs={'X-Dashboard-Token':DASHBOARD_TOKEN};
   Promise.all([
     fetch(API_URL+'/registros/rango?desde='+desdeStr+'&hasta='+hastaStr,{headers:hdrs}).then(function(r){return r.json();}),
