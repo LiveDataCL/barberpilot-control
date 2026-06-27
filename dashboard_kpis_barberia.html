@@ -515,17 +515,24 @@ function lunesDe(d){
 }
 function isoDate(d){ return d.toISOString().slice(0,10); }
 
-// Carga pública día por día — no requiere token
+// Carga pública día por día — no requiere token (registros + gastos)
 function _cargarPorDia(desde, hasta, done){
   var dias=[], cur=new Date(desde+'T12:00:00'), fin=new Date(hasta+'T12:00:00');
   while(cur<=fin){ dias.push(isoDate(cur)); cur.setDate(cur.getDate()+1); }
-  Promise.all(dias.map(function(fecha){
+  var pRegs=dias.map(function(fecha){
     return fetch(API_URL+'/registros/dia?fecha='+fecha,{mode:'cors'})
       .then(function(r){return r.json();})
       .catch(function(){return{ok:false,fecha:fecha,registros:[]};});
-  })).then(function(results){
+  });
+  var pGastos=dias.map(function(fecha){
+    return fetch(API_URL+'/gastos/dia?fecha='+fecha,{mode:'cors'})
+      .then(function(r){return r.json();})
+      .catch(function(){return{ok:true,fecha:fecha,gastos:[]};});
+  });
+  Promise.all([Promise.all(pRegs),Promise.all(pGastos)]).then(function(all){
+    var rResults=all[0], gResults=all[1];
     jornadas=[];
-    results.forEach(function(json){
+    rResults.forEach(function(json){
       if(!json.ok||!json.registros||json.registros.length===0) return;
       jornadas.push({fecha:json.fecha,registros:json.registros.map(function(r){
         return{bid:r.bid,bnom:r.bnom,snom:r.snom,
@@ -534,6 +541,11 @@ function _cargarPorDia(desde, hasta, done){
       })});
     });
     jornadas.sort(function(a,b){return a.fecha<b.fecha?-1:1;});
+    gastosData={};
+    gResults.forEach(function(json){
+      if(!json.ok||!json.gastos||json.gastos.length===0) return;
+      gastosData[json.fecha]=json.gastos;
+    });
     done(jornadas.length>0);
   }).catch(function(){ done(false); });
 }
