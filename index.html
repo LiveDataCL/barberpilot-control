@@ -5515,9 +5515,10 @@ function renderSillas(){
       }
     });
 
-    // Barberos libres Y presentes → rotation candidates
+    // Barberos libres Y presentes Y no ausentes → rotation candidates
     var libres=BB.filter(function(b){
-      return !(queue.barberos[b.id]&&queue.barberos[b.id].enServicio) && presente(b.id);
+      var bd=queue.barberos[b.id]||{};
+      return !bd.enServicio && !bd.ausente && presente(b.id);
     });
     libres.sort(function(a,b){
       var ta=lastSvc[a.id]||'';
@@ -5584,7 +5585,7 @@ function renderSillas(){
         h+='<div class="silla-desde">En silla desde las '+desde+'</div>';
         if(sv.service_start) h+='<input type="hidden" id="sstart-'+b.id+'" value="'+sv.service_start+'">';
         h+='</div></div>';
-      } else if(esPresente){
+      } else if(esPresente && !bd.ausente){
         // Libre y presente
         h+='<div class="silla-card libre">';
         h+='<div class="silla-head libre">';
@@ -5598,17 +5599,20 @@ function renderSillas(){
         if(lastSvc[b.id]) h+='<div style="font-size:11px;color:var(--text3);margin-top:8px">Último servicio: '+lastSvc[b.id].slice(0,5)+'</div>';
         h+='</div></div>';
       } else {
-        // Ausente: ya salió o no ha llegado
-        var motivoAusente=seWas
-          ?'Salió a las '+(horMap[b.id].salida||'')
-          :'No ha llegado';
+        // Ausente: marcado manualmente, ya salió, o no ha llegado
+        var motivoAusente=bd.ausente
+          ?'Salió temporalmente ⏸'
+          :seWas
+            ?'Salió a las '+(horMap[b.id].salida||'')
+            :'No ha llegado';
+        var labelAusente=bd.ausente?'Ausente':( seWas ? 'Fuera de turno' : 'Sin registrar llegada' );
         h+='<div class="silla-card ausente">';
         h+='<div class="silla-head ausente">';
         h+='<div><div class="silla-nombre">'+b.nombre+'</div>';
-        h+='<div class="silla-status-lbl">'+( seWas ? 'Fuera de turno' : 'Sin registrar llegada' )+'</div></div>';
+        h+='<div class="silla-status-lbl">'+labelAusente+'</div></div>';
         h+='</div>';
         h+='<div class="silla-body">';
-        h+='<div style="font-size:24px;margin:6px 0;color:var(--text3)">—</div>';
+        h+='<div style="font-size:24px;margin:6px 0;color:var(--text3)">'+(bd.ausente?'⏸':'—')+'</div>';
         h+='<div style="font-size:12px;color:var(--text3)">'+motivoAusente+'</div>';
         if(lastSvc[b.id]) h+='<div style="font-size:11px;color:var(--text3);margin-top:8px">Último servicio hoy: '+lastSvc[b.id].slice(0,5)+'</div>';
         h+='</div></div>';
