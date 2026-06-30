@@ -307,11 +307,11 @@
   .silla-card{background:var(--surface);border:2px solid var(--border);border-radius:var(--rl);overflow:hidden;transition:border-color .15s}
   .silla-card.libre{border-color:#b8e5c8}
   .silla-card.ocupada{border-color:var(--text)}
-  .silla-card.ausente{border-color:var(--border);opacity:.55}
+  .silla-card.ausente{border-color:#d4a843;background:rgba(212,168,67,.06)}
   .silla-head{padding:13px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
   .silla-head.libre{background:#e6f4ea}
   .silla-head.ocupada{background:var(--text);color:#fff}
-  .silla-head.ausente{background:var(--surface2);color:var(--text3)}
+  .silla-head.ausente{background:#d4a843;color:#0a0908}
   .silla-nombre{font-weight:700;font-size:15px;letter-spacing:.01em}
   .silla-status-lbl{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-top:2px}
   .silla-body{padding:14px 16px}
@@ -5559,9 +5559,12 @@ function renderSillas(){
         '</div></div>';
     }
 
-    // Tarjetas de silla
+    // Tarjetas de silla — ausentes primero para mayor visibilidad
     var h='';
-    BB.filter(function(b){return b.active!==false;}).forEach(function(b){
+    var activeBB=BB.filter(function(b){return b.active!==false;});
+    var ausentesBB=activeBB.filter(function(b){return queue.barberos[b.id]&&queue.barberos[b.id].ausente;});
+    var presentesBB=activeBB.filter(function(b){return !(queue.barberos[b.id]&&queue.barberos[b.id].ausente);});
+    ausentesBB.concat(presentesBB).forEach(function(b){
       var bd=queue.barberos[b.id]||{};
       var sv=bd.enServicio||null;
       var nEspera=(bd.enEspera||[]).length;
@@ -5612,8 +5615,8 @@ function renderSillas(){
         h+='<div class="silla-status-lbl">'+labelAusente+'</div></div>';
         h+='</div>';
         h+='<div class="silla-body">';
-        h+='<div style="font-size:24px;margin:6px 0;color:var(--text3)">'+(bd.ausente?'⏸':'—')+'</div>';
-        h+='<div style="font-size:12px;color:var(--text3)">'+motivoAusente+'</div>';
+        h+='<div style="font-size:28px;margin:6px 0;color:#9a6e0a">'+(bd.ausente?'⏸':'—')+'</div>';
+        h+='<div style="font-size:12px;color:var(--text2);font-weight:600">'+motivoAusente+'</div>';
         if(lastSvc[b.id]) h+='<div style="font-size:11px;color:var(--text3);margin-top:8px">Último servicio hoy: '+lastSvc[b.id].slice(0,5)+'</div>';
         h+='</div></div>';
       }
