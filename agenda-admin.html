@@ -296,6 +296,7 @@ button{cursor:pointer}
   <span class="pill" data-bid="b2" onclick="setFilter('b2')">Emerson</span>
   <span class="pill" data-bid="b3" onclick="setFilter('b3')">Samuel</span>
   <span class="pill" data-bid="b4" onclick="setFilter('b4')">David</span>
+  <span class="pill" data-bid="b5" onclick="setFilter('b5')">Steven</span>
 </div>
 
 <!-- KPI BAR -->
@@ -473,9 +474,10 @@ const SLOT_H = 68, SLOT_M = 30;
 const BARBERS = [
   {id:'b1',name:'Didian'},{id:'b2',name:'Emerson'},
   {id:'b3',name:'Samuel'},{id:'b4',name:'David'},
+  {id:'b5',name:'Steven'},
 ];
-const B_MAP    = {b1:'Didian',b2:'Emerson',b3:'Samuel',b4:'David'};
-const BID_TO_QID = {b1:'didian',b2:'emerson',b3:'samuel',b4:'david'};
+const B_MAP    = {b1:'Didian',b2:'Emerson',b3:'Samuel',b4:'David',b5:'Steven'};
+const BID_TO_QID = {b1:'didian',b2:'emerson',b3:'samuel',b4:'david',b5:'steven'};
 const SCHED = {
   1:{o:'10:00',c:'20:00'},2:{o:'10:00',c:'20:00'},3:{o:'10:00',c:'20:00'},
   4:{o:'10:00',c:'20:00'},5:{o:'10:00',c:'20:00'},6:{o:'10:00',c:'15:00'},0:null

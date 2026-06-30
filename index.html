@@ -695,6 +695,7 @@
             <option value="b1">Didian</option>
             <option value="b2">Emerson</option>
             <option value="b3">Samuel</option>
+            <option value="b5">Steven</option>
           </select>
         </div>
         <button onclick="salaGuardarCliente()"
@@ -979,7 +980,8 @@ var BB=[
   {id:'b1',nombre:'Didian',  active:true},
   {id:'b2',nombre:'Emerson', active:true},
   {id:'b3',nombre:'Samuel',  active:true},
-  {id:'b4',nombre:'David',   active:false}
+  {id:'b4',nombre:'David',   active:false},
+  {id:'b5',nombre:'Steven',  active:true}
 ];
 var SS=[
   {id:'s01',nombre:'Corte',                       precio:12000,tiempo:'30 min'},
@@ -5076,9 +5078,10 @@ var _pagoSelections = {}; // { queue_id: 'efectivo'|'debito'|'transferencia' }
 
 // Per-barber accent colors — deterministic by bid, separate from brand & sync-state variables
 var SALA_BARBER_COLORS = {
-  b1: {accent:'#c9a84c', bg:'rgba(201,168,76,0.08)', text:'#7a5f20', initials:'D'},
-  b2: {accent:'#4db87a', bg:'rgba(77,184,122,0.08)', text:'#1a5c34', initials:'E'},
-  b3: {accent:'#5580d4', bg:'rgba(85,128,212,0.08)', text:'#1a4b8b', initials:'S'},
+  b1: {accent:'#c9a84c', bg:'rgba(201,168,76,0.08)',  text:'#7a5f20', initials:'D'},
+  b2: {accent:'#4db87a', bg:'rgba(77,184,122,0.08)',  text:'#1a5c34', initials:'E'},
+  b3: {accent:'#5580d4', bg:'rgba(85,128,212,0.08)',  text:'#1a4b8b', initials:'S'},
+  b5: {accent:'#d4844a', bg:'rgba(212,132,74,0.08)',  text:'#7a3a1a', initials:'Sv'},
 };
 function salaBarberColor(bid){
   return SALA_BARBER_COLORS[bid]||{accent:'var(--text3)',bg:'rgba(0,0,0,0.04)',text:'var(--text2)',initials:'?'};
@@ -5795,7 +5798,8 @@ var BB_DEFAULT=[
   {id:'b1',nombre:'Didian',  active:true},
   {id:'b2',nombre:'Emerson', active:true},
   {id:'b3',nombre:'Samuel',  active:true},
-  {id:'b4',nombre:'David',   active:false}
+  {id:'b4',nombre:'David',   active:false},
+  {id:'b5',nombre:'Steven',  active:true}
 ];
 var SS_DEFAULT=[
   {id:'s01',nombre:'Corte',                              precio:12000,tiempo:'30 min'},
@@ -5817,7 +5821,7 @@ var PRODUCTOS_DEFAULT=[
 var COM_DEFAULT={efectivo:.5,debito:.43,transferencia:.5};
 
 // Canonical bid→name — must match constants.js in the app and BARBER_NAME_MAP in the API
-var BB_CANONICAL_NAMES = {b1:'Didian',b2:'Emerson',b3:'Samuel',b4:'David'};
+var BB_CANONICAL_NAMES = {b1:'Didian',b2:'Emerson',b3:'Samuel',b4:'David',b5:'Steven'};
 
 function loadStaffConfig(){
   try{
