@@ -684,6 +684,7 @@ function datosPorDia(js){
 }
 function datosPorBarbero(regs){
   var res={};
+  ACTIVE_BARBERS.forEach(function(b){ res[b]={tot:0,tBB:0,tNeg:0,cnt:0}; });
   regs.forEach(function(r){
     if(!res[r.bnom]) res[r.bnom]={tot:0,tBB:0,tNeg:0,cnt:0};
     res[r.bnom].tot+=r.precio; res[r.bnom].tBB+=r.bb+(r.propina||0); res[r.bnom].tNeg+=r.neg; res[r.bnom].cnt++;
