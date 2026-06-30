@@ -631,11 +631,17 @@
       style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.45);z-index:600;align-items:center;justify-content:center">
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:20px;width:380px;max-width:94vw;box-shadow:0 8px 32px rgba(0,0,0,.15)">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-          <div style="font-size:14px;font-weight:700">✏ Editar pago</div>
+          <div style="font-size:14px;font-weight:700">✏ Editar registro</div>
           <button onclick="cerrarEditPago()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text3);padding:2px 6px;line-height:1">✕</button>
         </div>
         <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Registro</div>
         <div id="editPagoInfo" style="font-size:13px;font-weight:500;margin-bottom:14px;color:var(--text2)">—</div>
+        <div style="margin-bottom:12px">
+          <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Servicio</div>
+          <input id="editPagoServicio" type="text" list="editPagoServicioList" placeholder="Ej: Corte"
+            style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--sans);background:var(--surface)"/>
+          <datalist id="editPagoServicioList"></datalist>
+        </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
           <div>
             <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Método de pago</div>
@@ -2055,11 +2061,14 @@ function resetForm(){
 
 // ═══ EDITAR PAGO ════════════════════════════════════════
 var _editPagoId = null;
-function abrirEditPago(id, pagoActual, precioActual, info){
+function abrirEditPago(id, pagoActual, precioActual, info, svcActual){
   _editPagoId = id;
   document.getElementById('editPagoInfo').textContent = info || id;
   document.getElementById('editPagoSel').value = pagoActual || 'efectivo';
   document.getElementById('editPagoPrecio').value = precioActual || '';
+  document.getElementById('editPagoServicio').value = svcActual || '';
+  var dl = document.getElementById('editPagoServicioList');
+  dl.innerHTML = SS.map(function(s){ return '<option value="'+escAttr(s.nombre)+'">'; }).join('');
   var por = sessionStorage.getItem('auditModificadoPor') || '';
   document.getElementById('editPagoPor').value = por;
   document.getElementById('editPagoOverlay').style.display = 'flex';
@@ -2073,11 +2082,13 @@ function guardarEditPago(){
   if(!staffGetToken()){ toast('Token de dashboard requerido — ve a ⚙ Personal'); return; }
   var pago = document.getElementById('editPagoSel').value;
   var precio = document.getElementById('editPagoPrecio').value;
+  var servicio = (document.getElementById('editPagoServicio').value || '').trim();
   var por = (document.getElementById('editPagoPor').value || '').trim();
   if(!por){ toast('Escribe tu nombre en "Modificado por"'); return; }
   sessionStorage.setItem('auditModificadoPor', por);
   var body = { pago: pago, modificado_por: por };
   if(precio) body.precio = parseInt(precio);
+  if(servicio) body.snom = servicio;
   fetch(API_URL+'/registros/'+_editPagoId+'/pago', {
     method: 'PATCH',
     headers: {'Content-Type':'application/json','x-dashboard-token': staffGetToken()},
@@ -2085,7 +2096,7 @@ function guardarEditPago(){
   }).then(function(r){return r.json();})
     .then(function(j){
       if(j.ok){
-        toast('✓ Pago actualizado');
+        toast('✓ Registro actualizado');
         cerrarEditPago();
         cargarRegistrosDia();
       } else { toast('Error: '+(j.error||'?')); }
@@ -2124,7 +2135,7 @@ function renderReg(){
       +'<td><span style="font-size:12px;color:var(--text2);display:block;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(r.cliente_nombre||r.cliente_id||'')+'">'+( r.cliente_nombre||r.cliente_id||'—')+'</span></td>'
       +'<td style="white-space:nowrap">'
       +'<button class="bsm" onclick="verTkt(\''+r.id+'\')">Ver</button>'
-      +'<button class="bsm" onclick="abrirEditPago(\''+r.id+'\',\''+r.pago+'\','+r.precio+',\''+escAttr(r.bnom)+' – '+escAttr(r.snom)+'\')" title="Editar pago">✏</button>'
+      +'<button class="bsm" onclick="abrirEditPago(\''+r.id+'\',\''+r.pago+'\','+r.precio+',\''+escAttr(r.bnom)+' – '+escAttr(r.snom)+'\',\''+escAttr(r.snom)+'\')" title="Editar registro">✏</button>'
       +'<button class="bsm dx" onclick="del(\''+r.id+'\')">✕</button>'
       +'</td></tr>';
   }
