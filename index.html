@@ -1160,7 +1160,8 @@ function eliminarDeSheets(id) {
   if (API_URL) {
     // Railway: DELETE real
     fetch(API_URL + '/registros/' + encodeURIComponent(id), {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: {'x-dashboard-token': staffGetToken()}
     }).then(function(r){ return r.json(); })
     .then(function(d){ if(!d.ok) console.warn('Delete API error:', d); })
     .catch(function(e){ console.warn('Delete error:', e); });
@@ -1194,7 +1195,8 @@ function sincronizarGastoSheets(g, accion) {
     } else {
       // Eliminar gasto de Railway
       fetch(API_URL + '/gastos/' + encodeURIComponent(g.id), {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: {'x-dashboard-token': staffGetToken()}
       }).catch(function(e){ console.warn('Delete gasto error:', e); });
     }
   } else if (SHEETS_URL) {
@@ -2326,7 +2328,7 @@ function aprobar(id){
   if(row) row.style.opacity='.4';
   fetch(API_URL+'/registros/'+id+'/estado',{
     method:'PATCH',
-    headers:{'Content-Type':'application/json'},
+    headers:{'Content-Type':'application/json','x-dashboard-token':staffGetToken()},
     body:JSON.stringify({estado:'confirmado'})
   }).then(function(){
     toast('✓ Servicio aprobado');
@@ -2340,7 +2342,7 @@ function rechazar(id){
   if(row) row.style.opacity='.4';
   fetch(API_URL+'/registros/'+id+'/estado',{
     method:'PATCH',
-    headers:{'Content-Type':'application/json'},
+    headers:{'Content-Type':'application/json','x-dashboard-token':staffGetToken()},
     body:JSON.stringify({estado:'rechazado'})
   }).then(function(){
     toast('Registro rechazado');
@@ -2383,7 +2385,7 @@ function aprobarTodos(){
   Promise.all(ids.map(function(id){
     return fetch(API_URL+'/registros/'+id+'/estado',{
       method:'PATCH',
-      headers:{'Content-Type':'application/json'},
+      headers:{'Content-Type':'application/json','x-dashboard-token':staffGetToken()},
       body:JSON.stringify({estado:'confirmado'})
     });
   })).then(function(){
@@ -2799,7 +2801,7 @@ function limpiarHoy(){
   // Eliminar cada registro de la BD
   if(API_URL){
     regs.forEach(function(r){
-      fetch(API_URL+'/registros/'+encodeURIComponent(r.id), {method:'DELETE'})
+      fetch(API_URL+'/registros/'+encodeURIComponent(r.id), {method:'DELETE',headers:{'x-dashboard-token':staffGetToken()}})
         .catch(function(e){console.warn('Delete error:',e);});
     });
   }
@@ -5141,7 +5143,7 @@ function buscarClientePorTel(){
   var badge=document.getElementById('sala-tel-badge');
   if(!tel){badge.textContent='';return;}
   badge.textContent='Buscando…';badge.style.color='var(--text3)';
-  fetch(API_URL+'/clientes?q='+encodeURIComponent(tel))
+  fetch(API_URL+'/clientes?q='+encodeURIComponent(tel),{headers:{'x-dashboard-token':staffGetToken()}})
     .then(function(r){return r.json();})
     .then(function(j){
       var clientes=j.clientes||[];
@@ -5311,7 +5313,7 @@ function salaCerrarServicio(queue_id,bid,pago,propina,precio){
 function salaEliminarEntrada(queue_id){
   if(!API_URL) return;
   if(!window.confirm('¿Eliminar esta entrada de la cola?')) return;
-  fetch(API_URL+'/queue/'+queue_id,{method:'DELETE'})
+  fetch(API_URL+'/queue/'+queue_id,{method:'DELETE',headers:{'x-dashboard-token':staffGetToken()}})
     .then(function(r){return r.json();})
     .then(function(j){
       if(j.ok){toast('Entrada eliminada de la cola');renderSala();}
@@ -5323,7 +5325,7 @@ function toggleBarberAvailability(barberName, available){
   if(!API_URL) return;
   fetch(API_URL+'/barbers/'+barberName+'/availability',{
     method:'PATCH',
-    headers:{'Content-Type':'application/json'},
+    headers:{'Content-Type':'application/json','x-dashboard-token':staffGetToken()},
     body:JSON.stringify({available:available})
   }).then(function(r){return r.json();}).then(function(j){
     if(j.ok){
@@ -5688,7 +5690,7 @@ function buscarClienteCRM(){
   if(!q){toast('Escribe un nombre o teléfono');return;}
   var el=document.getElementById('salaCrmResultados');
   el.innerHTML='<div style="font-size:12px;color:var(--text3);padding:8px 0">Buscando…</div>';
-  fetch(API_URL+'/clientes?q='+encodeURIComponent(q))
+  fetch(API_URL+'/clientes?q='+encodeURIComponent(q),{headers:{'x-dashboard-token':staffGetToken()}})
     .then(function(r){return r.json();})
     .then(function(j){
       var clientes=j.clientes||[];
@@ -5856,7 +5858,7 @@ var PRODUCTOS_DEFAULT=[
 var COM_DEFAULT={efectivo:.5,debito:.43,transferencia:.5};
 
 // Canonical bid→name — must match constants.js in the app and BARBER_NAME_MAP in the API
-var BB_CANONICAL_NAMES = {b1:'Didian',b2:'Emerson',b3:'Samuel',b4:'David',b5:'Steven'};
+var BB_CANONICAL_NAMES = {b1:'Didian',b2:'Emerson',b3:'Samuel',b5:'Steven'};
 
 function loadStaffConfig(){
   try{
