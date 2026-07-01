@@ -702,6 +702,7 @@
             <option value="b2">Emerson</option>
             <option value="b3">Samuel</option>
             <option value="b5">Steven</option>
+            <!-- Options refreshed dynamically by loadBB() from GET /barberos -->
           </select>
         </div>
         <button onclick="salaGuardarCliente()"
@@ -982,13 +983,29 @@
 
 <script>
 // ═══ DATOS ═══════════════════════════════════════════════
+// Populated from GET /barberos — adding a barber to DB propagates here automatically
 var BB=[
   {id:'b1',nombre:'Didian',  active:true},
   {id:'b2',nombre:'Emerson', active:true},
   {id:'b3',nombre:'Samuel',  active:true},
-  {id:'b4',nombre:'David',   active:false},
   {id:'b5',nombre:'Steven',  active:true}
 ];
+(function loadBB(){
+  var apiBase='https://barberpilot-api-production.up.railway.app';
+  fetch(apiBase+'/barberos').then(function(r){return r.json();}).then(function(list){
+    BB=list.map(function(b){return{id:b.bid,nombre:b.nombre,active:b.activo};});
+    // Repopulate reasignar barbero select
+    var sel=document.getElementById('editor-bid');
+    if(sel){
+      var cur=sel.value;
+      sel.innerHTML='<option value="">Sin cambio</option><option value="any">⚡ Primer disponible</option>'
+        +BB.filter(function(b){return b.active;}).map(function(b){
+          return '<option value="'+b.id+'">'+b.nombre+'</option>';
+        }).join('');
+      sel.value=cur;
+    }
+  }).catch(function(){});
+})();
 var SS=[
   {id:'s01',nombre:'Corte',                       precio:12000,tiempo:'30 min'},
   {id:'s02',nombre:'Barba',                        precio:10000,tiempo:'20 min'},
