@@ -5275,7 +5275,7 @@ function salaCerrarServicio(queue_id,bid,pago,propina,precio){
   var body={queue_id:queue_id,bid:bid,pago:pago,propina:propina||0};
   if(precio>0) body.precio=precio;
   fetch(API_URL+'/queue/control/registrar',{
-    method:'POST',headers:{'Content-Type':'application/json'},
+    method:'POST',headers:{'Content-Type':'application/json','x-dashboard-token':staffGetToken()},
     body:JSON.stringify(body)
   }).then(function(r){return r.json();})
     .then(function(j){
