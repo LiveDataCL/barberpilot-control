@@ -5247,7 +5247,7 @@ function _doCheckin(nombre, bid, svc, tel){
 function salaIniciarSiguiente(queue_id){
   if(!API_URL) return;
   fetch(API_URL+'/queue/'+queue_id+'/status',{
-    method:'PUT',headers:{'Content-Type':'application/json'},
+    method:'PUT',headers:{'Content-Type':'application/json','x-dashboard-token':staffGetToken()},
     body:JSON.stringify({status:'IN_SERVICE'})
   }).then(function(r){return r.json();})
     .then(function(j){
