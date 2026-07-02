@@ -1107,7 +1107,7 @@ function drainOutbox(){
     var item=toSend[idx++];
     fetch(API_URL+item.endpoint,{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
+      headers:{'Content-Type':'application/json','x-dashboard-token':staffGetToken()},
       body:JSON.stringify(item.payload)
     }).then(function(res){
       if(res.ok){
@@ -5180,7 +5180,7 @@ function salaCheckin(){
 
 function _resolverPrimerDisponible(callback){
   Promise.all([
-    fetch(API_URL+'/queue/control').then(function(r){return r.json();}),
+    fetch(API_URL+'/queue/control',{headers:{'x-dashboard-token':staffGetToken()}}).then(function(r){return r.json();}),
     fetch(API_URL+'/registros/dia?fecha='+fechaHoy).then(function(r){return r.json();}),
     fetch(API_URL+'/horarios/'+fechaHoy).then(function(r){return r.json();}).catch(function(){return {ok:false};})
   ]).then(function(res){
@@ -5359,7 +5359,7 @@ function renderSala(){
     document.getElementById('salaGrid').innerHTML='<div class="empty" style="grid-column:1/-1"><div class="empty-ico">⚙</div><div>Conecta Railway en ⚙ Config</div></div>';
     return;
   }
-  fetch(API_URL+'/queue/control')
+  fetch(API_URL+'/queue/control',{headers:{'x-dashboard-token':staffGetToken()}})
     .then(function(r){return r.json();})
     .then(function(j){
       if(!j.ok) throw new Error(j.error);
@@ -5519,7 +5519,7 @@ function renderSillas(){
     return;
   }
   Promise.all([
-    fetch(API_URL+'/queue/control').then(function(r){return r.json();}),
+    fetch(API_URL+'/queue/control',{headers:{'x-dashboard-token':staffGetToken()}}).then(function(r){return r.json();}),
     fetch(API_URL+'/registros/dia?fecha='+fechaHoy).then(function(r){return r.json();}),
     fetch(API_URL+'/horarios/'+fechaHoy).then(function(r){return r.json();}).catch(function(){return {ok:false};})
   ]).then(function(res){
