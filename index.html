@@ -981,7 +981,12 @@
 <div class="toastel" id="toastel"></div>
 <div class="alerta-stack" id="alertaStack"></div>
 
+<script src="dashboard-config.js"></script>
 <script>
+// Auto-seed session token from dashboard-config.js on first load
+if (!sessionStorage.getItem('staffAdminToken') && window.DASHBOARD_CONFIG?.token) {
+  sessionStorage.setItem('staffAdminToken', window.DASHBOARD_CONFIG.token);
+}
 // ═══ DATOS ═══════════════════════════════════════════════
 // Populated from GET /barberos — adding a barber to DB propagates here automatically
 var BB=[
