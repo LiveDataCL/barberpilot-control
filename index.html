@@ -1638,10 +1638,6 @@ function init(){
   buildBarbers();buildServices();buildProdBarbers();buildBarberFilters();buildSalaBidOptions();
   cargarSheetsUrl();cargar();cargarGastos();cargarLiquidaciones();cargarHorarios();cargarKpiEvals();renderAll();
   cargarRegistrosDia(); // explicit call — bypasses any API_URL guard inside cargar()
-  // Auto-refresh cada 60s cuando la página está visible
-  setInterval(function(){
-    if(document.visibilityState==='visible' && API_URL) cargarRegistrosDia();
-  }, 60000);
   // Auto-refresh cada 60 segundos si la página está activa
   setInterval(function(){
     if(document.visibilityState==='visible' && API_URL){
@@ -5094,9 +5090,11 @@ function escHtml(s){
 }
 
 function iniciarSSE(){
-  if(!API_URL) return;
+  if(!API_URL || !staffGetToken()) return;
   if(_sseConn){ _sseConn.close(); }
-  _sseConn = new EventSource(API_URL + '/events');
+  _sseConn = new EventSource(
+    API_URL + '/events?token=' + encodeURIComponent(staffGetToken())
+  );
   _sseConn.addEventListener('alerta_15min', function(e){
     try{ mostrarAlerta15(JSON.parse(e.data)); }catch(ex){}
   });
