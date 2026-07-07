@@ -6243,6 +6243,13 @@ function mostrarAlertaAgenda(nombre, hora, servicio){
   setTimeout(function(){ if(div.parentNode) div.remove(); }, 30000);
 }
 
+// ── Escucha mensajes del iframe de Agenda ────────────────
+window.addEventListener('message', function(e) {
+  if (e.data && e.data.bp_action === 'showTab') {
+    showTabById(e.data.id);
+  }
+});
+
 // ═══ ARRANCAR ════════════════════════════════════════════
 init();
 actualizarBadgeAgenda();

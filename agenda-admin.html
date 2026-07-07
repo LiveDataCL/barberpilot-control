@@ -479,11 +479,13 @@ if (IS_EMBEDDED) {
   if (btn) btn.style.display = '';
 }
 function irACola() {
-  if (IS_EMBEDDED && window.parent && window.parent.showTabById) {
-    window.parent.showTabById('pSala');
-  } else {
-    window.location.href = 'index.html';
-  }
+  try {
+    if (window.parent !== window) {
+      window.parent.postMessage({ bp_action: 'showTab', id: 'pSala' }, '*');
+      return;
+    }
+  } catch(e) {}
+  window.location.href = 'index.html';
 }
 const SLOT_H = 68, SLOT_M = 30;
 
