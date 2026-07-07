@@ -850,14 +850,15 @@ function openApt(id) {
   const hf=(a.hora_fin||fromMin(toMin(hi)+(a.duracion||30))).slice(0,5);
   const est=a.estado||'pendiente';
 
-  const canCheckin = (est==='pendiente'||est==='confirmado') && (a.fecha||ds())===fmtD(new Date());
+  const aptFecha = (a.fecha||ds()).slice(0,10);
+  const canCheckin = (est==='pendiente'||est==='confirmado') && aptFecha<=fmtD(new Date());
   document.getElementById('aptBody').innerHTML=`
     ${canCheckin?`<div class="checkin-banner">
       <div class="checkin-banner-info">
         <div class="checkin-banner-ttl">¿Llegó el cliente?</div>
-        <div class="checkin-banner-sub">Un clic lo pasa a la Sala de Espera</div>
+        <div class="checkin-banner-sub">Un clic lo pasa a la Cola en Tiempo Real</div>
       </div>
-      <button class="btn-checkin" id="chkInBtn" onclick="checkInFromApt('${a.id}')">▶&nbsp;LLEGÓ</button>
+      <button class="btn-checkin" id="chkInBtn" onclick="checkInFromApt('${a.id}')">▶ LLEGÓ</button>
     </div>`:''}
     <div class="mrow"><span class="mlbl">Cliente</span><span class="mval">${a.client_name||'—'}</span></div>
     <div class="mrow"><span class="mlbl">Teléfono</span><span class="mval">${a.client_phone||'—'}</span></div>
@@ -875,6 +876,8 @@ function openApt(id) {
   const add=(lbl,cls,fn)=>{const b=document.createElement('button');b.className='btn '+cls;b.innerHTML=lbl;b.onclick=fn;foot.appendChild(b);};
 
   if(est==='pendiente') add('✓ CONFIRMAR','b-ok',()=>patchEst(a.id,'confirmado'));
+  if((est==='pendiente'||est==='confirmado') && aptFecha<=fmtD(new Date()))
+    add('🪑 PASAR A COLA','b-ok',()=>checkInFromApt(a.id));
   if(est!=='cancelado'&&est!=='completado') {
     add('✏ EDITAR','b-ghost',()=>openEdit(a.id));
     add('↕ REASIGNAR','b-ghost',()=>{closeOv('aptOv');openRas(a.id,a.bid);});
