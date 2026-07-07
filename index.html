@@ -384,7 +384,7 @@
       <span class="sync-dot" id="syncDot" style="background:var(--color-synced)"></span>
       <span id="syncTxt">Al día</span>
     </div>
-    <a href="agenda-admin.html" class="hdr-hist" style="text-decoration:none">📅 Agenda</a>
+    <span class="hdr-hist" style="cursor:pointer" onclick="showTabById('pAgenda')">📅 Agenda</span>
     <span class="hdr-hist" onclick="abrirHistorico()">📁 Histórico</span>
     <div class="hdr-date" id="hDate"></div>
   </div>
@@ -515,6 +515,7 @@
       <div class="tab" onclick="showTab('pHistorico',this)">📥 Ingresar histórico</div>
       <div class="tab" onclick="showTab('pConfig',this)">⚙ Config</div>
       <div class="tab" onclick="showTab('pStaff',this)">👥 Staff</div>
+      <div class="tab" id="tabAgenda" onclick="showTab('pAgenda',this)">📅 Agenda <span id="badgeAgenda" style="display:none;background:#2d5e8e;color:#fff;border-radius:20px;font-size:10px;font-weight:700;padding:1px 7px;margin-left:4px;vertical-align:middle">0</span></div>
     </div>
 
     <div class="pane on" id="pReg">
@@ -959,6 +960,9 @@
           <button class="staff-reset-btn" onclick="staffReset()">↩ Restaurar valores por defecto</button>
         </div>
       </div>
+    <div class="pane" id="pAgenda" style="margin:-18px;overflow:hidden">
+      <iframe id="agendaIframe" src="" style="width:100%;height:calc(100vh - 104px);border:none;display:block" allow="fullscreen"></iframe>
+    </div>
     </div>
   </div>
 </div>
@@ -1626,9 +1630,17 @@ function showTabById(id){
   all=document.querySelectorAll('.pane');for(var i=0;i<all.length;i++)all[i].classList.remove('on');
   document.getElementById(id).classList.add('on');
   // activar tab correspondiente
-  var tabs=document.querySelectorAll('.tab');
-  var panes=['pReg','pSum','pCierre','pHist','pCaja','pConfig','pHorarios','pHistorico','pSala'];
-  for(var i=0;i<panes.length;i++)if(panes[i]===id&&tabs[i])tabs[i].classList.add('on');
+  if(id==='pAgenda'){
+    var t=document.getElementById('tabAgenda');
+    if(t) t.classList.add('on');
+    var fr=document.getElementById('agendaIframe');
+    if(fr && !fr.src.includes('agenda-admin')) fr.src='agenda-admin.html?embedded=1';
+  } else {
+    var tabs=document.querySelectorAll('.tab');
+    var panes=['pReg','pSum','pCierre','pHist','pCaja','pConfig','pHorarios','pHistorico','pSala'];
+    for(var i=0;i<panes.length;i++)if(panes[i]===id&&tabs[i])tabs[i].classList.add('on');
+  }
+  if(id==='pSala'){ renderSala(); if(_salaInterval) clearInterval(_salaInterval); _salaInterval=setInterval(renderSala,20000); }
 }
 
 // ═══ INIT ════════════════════════════════════════════════
@@ -2434,6 +2446,10 @@ function showTab(id,el){
   if(id==='pKpis')renderKpis();
   if(id==='pConfig') cargarAvatares();
   if(id==='pStaff') renderStaffPanel();
+  if(id==='pAgenda'){
+    var fr=document.getElementById('agendaIframe');
+    if(fr && !fr.src.includes('agenda-admin')) fr.src='agenda-admin.html?embedded=1';
+  }
 }
 function filtrar(f,el){
   var all=document.querySelectorAll('.fb');for(var i=0;i<all.length;i++)all[i].classList.remove('on');
@@ -6172,8 +6188,65 @@ function staffReset(){
   renderStaffPanel();buildBarbers();buildServices();buildProdBarbers();
 }
 
+// ═══ AGENDA: BADGE + NOTIFICACIONES PRÓXIMAS ═════════════
+function actualizarBadgeAgenda(){
+  if(!API_URL) return;
+  fetch(API_URL+'/appointments?fecha='+fechaHoy)
+    .then(function(r){ return r.json(); })
+    .then(function(list){
+      if(!Array.isArray(list)) return;
+      var now=new Date(), nowM=now.getHours()*60+now.getMinutes();
+      var prox=list.filter(function(a){
+        if(a.estado==='cancelado'||a.estado==='completado'||a.estado==='en_curso') return false;
+        var hi=(a.hora_inicio||a.hora||'').slice(0,5);
+        if(!hi) return false;
+        var p=hi.split(':'); var aptM=parseInt(p[0])*60+parseInt(p[1]);
+        return aptM>=nowM && aptM<=nowM+60;
+      });
+      var badge=document.getElementById('badgeAgenda');
+      if(badge){
+        badge.textContent=prox.length;
+        badge.style.display=prox.length>0?'inline-block':'none';
+      }
+      // Toast de alerta para citas en ≤ 15 min (una vez por sesión por cita)
+      prox.forEach(function(a){
+        var hi=(a.hora_inicio||a.hora||'').slice(0,5);
+        var p=hi.split(':'); var aptM=parseInt(p[0])*60+parseInt(p[1]);
+        if(aptM-nowM>15) return;
+        var key='agenda_notif_'+a.id;
+        if(sessionStorage.getItem(key)) return;
+        sessionStorage.setItem(key,'1');
+        mostrarAlertaAgenda(a.client_name||'Cliente', hi, a.svc_nom||a.service||'Cita');
+      });
+    })
+    .catch(function(){});
+}
+
+function mostrarAlertaAgenda(nombre, hora, servicio){
+  var stack=document.getElementById('alertaStack');
+  if(!stack) return;
+  var div=document.createElement('div');
+  div.className='alerta-card agenda';
+  div.innerHTML='<div class="alerta-card-top">'
+    +'<span class="alerta-ico">📅</span>'
+    +'<div style="flex:1">'
+    +'<div class="alerta-bnom">Agenda · '+hora+'</div>'
+    +'<div class="alerta-main">'+nombre+' — '+servicio+'</div>'
+    +'<div class="alerta-meta">Cita próxima — revisa agenda</div>'
+    +'</div>'
+    +'<button class="alerta-close" onclick="this.closest(\'.alerta-card\').remove()">✕</button>'
+    +'</div>'
+    +'<button onclick="showTabById(\'pAgenda\');this.closest(\'.alerta-card\').remove()" '
+    +'style="margin-top:8px;width:100%;padding:7px;background:#4a9fd4;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.04em;font-family:var(--sans)">'
+    +'📅 VER EN AGENDA</button>';
+  stack.appendChild(div);
+  setTimeout(function(){ if(div.parentNode) div.remove(); }, 30000);
+}
+
 // ═══ ARRANCAR ════════════════════════════════════════════
 init();
+actualizarBadgeAgenda();
+setInterval(actualizarBadgeAgenda, 120000);
 </script>
 </body>
 </html>

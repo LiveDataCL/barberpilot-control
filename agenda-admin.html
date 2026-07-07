@@ -285,7 +285,8 @@ button{cursor:pointer}
   </div>
   <div class="hdr-right">
     <span class="refresh-lbl" id="refLbl"></span>
-    <a href="index.html" class="hdr-link">← Sistema</a>
+    <a href="index.html" class="hdr-link" id="lnkSistema">← Sistema</a>
+    <button id="btnVerCola" onclick="irACola()" style="display:none;padding:5px 13px;background:#16a34a;color:#fff;border:none;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.04em;cursor:pointer;white-space:nowrap">🪑 VER COLA</button>
   </div>
 </header>
 
@@ -468,6 +469,22 @@ button{cursor:pointer}
 'use strict';
 
 const API = 'https://barberpilot-api-production.up.railway.app';
+
+// ── Embedded mode (inside index.html iframe) ──────────────────
+const IS_EMBEDDED = new URLSearchParams(location.search).get('embedded') === '1' || window.parent !== window;
+if (IS_EMBEDDED) {
+  const lnk = document.getElementById('lnkSistema');
+  const btn = document.getElementById('btnVerCola');
+  if (lnk) lnk.style.display = 'none';
+  if (btn) btn.style.display = '';
+}
+function irACola() {
+  if (IS_EMBEDDED && window.parent && window.parent.showTabById) {
+    window.parent.showTabById('pSala');
+  } else {
+    window.location.href = 'index.html';
+  }
+}
 const SLOT_H = 68, SLOT_M = 30;
 
 const BARBERS = [
@@ -915,6 +932,7 @@ async function checkInFromApt(aptId) {
     closeOv('aptOv');
     showToast(`${a.client_name||'Cliente'} ingresó a la cola ✓`, 'ok');
     refresh();
+    if (IS_EMBEDDED) setTimeout(irACola, 900);
   } catch(e) {
     if (btn) { btn.disabled=false; btn.textContent='▶ LLEGÓ'; }
     showToast('Error al hacer check-in: '+e.message, 'err');
