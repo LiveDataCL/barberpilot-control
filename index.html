@@ -364,6 +364,18 @@
   .staff-add-card{border:1.5px dashed var(--border);border-radius:var(--rl);padding:16px;margin-top:8px}
   .staff-add-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
   @media(max-width:480px){.staff-add-grid{grid-template-columns:1fr}}
+  #panelLoginOverlay{position:fixed;inset:0;background:rgba(26,25,22,.88);z-index:2000;display:none;align-items:center;justify-content:center}
+  .panel-login-card{background:#fff;border-radius:12px;padding:36px 32px;width:min(380px,90vw);box-shadow:0 24px 60px rgba(0,0,0,.3)}
+  .panel-login-card h2{font-size:20px;font-weight:700;margin-bottom:3px;color:var(--text)}
+  .panel-login-card .plc-sub{font-size:12px;color:var(--text3);margin-bottom:24px}
+  .panel-inp{width:100%;padding:10px 13px;border:1px solid var(--border);border-radius:var(--r);font-size:14px;font-family:var(--sans);box-sizing:border-box;margin-bottom:10px;background:var(--surface)}
+  .panel-inp:focus{outline:none;border-color:var(--text)}
+  .panel-login-btn{width:100%;padding:11px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-size:14px;font-weight:600;cursor:pointer;font-family:var(--sans)}
+  .panel-login-btn:disabled{opacity:.45;cursor:default}
+  .panel-login-err{font-size:12px;color:var(--err);margin-top:8px;min-height:16px}
+  .panel-user-chip{display:flex;align-items:center;gap:8px;font-size:11px;opacity:.75}
+  .panel-logout-btn{font-size:11px;padding:4px 10px;border:1px solid rgba(255,255,255,.3);border-radius:20px;background:transparent;color:#fff;cursor:pointer;font-family:var(--sans)}
+  .panel-role-badge{background:rgba(255,255,255,.15);padding:1px 7px;border-radius:20px;font-size:10px;font-weight:700;letter-spacing:.04em}
 </style>
 </head>
 <body>
@@ -386,9 +398,27 @@
     </div>
     <span class="hdr-hist" style="cursor:pointer" onclick="showTabById('pAgenda')">📅 Agenda</span>
     <span class="hdr-hist" onclick="abrirHistorico()">📁 Histórico</span>
+    <div id="panelUserChip" class="panel-user-chip" style="display:none">
+      <span id="panelUserName"></span>
+      <span id="panelUserRole" class="panel-role-badge"></span>
+    </div>
+    <button id="panelLogoutBtn" class="panel-logout-btn" style="display:none" onclick="panelLogout()">Salir</button>
     <div class="hdr-date" id="hDate"></div>
   </div>
 </header>
+
+<div id="panelLoginOverlay">
+  <div class="panel-login-card">
+    <h2>Sistema de Control</h2>
+    <p class="plc-sub">Salon Men Saúl Fino · Acceso de panel</p>
+    <input class="panel-inp" id="panelEmailInput" type="email" placeholder="Correo electrónico"
+      autocomplete="username" onkeydown="if(event.key==='Enter')panelLogin()">
+    <input class="panel-inp" id="panelPassInput" type="password" placeholder="Contraseña"
+      autocomplete="current-password" onkeydown="if(event.key==='Enter')panelLogin()">
+    <button class="panel-login-btn" id="panelLoginBtn" onclick="panelLogin()">Entrar</button>
+    <div class="panel-login-err" id="panelLoginErr"></div>
+  </div>
+</div>
 
 <div class="layout">
 
@@ -817,6 +847,17 @@
           </p>
           <div id="avatarGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px"></div>
         </div>
+
+        <div id="panelChangePassSection" style="margin-top:28px;border-top:1px solid var(--border);padding-top:22px;display:none">
+          <div style="font-size:15px;font-weight:600;margin-bottom:6px">🔑 Cambiar contraseña</div>
+          <div style="max-width:360px">
+            <input class="panel-inp" id="cpCurrent" type="password" placeholder="Contraseña actual">
+            <input class="panel-inp" id="cpNew" type="password" placeholder="Nueva contraseña (mín. 8 caracteres)">
+            <input class="panel-inp" id="cpConfirm" type="password" placeholder="Confirmar nueva contraseña">
+            <button onclick="panelChangePassword()" style="padding:9px 18px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer">Actualizar contraseña</button>
+            <div id="cpMsg" style="font-size:12px;margin-top:8px;min-height:16px"></div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1111,7 +1152,7 @@ function drainOutbox(){
     var item=toSend[idx++];
     fetch(API_URL+item.endpoint,{
       method:'POST',
-      headers:{'Content-Type':'application/json','x-dashboard-token':staffGetToken()},
+      headers:getJsonAuthHeaders(),
       body:JSON.stringify(item.payload)
     }).then(function(res){
       if(res.ok){
@@ -1170,7 +1211,7 @@ function eliminarDeSheets(id) {
     // Railway: DELETE real
     fetch(API_URL + '/registros/' + encodeURIComponent(id), {
       method: 'DELETE',
-      headers: {'x-dashboard-token': staffGetToken()}
+      headers: getAuthHeaders()
     }).then(function(r){ return r.json(); })
     .then(function(d){ if(!d.ok) console.warn('Delete API error:', d); })
     .catch(function(e){ console.warn('Delete error:', e); });
@@ -1205,7 +1246,7 @@ function sincronizarGastoSheets(g, accion) {
       // Eliminar gasto de Railway
       fetch(API_URL + '/gastos/' + encodeURIComponent(g.id), {
         method: 'DELETE',
-        headers: {'x-dashboard-token': staffGetToken()}
+        headers: getAuthHeaders()
       }).catch(function(e){ console.warn('Delete gasto error:', e); });
     }
   } else if (SHEETS_URL) {
@@ -1225,6 +1266,8 @@ var sel={b:null,s:null,p:null,propina:0,propinaTipo:'0'};
 var selProd={b:null,prod:null,p:null,qty:1};
 var regs=[];
 var filtro='todos';
+var _panelRole   = null;  // 'admin' | 'operator' | null
+var _panelNombre = null;
 var fechaHoy=fechaStr(new Date());
 
 // ═══ STORAGE (localStorage + descarga JSON) ══════════════
@@ -2123,7 +2166,7 @@ function guardarEditPago(){
   if(servicio) body.snom = servicio;
   fetch(API_URL+'/registros/'+_editPagoId+'/pago', {
     method: 'PATCH',
-    headers: {'Content-Type':'application/json','x-dashboard-token': staffGetToken()},
+    headers: getJsonAuthHeaders(),
     body: JSON.stringify(body)
   }).then(function(r){return r.json();})
     .then(function(j){
@@ -2168,7 +2211,7 @@ function renderReg(){
       +'<td style="white-space:nowrap">'
       +'<button class="bsm" onclick="verTkt(\''+r.id+'\')">Ver</button>'
       +'<button class="bsm" onclick="abrirEditPago(\''+r.id+'\',\''+r.pago+'\','+r.precio+',\''+escAttr(r.bnom)+' – '+escAttr(r.snom)+'\',\''+escAttr(r.snom)+'\')" title="Editar registro">✏</button>'
-      +'<button class="bsm dx" onclick="del(\''+r.id+'\')">✕</button>'
+      +(_panelRole!=='operator'?'<button class="bsm dx" onclick="del(\''+r.id+'\')">✕</button>':'')
       +'</td></tr>';
   }
   h+='</tbody></table>';
@@ -2292,7 +2335,7 @@ function renderAprobaciones(pend){
 
   var h = '<div style="margin-bottom:14px;display:flex;align-items:center;justify-content:space-between">';
   h += '<div style="font-size:13px;color:var(--text2)"><strong style="color:var(--text)">'+pend.length+'</strong> servicio'+(pend.length!==1?'s':'')+' pendiente'+(pend.length!==1?'s':'')+' de aprobación</div>';
-  h += '<button onclick="aprobarTodos()" style="padding:7px 14px;background:var(--ok, #4db87a);color:#fff;border:none;border-radius:var(--r);font-size:12px;font-weight:600;cursor:pointer">✓ Aprobar todos</button>';
+  if(_panelRole!=='operator') h += '<button onclick="aprobarTodos()" style="padding:7px 14px;background:var(--ok, #4db87a);color:#fff;border:none;border-radius:var(--r);font-size:12px;font-weight:600;cursor:pointer">✓ Aprobar todos</button>';
   h += '</div>';
 
   // Agrupar por barbero
@@ -2325,10 +2368,13 @@ function renderAprobaciones(pend){
       }
       h += '</div>';
       h += '<div style="font-family:var(--mono);font-size:14px;font-weight:600;color:var(--ok);min-width:70px;text-align:right">$'+bb.toLocaleString('es-CL')+'</div>';
-      h += '<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">';
-      h += '<button onclick="aprobar(\'' + r.id + '\')" style="padding:8px 14px;background:rgba(77,184,122,.15);color:#4db87a;border:1px solid rgba(77,184,122,.3);border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">✓ OK</button>';
-      h += '<button onclick="rechazar(\'' + r.id + '\')" style="padding:8px 14px;background:rgba(224,85,85,.1);color:#e05555;border:1px solid rgba(224,85,85,.25);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">✗ No</button>';
-      h += '</div></div>';
+      if(_panelRole!=='operator'){
+        h += '<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">';
+        h += '<button onclick="aprobar(\'' + r.id + '\')" style="padding:8px 14px;background:rgba(77,184,122,.15);color:#4db87a;border:1px solid rgba(77,184,122,.3);border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">✓ OK</button>';
+        h += '<button onclick="rechazar(\'' + r.id + '\')" style="padding:8px 14px;background:rgba(224,85,85,.1);color:#e05555;border:1px solid rgba(224,85,85,.25);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">✗ No</button>';
+        h += '</div>';
+      }
+      h += '</div>';
     });
     h += '</div>';
   });
@@ -2341,7 +2387,7 @@ function aprobar(id){
   if(row) row.style.opacity='.4';
   fetch(API_URL+'/registros/'+id+'/estado',{
     method:'PATCH',
-    headers:{'Content-Type':'application/json','x-dashboard-token':staffGetToken()},
+    headers:getJsonAuthHeaders(),
     body:JSON.stringify({estado:'confirmado'})
   }).then(function(){
     toast('✓ Servicio aprobado');
@@ -2355,7 +2401,7 @@ function rechazar(id){
   if(row) row.style.opacity='.4';
   fetch(API_URL+'/registros/'+id+'/estado',{
     method:'PATCH',
-    headers:{'Content-Type':'application/json','x-dashboard-token':staffGetToken()},
+    headers:getJsonAuthHeaders(),
     body:JSON.stringify({estado:'rechazado'})
   }).then(function(){
     toast('Registro rechazado');
@@ -2398,7 +2444,7 @@ function aprobarTodos(){
   Promise.all(ids.map(function(id){
     return fetch(API_URL+'/registros/'+id+'/estado',{
       method:'PATCH',
-      headers:{'Content-Type':'application/json','x-dashboard-token':staffGetToken()},
+      headers:getJsonAuthHeaders(),
       body:JSON.stringify({estado:'confirmado'})
     });
   })).then(function(){
@@ -2818,7 +2864,7 @@ function limpiarHoy(){
   // Eliminar cada registro de la BD
   if(API_URL){
     regs.forEach(function(r){
-      fetch(API_URL+'/registros/'+encodeURIComponent(r.id), {method:'DELETE',headers:{'x-dashboard-token':staffGetToken()}})
+      fetch(API_URL+'/registros/'+encodeURIComponent(r.id), {method:'DELETE',headers:getAuthHeaders()})
         .catch(function(e){console.warn('Delete error:',e);});
     });
   }
@@ -3751,6 +3797,7 @@ function renderHorarios(){
     var svcCnt=regs.filter(function(r){return r.bid===b.id;}).length;
     var hasEntrada = entradaVal!=='';
     var hasSalida  = salidaVal!=='';
+    var canEdit=(_panelRole!=='operator');
 
     h+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden">'
       // Header barbero
@@ -3765,12 +3812,13 @@ function renderHorarios(){
       +'<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:6px">Entrada</div>'
       +'<div style="display:flex;gap:6px;align-items:center">'
       +'<input type="time" value="'+entradaVal+'" data-bid="'+b.id+'" data-tipo="entrada" '
+      +(canEdit?'':'readonly ')
       +'oninput="guardarHoraManual(this.dataset.bid,this.dataset.tipo,this.value)" '
       +'style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--mono);font-size:14px;'+(hasEntrada?'border-color:var(--ok);background:var(--ok-soft)':'')+'">'
-      +'<button data-bid="'+b.id+'" data-tipo="entrada" onclick="marcarHora(this.dataset.bid,this.dataset.tipo)" '
+      +(canEdit?('<button data-bid="'+b.id+'" data-tipo="entrada" onclick="marcarHora(this.dataset.bid,this.dataset.tipo)" '
       +'style="padding:6px 10px;background:'+(hasEntrada?'var(--ok)':'var(--text)')+';color:#fff;border:none;border-radius:var(--r);font-size:11px;cursor:pointer;white-space:nowrap">'
       +(hasEntrada?'✓ '+entradaVal:'Marcar ahora')
-      +'</button>'
+      +'</button>'):'')
       +'</div>'
       +'</div>'
 
@@ -3779,12 +3827,13 @@ function renderHorarios(){
       +'<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:6px">Salida</div>'
       +'<div style="display:flex;gap:6px;align-items:center">'
       +'<input type="time" value="'+salidaVal+'" data-bid="'+b.id+'" data-tipo="salida" '
+      +(canEdit?'':'readonly ')
       +'oninput="guardarHoraManual(this.dataset.bid,this.dataset.tipo,this.value)" '
       +'style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--mono);font-size:14px;'+(hasSalida?'border-color:var(--info);background:var(--info-soft)':'')+'">'
-      +'<button data-bid="'+b.id+'" data-tipo="salida" onclick="marcarHora(this.dataset.bid,this.dataset.tipo)" '
+      +(canEdit?('<button data-bid="'+b.id+'" data-tipo="salida" onclick="marcarHora(this.dataset.bid,this.dataset.tipo)" '
       +'style="padding:6px 10px;background:'+(hasSalida?'var(--info)':'var(--text)')+';color:#fff;border:none;border-radius:var(--r);font-size:11px;cursor:pointer;white-space:nowrap">'
       +(hasSalida?'✓ '+salidaVal:'Marcar ahora')
-      +'</button>'
+      +'</button>'):'')
       +'</div>'
       +'</div>'
 
@@ -5162,7 +5211,7 @@ function buscarClientePorTel(){
   var badge=document.getElementById('sala-tel-badge');
   if(!tel){badge.textContent='';return;}
   badge.textContent='Buscando…';badge.style.color='var(--text3)';
-  fetch(API_URL+'/clientes?q='+encodeURIComponent(tel),{headers:{'x-dashboard-token':staffGetToken()}})
+  fetch(API_URL+'/clientes?q='+encodeURIComponent(tel),{headers:getAuthHeaders()})
     .then(function(r){return r.json();})
     .then(function(j){
       var clientes=j.clientes||[];
@@ -5194,7 +5243,7 @@ function salaCheckin(){
 
 function _resolverPrimerDisponible(callback){
   Promise.all([
-    fetch(API_URL+'/queue/control',{headers:{'x-dashboard-token':staffGetToken()}}).then(function(r){return r.json();}),
+    fetch(API_URL+'/queue/control',{headers:getAuthHeaders()}).then(function(r){return r.json();}),
     fetch(API_URL+'/registros/dia?fecha='+fechaHoy).then(function(r){return r.json();}),
     fetch(API_URL+'/horarios/'+fechaHoy).then(function(r){return r.json();}).catch(function(){return {ok:false};})
   ]).then(function(res){
@@ -5261,7 +5310,7 @@ function _doCheckin(nombre, bid, svc, tel){
 function salaIniciarSiguiente(queue_id){
   if(!API_URL) return;
   fetch(API_URL+'/queue/'+queue_id+'/status',{
-    method:'PUT',headers:{'Content-Type':'application/json','x-dashboard-token':staffGetToken()},
+    method:'PUT',headers:getJsonAuthHeaders(),
     body:JSON.stringify({status:'IN_SERVICE'})
   }).then(function(r){return r.json();})
     .then(function(j){
@@ -5296,7 +5345,7 @@ function salaCerrarServicio(queue_id,bid,pago,propina,precio){
   var body={queue_id:queue_id,bid:bid,pago:pago,propina:propina||0};
   if(precio>0) body.precio=precio;
   fetch(API_URL+'/queue/control/registrar',{
-    method:'POST',headers:{'Content-Type':'application/json','x-dashboard-token':staffGetToken()},
+    method:'POST',headers:getJsonAuthHeaders(),
     body:JSON.stringify(body)
   }).then(function(r){return r.json();})
     .then(function(j){
@@ -5332,7 +5381,7 @@ function salaCerrarServicio(queue_id,bid,pago,propina,precio){
 function salaEliminarEntrada(queue_id){
   if(!API_URL) return;
   if(!window.confirm('¿Eliminar esta entrada de la cola?')) return;
-  fetch(API_URL+'/queue/'+queue_id,{method:'DELETE',headers:{'x-dashboard-token':staffGetToken()}})
+  fetch(API_URL+'/queue/'+queue_id,{method:'DELETE',headers:getAuthHeaders()})
     .then(function(r){return r.json();})
     .then(function(j){
       if(j.ok){toast('Entrada eliminada de la cola');renderSala();}
@@ -5344,7 +5393,7 @@ function toggleBarberAvailability(barberName, available){
   if(!API_URL) return;
   fetch(API_URL+'/barbers/'+barberName+'/availability',{
     method:'PATCH',
-    headers:{'Content-Type':'application/json','x-dashboard-token':staffGetToken()},
+    headers:getJsonAuthHeaders(),
     body:JSON.stringify({available:available})
   }).then(function(r){return r.json();}).then(function(j){
     if(j.ok){
@@ -5373,7 +5422,7 @@ function renderSala(){
     document.getElementById('salaGrid').innerHTML='<div class="empty" style="grid-column:1/-1"><div class="empty-ico">⚙</div><div>Conecta Railway en ⚙ Config</div></div>';
     return;
   }
-  fetch(API_URL+'/queue/control',{headers:{'x-dashboard-token':staffGetToken()}})
+  fetch(API_URL+'/queue/control',{headers:getAuthHeaders()})
     .then(function(r){return r.json();})
     .then(function(j){
       if(!j.ok) throw new Error(j.error);
@@ -5407,10 +5456,12 @@ function renderSala(){
         h+='</div>';
         h+='</div>';
         // toggle button
-        if(!isAbsent){
-          h+='<button onclick="toggleBarberAvailability(\''+b.barber_id+'\',false)" title="Marcar como ausente temporalmente" style="padding:4px 10px;font-size:11px;font-weight:600;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;color:var(--err);font-family:var(--sans);white-space:nowrap">⏸ Salió</button>';
-        } else {
-          h+='<button onclick="toggleBarberAvailability(\''+b.barber_id+'\',true)" title="Marcar como disponible" style="padding:4px 10px;font-size:11px;font-weight:700;background:#16a34a;border:none;border-radius:var(--r);cursor:pointer;color:#fff;font-family:var(--sans);white-space:nowrap">▶ Regresó</button>';
+        if(_panelRole!=='operator'){
+          if(!isAbsent){
+            h+='<button onclick="toggleBarberAvailability(\''+b.barber_id+'\',false)" title="Marcar como ausente temporalmente" style="padding:4px 10px;font-size:11px;font-weight:600;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;color:var(--err);font-family:var(--sans);white-space:nowrap">⏸ Salió</button>';
+          } else {
+            h+='<button onclick="toggleBarberAvailability(\''+b.barber_id+'\',true)" title="Marcar como disponible" style="padding:4px 10px;font-size:11px;font-weight:700;background:#16a34a;border:none;border-radius:var(--r);cursor:pointer;color:#fff;font-family:var(--sans);white-space:nowrap">▶ Regresó</button>';
+          }
         }
         h+='</div>';
         // ── Card body ──
@@ -5533,7 +5584,7 @@ function renderSillas(){
     return;
   }
   Promise.all([
-    fetch(API_URL+'/queue/control',{headers:{'x-dashboard-token':staffGetToken()}}).then(function(r){return r.json();}),
+    fetch(API_URL+'/queue/control',{headers:getAuthHeaders()}).then(function(r){return r.json();}),
     fetch(API_URL+'/registros/dia?fecha='+fechaHoy).then(function(r){return r.json();}),
     fetch(API_URL+'/horarios/'+fechaHoy).then(function(r){return r.json();}).catch(function(){return {ok:false};})
   ]).then(function(res){
@@ -5709,7 +5760,7 @@ function buscarClienteCRM(){
   if(!q){toast('Escribe un nombre o teléfono');return;}
   var el=document.getElementById('salaCrmResultados');
   el.innerHTML='<div style="font-size:12px;color:var(--text3);padding:8px 0">Buscando…</div>';
-  fetch(API_URL+'/clientes?q='+encodeURIComponent(q),{headers:{'x-dashboard-token':staffGetToken()}})
+  fetch(API_URL+'/clientes?q='+encodeURIComponent(q),{headers:getAuthHeaders()})
     .then(function(r){return r.json();})
     .then(function(j){
       var clientes=j.clientes||[];
@@ -5928,13 +5979,104 @@ function staffUpdateTokenStatus(){
   }
 }
 
+function getAuthHeaders(){
+  var jwt=sessionStorage.getItem('panelJwt');
+  if(jwt) return {'Authorization':'Bearer '+jwt};
+  var tok=staffGetToken();
+  if(tok) return {'x-dashboard-token':tok};
+  return {};
+}
+function getJsonAuthHeaders(){
+  return Object.assign({'Content-Type':'application/json'},getAuthHeaders());
+}
+
+function panelLogin(){
+  var email=(document.getElementById('panelEmailInput').value||'').trim();
+  var pass=document.getElementById('panelPassInput').value||'';
+  var errEl=document.getElementById('panelLoginErr');
+  var btn=document.getElementById('panelLoginBtn');
+  errEl.textContent='';
+  if(!email||!pass){errEl.textContent='Completa email y contraseña';return;}
+  btn.disabled=true;btn.textContent='Entrando…';
+  fetch(API_URL+'/api/v2/panel/login',{
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({email:email,password:pass})
+  })
+  .then(function(r){return r.json();})
+  .then(function(j){
+    btn.disabled=false;btn.textContent='Entrar';
+    if(!j.ok){errEl.textContent=j.message||(j.error==='invalid_credentials'?'Credenciales incorrectas':'Error al ingresar');return;}
+    sessionStorage.setItem('panelJwt',j.token);
+    _panelRole=j.role; _panelNombre=j.nombre;
+    panelApplySession();
+  })
+  .catch(function(){btn.disabled=false;btn.textContent='Entrar';errEl.textContent='Error de conexión';});
+}
+
+function panelApplySession(){
+  var overlay=document.getElementById('panelLoginOverlay');
+  if(overlay) overlay.style.display='none';
+  var chip=document.getElementById('panelUserChip');
+  var logoutBtn=document.getElementById('panelLogoutBtn');
+  if(chip) chip.style.display='flex';
+  if(logoutBtn) logoutBtn.style.display='';
+  var nameEl=document.getElementById('panelUserName');
+  var roleEl=document.getElementById('panelUserRole');
+  if(nameEl) nameEl.textContent=_panelNombre||'';
+  if(roleEl) roleEl.textContent=_panelRole==='admin'?'ADMIN':'OPERADOR';
+  var cpSection=document.getElementById('panelChangePassSection');
+  if(cpSection) cpSection.style.display='';
+  applyRoleVisibility();
+  renderReg(); // re-render with role-aware delete button
+}
+
+function panelLogout(){ sessionStorage.removeItem('panelJwt'); location.reload(); }
+
+function panelChangePassword(){
+  var cur=document.getElementById('cpCurrent').value||'';
+  var np=document.getElementById('cpNew').value||'';
+  var nc=document.getElementById('cpConfirm').value||'';
+  var msg=document.getElementById('cpMsg');
+  msg.textContent='';
+  if(!cur||!np||!nc){msg.style.color='var(--err)';msg.textContent='Completa todos los campos';return;}
+  if(np!==nc){msg.style.color='var(--err)';msg.textContent='Las contraseñas nuevas no coinciden';return;}
+  if(np.length<8){msg.style.color='var(--err)';msg.textContent='Mínimo 8 caracteres';return;}
+  fetch(API_URL+'/api/v2/panel/change-password',{
+    method:'POST', headers:getJsonAuthHeaders(),
+    body:JSON.stringify({current_password:cur,new_password:np,confirm_password:nc})
+  })
+  .then(function(r){return r.json();})
+  .then(function(j){
+    if(j.ok){
+      msg.style.color='var(--ok)';msg.textContent='Contraseña actualizada ✓';
+      document.getElementById('cpCurrent').value='';
+      document.getElementById('cpNew').value='';
+      document.getElementById('cpConfirm').value='';
+    }else{
+      msg.style.color='var(--err)';
+      msg.textContent=j.error==='wrong_current_password'?'Contraseña actual incorrecta':(j.message||'Error al actualizar');
+    }
+  })
+  .catch(function(){msg.style.color='var(--err)';msg.textContent='Error de conexión';});
+}
+
+function applyRoleVisibility(){
+  var isAdmin=(_panelRole==='admin');
+  var adminOnlyPanes=['pCaja','pKpis','pCierre','pHist','pHistorico','pConfig','pStaff'];
+  document.querySelectorAll('.tab').forEach(function(tab){
+    var oc=tab.getAttribute('onclick')||'';
+    for(var i=0;i<adminOnlyPanes.length;i++){
+      if(oc.indexOf("'"+adminOnlyPanes[i]+"'")!==-1){ tab.style.display=isAdmin?'':'none'; break; }
+    }
+  });
+}
+
 // ── Fetch staff from API ──────────────────────────────────────────────────────
 function staffRefreshFromAPI(){
-  var token=staffGetToken();
-  if(!token){renderStaffBB();return;}
+  var authH=getAuthHeaders();
   if(!API_URL){renderStaffBB();return;}
   fetch(API_URL+'/api/v2/staff?tenant_id=saulfino',{
-    headers:{'x-dashboard-token':token}
+    headers:authH
   })
   .then(function(r){return r.json();})
   .then(function(j){
@@ -5955,11 +6097,11 @@ function staffRefreshFromAPI(){
 // ── Deactivate / Reactivate ───────────────────────────────────────────────────
 function staffDeactivate(bid,name){
   if(!confirm('¿Desactivar a '+name+'? Ya no podrá acceder a la app. Sus registros históricos se conservan.'))return;
-  var token=staffGetToken();
-  if(!token){toast('Token requerido');return;}
+  var authH=getAuthHeaders();
+  if(!staffGetToken()&&!sessionStorage.getItem('panelJwt')){toast('Token requerido');return;}
   fetch(API_URL+'/api/v2/staff/'+bid+'/deactivate',{
     method:'PATCH',
-    headers:{'Content-Type':'application/json','x-dashboard-token':token},
+    headers:Object.assign({'Content-Type':'application/json'},authH),
     body:JSON.stringify({tenant_id:'saulfino'})
   })
   .then(function(r){return r.json();})
@@ -5975,11 +6117,11 @@ function staffDeactivate(bid,name){
 }
 
 function staffReactivate(bid,name){
-  var token=staffGetToken();
-  if(!token){toast('Token requerido');return;}
+  var authH=getAuthHeaders();
+  if(!staffGetToken()&&!sessionStorage.getItem('panelJwt')){toast('Token requerido');return;}
   fetch(API_URL+'/api/v2/staff/'+bid+'/reactivate',{
     method:'PATCH',
-    headers:{'Content-Type':'application/json','x-dashboard-token':token},
+    headers:Object.assign({'Content-Type':'application/json'},authH),
     body:JSON.stringify({tenant_id:'saulfino'})
   })
   .then(function(r){return r.json();})
@@ -6011,11 +6153,11 @@ function staffSubmitNewBarber(){
   if(!name||!bid||!pin){toast('Completa todos los campos');return;}
   if(!/^\d{4,6}$/.test(pin)){toast('PIN debe ser 4-6 dígitos numéricos');return;}
   if(!/^[a-z0-9_-]+$/.test(bid)){toast('bid: solo letras, números, guiones');return;}
-  var token=staffGetToken();
-  if(!token){toast('Token requerido');return;}
+  var authH=getAuthHeaders();
+  if(!staffGetToken()&&!sessionStorage.getItem('panelJwt')){toast('Token requerido');return;}
   fetch(API_URL+'/api/v2/staff',{
     method:'POST',
-    headers:{'Content-Type':'application/json','x-dashboard-token':token},
+    headers:Object.assign({'Content-Type':'application/json'},authH),
     body:JSON.stringify({tenant_id:'saulfino',bid:bid,name:name,pin:pin,role:role})
   })
   .then(function(r){return r.json();})
@@ -6045,7 +6187,7 @@ function escAttr(s){return(s||'').toString().replace(/&/g,'&amp;').replace(/"/g,
 
 function renderStaffBB(){
   var h='';
-  var token=staffGetToken();
+  var token=staffGetToken()||sessionStorage.getItem('panelJwt');
   for(var i=0;i<BB.length;i++){
     var b=BB[i];
     var isActive=b.active!==false;
@@ -6254,6 +6396,16 @@ window.addEventListener('message', function(e) {
 init();
 actualizarBadgeAgenda();
 setInterval(actualizarBadgeAgenda, 120000);
+;(function(){
+  var _jwt=sessionStorage.getItem('panelJwt');
+  if(_jwt){
+    try{var _p=JSON.parse(atob(_jwt.split('.')[1]));_panelRole=_p.role||null;_panelNombre=_p.nombre||null;}
+    catch(e){sessionStorage.removeItem('panelJwt');_jwt=null;}
+  }
+  if(_jwt){ panelApplySession(); }
+  else if(!staffGetToken()){ document.getElementById('panelLoginOverlay').style.display='flex'; }
+  // If only legacy token present → no overlay, no role enforcement (backward compat)
+})();
 </script>
 </body>
 </html>
