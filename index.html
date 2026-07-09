@@ -1028,10 +1028,6 @@
 
 <script src="dashboard-config.js"></script>
 <script>
-// Auto-seed session token from dashboard-config.js on first load
-if (!sessionStorage.getItem('staffAdminToken') && window.DASHBOARD_CONFIG?.token) {
-  sessionStorage.setItem('staffAdminToken', window.DASHBOARD_CONFIG.token);
-}
 // ═══ DATOS ═══════════════════════════════════════════════
 // Populated from GET /barberos — adding a barber to DB propagates here automatically
 var BB=[
@@ -1729,7 +1725,7 @@ function init(){
     }
   }, 60000);
   // Auto-sync staff roster from API if token available
-  if(API_URL && staffGetToken()) staffRefreshFromAPI();
+  if(API_URL && (staffGetToken() || sessionStorage.getItem('panelJwt'))) staffRefreshFromAPI();
 
   // Fechas default en selectores histórico
   try{
@@ -2154,7 +2150,7 @@ function cerrarEditPago(){
 }
 function guardarEditPago(){
   if(!API_URL || !_editPagoId) return;
-  if(!staffGetToken()){ toast('Token de dashboard requerido — ve a ⚙ Personal'); return; }
+  if(!sessionStorage.getItem('panelJwt') && !staffGetToken()){ toast('Sesión requerida'); return; }
   var pago = document.getElementById('editPagoSel').value;
   var precio = document.getElementById('editPagoPrecio').value;
   var servicio = (document.getElementById('editPagoServicio').value || '').trim();
@@ -2211,7 +2207,7 @@ function renderReg(){
       +'<td style="white-space:nowrap">'
       +'<button class="bsm" onclick="verTkt(\''+r.id+'\')">Ver</button>'
       +'<button class="bsm" onclick="abrirEditPago(\''+r.id+'\',\''+r.pago+'\','+r.precio+',\''+escAttr(r.bnom)+' – '+escAttr(r.snom)+'\',\''+escAttr(r.snom)+'\')" title="Editar registro">✏</button>'
-      +(_panelRole!=='operator'?'<button class="bsm dx" onclick="del(\''+r.id+'\')">✕</button>':'')
+      +(_panelRole==='admin'?'<button class="bsm dx" onclick="del(\''+r.id+'\')">✕</button>':'')
       +'</td></tr>';
   }
   h+='</tbody></table>';
@@ -2335,7 +2331,7 @@ function renderAprobaciones(pend){
 
   var h = '<div style="margin-bottom:14px;display:flex;align-items:center;justify-content:space-between">';
   h += '<div style="font-size:13px;color:var(--text2)"><strong style="color:var(--text)">'+pend.length+'</strong> servicio'+(pend.length!==1?'s':'')+' pendiente'+(pend.length!==1?'s':'')+' de aprobación</div>';
-  if(_panelRole!=='operator') h += '<button onclick="aprobarTodos()" style="padding:7px 14px;background:var(--ok, #4db87a);color:#fff;border:none;border-radius:var(--r);font-size:12px;font-weight:600;cursor:pointer">✓ Aprobar todos</button>';
+  if(_panelRole==='admin') h += '<button onclick="aprobarTodos()" style="padding:7px 14px;background:var(--ok, #4db87a);color:#fff;border:none;border-radius:var(--r);font-size:12px;font-weight:600;cursor:pointer">✓ Aprobar todos</button>';
   h += '</div>';
 
   // Agrupar por barbero
@@ -2368,7 +2364,7 @@ function renderAprobaciones(pend){
       }
       h += '</div>';
       h += '<div style="font-family:var(--mono);font-size:14px;font-weight:600;color:var(--ok);min-width:70px;text-align:right">$'+bb.toLocaleString('es-CL')+'</div>';
-      if(_panelRole!=='operator'){
+      if(_panelRole==='admin'){
         h += '<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">';
         h += '<button onclick="aprobar(\'' + r.id + '\')" style="padding:8px 14px;background:rgba(77,184,122,.15);color:#4db87a;border:1px solid rgba(77,184,122,.3);border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">✓ OK</button>';
         h += '<button onclick="rechazar(\'' + r.id + '\')" style="padding:8px 14px;background:rgba(224,85,85,.1);color:#e05555;border:1px solid rgba(224,85,85,.25);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">✗ No</button>';
@@ -3691,7 +3687,7 @@ function enviarHorariosARailway(silencioso){
   _horEnviando = true;
   fetch(API_URL + '/horarios/' + fechaHoy, {
     method: 'POST',
-    headers: {'Content-Type':'application/json'},
+    headers: getJsonAuthHeaders(),
     body: JSON.stringify(payload)
   })
   .then(function(r){ return r.json(); })
@@ -3797,7 +3793,7 @@ function renderHorarios(){
     var svcCnt=regs.filter(function(r){return r.bid===b.id;}).length;
     var hasEntrada = entradaVal!=='';
     var hasSalida  = salidaVal!=='';
-    var canEdit=(_panelRole!=='operator');
+    var canEdit=(_panelRole==='admin');
 
     h+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden">'
       // Header barbero
@@ -4270,7 +4266,7 @@ function enviarKpiEvalsARailway(silencioso){
   var payload = { periodo: kpiPeriodo, evaluaciones: kpiEvals[kpiPeriodo]||{} };
   fetch(API_URL + '/kpi-evaluaciones/' + kpiPeriodo, {
     method: 'POST',
-    headers: {'Content-Type':'application/json'},
+    headers: getJsonAuthHeaders(),
     body: JSON.stringify(payload)
   })
   .then(function(r){ return r.json(); })
@@ -5456,7 +5452,7 @@ function renderSala(){
         h+='</div>';
         h+='</div>';
         // toggle button
-        if(_panelRole!=='operator'){
+        if(_panelRole==='admin'){
           if(!isAbsent){
             h+='<button onclick="toggleBarberAvailability(\''+b.barber_id+'\',false)" title="Marcar como ausente temporalmente" style="padding:4px 10px;font-size:11px;font-weight:600;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;color:var(--err);font-family:var(--sans);white-space:nowrap">⏸ Salió</button>';
           } else {
@@ -6028,6 +6024,7 @@ function panelApplySession(){
   if(cpSection) cpSection.style.display='';
   applyRoleVisibility();
   renderReg(); // re-render with role-aware delete button
+  if(API_URL) staffRefreshFromAPI();
 }
 
 function panelLogout(){ sessionStorage.removeItem('panelJwt'); location.reload(); }
@@ -6403,8 +6400,7 @@ setInterval(actualizarBadgeAgenda, 120000);
     catch(e){sessionStorage.removeItem('panelJwt');_jwt=null;}
   }
   if(_jwt){ panelApplySession(); }
-  else if(!staffGetToken()){ document.getElementById('panelLoginOverlay').style.display='flex'; }
-  // If only legacy token present → no overlay, no role enforcement (backward compat)
+  else { document.getElementById('panelLoginOverlay').style.display='flex'; }
 })();
 </script>
 </body>
