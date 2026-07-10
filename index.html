@@ -6025,6 +6025,7 @@ function panelApplySession(){
   applyRoleVisibility();
   renderReg(); // re-render with role-aware delete button
   if(API_URL) staffRefreshFromAPI();
+  drainOutbox(); // flush any services queued before login
 }
 
 function panelLogout(){ sessionStorage.removeItem('panelJwt'); location.reload(); }
