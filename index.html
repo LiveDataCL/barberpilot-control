@@ -1053,7 +1053,7 @@ var BB=[
   }).catch(function(){});
 })();
 var SS=[
-  {id:'s01',nombre:'Corte',                       precio:12000,tiempo:'30 min'},
+  {id:'s01',nombre:'Corte',                       precio:13000,tiempo:'30 min'},
   {id:'s02',nombre:'Barba',                        precio:10000,tiempo:'20 min'},
   {id:'s03',nombre:'Corte + Barba',               precio:20000,tiempo:'50 min'},
   {id:'s04',nombre:'Corte + Perfilado de barba',  precio:16000,tiempo:'45 min'},
@@ -3895,7 +3895,7 @@ function renderIngresarHistorico(){
     's08':'Perfilado de barba','s09':'Matizado canas cabello','s10':'Matizado canas barba',
     's11':'Corte Express + Perfilado de barba'
   };
-  var PRECIOS={'s01':12000,'s02':10000,'s03':20000,'s04':16000,'s05':6000,
+  var PRECIOS={'s01':13000,'s02':10000,'s03':20000,'s04':16000,'s05':6000,
                's06':4000,'s07':13000,'s08':6000,'s09':8000,'s10':5000,'s11':15000};
 
   var h='<p style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6">'
@@ -5187,7 +5187,7 @@ function salaGuardarPago(queueId, val){
 }
 var _editorClienteId = null;
 var SALA_PRECIOS = {
-  'Corte':12000,'Corte clásico':12000,'Barba':10000,'Corte + Barba':20000,
+  'Corte':13000,'Corte clásico':13000,'Corte Clásico':13000,'Barba':10000,'Corte + Barba':20000,
   'Corte + Perfilado de barba':16000,'Perfilado de corte':6000,
   'Perfilado de cejas':4000,'Barba + Cejas':13000,
   'Perfilado de barba':6000,'Matizado canas cabello':8000,'Matizado ganas de cabello':8000,
@@ -5896,7 +5896,7 @@ function salaActualizarServicio(){
 }
 
 // ═══ STAFF MANAGEMENT ════════════════════════════════════
-var STAFF_KEY='bp_staff_v1';
+var STAFF_KEY='bp_staff_v2'; // bumped 2026-07-11: forces stale localStorage price caches to fall back to the updated hardcoded defaults (July 16 price change)
 var BB_DEFAULT=[
   {id:'b1',nombre:'Didian',  active:true},
   {id:'b2',nombre:'Emerson', active:true},
@@ -5905,7 +5905,7 @@ var BB_DEFAULT=[
   {id:'b5',nombre:'Steven',  active:true}
 ];
 var SS_DEFAULT=[
-  {id:'s01',nombre:'Corte',                              precio:12000,tiempo:'30 min'},
+  {id:'s01',nombre:'Corte',                              precio:13000,tiempo:'30 min'},
   {id:'s02',nombre:'Barba',                              precio:10000,tiempo:'20 min'},
   {id:'s03',nombre:'Corte + Barba',                      precio:20000,tiempo:'50 min'},
   {id:'s04',nombre:'Corte + Perfilado de barba',         precio:16000,tiempo:'45 min'},
