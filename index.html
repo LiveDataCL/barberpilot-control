@@ -606,7 +606,7 @@
               <option value="Matizado canas cabello">Matizado canas cabello</option>
               <option value="Matizado canas barba">Matizado canas barba</option>
               <option value="Corte + Cejas">Corte + Cejas</option>
-              <option value="Corte Express + Perfilado de barba">Corte Express + Perfilado de barba</option>
+              <!-- s11 (Corte Express + Perfilado de barba) retired 2026-07-16 — removed, not just repriced. -->
             </select>
           </div>
           <div>
@@ -756,7 +756,7 @@
             <option value="Matizado canas cabello">Matizado canas cabello</option>
             <option value="Matizado canas barba">Matizado canas barba</option>
             <option value="Corte + Cejas">Corte + Cejas</option>
-            <option value="Corte Express + Perfilado de barba">Corte Express + Perfilado de barba</option>
+            <!-- s11 (Corte Express + Perfilado de barba) retired 2026-07-16 — removed, not just repriced. -->
           </select>
           <input id="editor-precio" type="number" placeholder="Precio"
             style="padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--mono);background:var(--surface)"/>
@@ -776,7 +776,7 @@
             <option value="Matizado canas cabello">Matizado canas cabello</option>
             <option value="Matizado canas barba">Matizado canas barba</option>
             <option value="Corte + Cejas">Corte + Cejas</option>
-            <option value="Corte Express + Perfilado de barba">Corte Express + Perfilado de barba</option>
+            <!-- s11 (Corte Express + Perfilado de barba) retired 2026-07-16 — removed, not just repriced. -->
           </select>
           <input id="editor-extra-precio" type="number" placeholder="+"
             style="width:70px;padding:7px 8px;border:1.5px dashed var(--border2);border-radius:var(--r);font-size:12px;font-family:var(--mono);background:var(--surface)"/>
@@ -1053,17 +1053,17 @@ var BB=[
   }).catch(function(){});
 })();
 var SS=[
-  {id:'s01',nombre:'Corte',                       precio:12000,tiempo:'30 min'},
+  {id:'s01',nombre:'Corte',                       precio:13000,tiempo:'30 min'},
   {id:'s02',nombre:'Barba',                        precio:10000,tiempo:'20 min'},
-  {id:'s03',nombre:'Corte + Barba',               precio:20000,tiempo:'50 min'},
+  {id:'s03',nombre:'Corte + Barba',               precio:22000,tiempo:'50 min'},
   {id:'s04',nombre:'Corte + Perfilado de barba',  precio:16000,tiempo:'45 min'},
   {id:'s05',nombre:'Perfilado de corte',          precio:6000, tiempo:'15 min'},
   {id:'s06',nombre:'Perfilado de cejas',          precio:4000, tiempo:'10 min'},
   {id:'s07',nombre:'Barba + Cejas',               precio:13000,tiempo:'30 min'},
   {id:'s08',nombre:'Perfilado de barba',          precio:6000, tiempo:'15 min'},
   {id:'s09',nombre:'Matizado canas cabello',      precio:8000, tiempo:'20 min'},
-  {id:'s10',nombre:'Matizado canas barba',        precio:5000, tiempo:'15 min'},
-  {id:'s11',nombre:'Corte Express + Perfilado de barba', precio:15000,tiempo:'35 min'}
+  {id:'s10',nombre:'Matizado canas barba',        precio:5000, tiempo:'15 min'}
+  // s11 (Corte Express + Perfilado de barba) retired 2026-07-16 — removed, not just repriced.
 ];
 var COM={efectivo:.5,debito:.43,transferencia:.5};
 var PRODUCTOS=[
@@ -3888,15 +3888,18 @@ function renderIngresarHistorico(){
   var c=document.getElementById('historicoContent');
   if(!c) return;
 
+  // s11 (Corte Express + Perfilado de barba) removed 2026-07-16 — this also
+  // removes the ability to pick it when backfilling a PRE-July-16 paper
+  // record via this tool. Use "✏ Servicio personalizado…" (custom entry,
+  // already supported below) to backfill an old Corte Express record instead.
   var SERVICIOS_MAP={
     's01':'Corte','s02':'Barba','s03':'Corte + Barba',
     's04':'Corte + Perfilado de barba','s05':'Perfilado de corte',
     's06':'Perfilado de cejas','s07':'Barba + Cejas',
-    's08':'Perfilado de barba','s09':'Matizado canas cabello','s10':'Matizado canas barba',
-    's11':'Corte Express + Perfilado de barba'
+    's08':'Perfilado de barba','s09':'Matizado canas cabello','s10':'Matizado canas barba'
   };
-  var PRECIOS={'s01':12000,'s02':10000,'s03':20000,'s04':16000,'s05':6000,
-               's06':4000,'s07':13000,'s08':6000,'s09':8000,'s10':5000,'s11':15000};
+  var PRECIOS={'s01':13000,'s02':10000,'s03':22000,'s04':16000,'s05':6000,
+               's06':4000,'s07':13000,'s08':6000,'s09':8000,'s10':5000};
 
   var h='<p style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6">'
     +'Ingresa aquí servicios de jornadas anteriores que registraste en papel. '
@@ -5187,12 +5190,13 @@ function salaGuardarPago(queueId, val){
 }
 var _editorClienteId = null;
 var SALA_PRECIOS = {
-  'Corte':12000,'Corte clásico':12000,'Barba':10000,'Corte + Barba':20000,
+  'Corte':13000,'Corte clásico':13000,'Corte Clásico':13000,'Barba':10000,'Corte + Barba':22000,
   'Corte + Perfilado de barba':16000,'Perfilado de corte':6000,
   'Perfilado de cejas':4000,'Barba + Cejas':13000,
   'Perfilado de barba':6000,'Matizado canas cabello':8000,'Matizado ganas de cabello':8000,
   'Matizado canas barba':5000,'Matizado ganas de barba':5000,
-  'Corte + Cejas':15000,'Corte Express + Perfilado de barba':15000
+  'Corte + Cejas':15000
+  // 'Corte Express + Perfilado de barba' removed 2026-07-16 — retired, not repriced.
 };
 
 function salaAutoPreio(){
@@ -5905,17 +5909,17 @@ var BB_DEFAULT=[
   {id:'b5',nombre:'Steven',  active:true}
 ];
 var SS_DEFAULT=[
-  {id:'s01',nombre:'Corte',                              precio:12000,tiempo:'30 min'},
+  {id:'s01',nombre:'Corte',                              precio:13000,tiempo:'30 min'},
   {id:'s02',nombre:'Barba',                              precio:10000,tiempo:'20 min'},
-  {id:'s03',nombre:'Corte + Barba',                      precio:20000,tiempo:'50 min'},
+  {id:'s03',nombre:'Corte + Barba',                      precio:22000,tiempo:'50 min'},
   {id:'s04',nombre:'Corte + Perfilado de barba',         precio:16000,tiempo:'45 min'},
   {id:'s05',nombre:'Perfilado de corte',                 precio:6000, tiempo:'15 min'},
   {id:'s06',nombre:'Perfilado de cejas',                 precio:4000, tiempo:'10 min'},
   {id:'s07',nombre:'Barba + Cejas',                      precio:13000,tiempo:'30 min'},
   {id:'s08',nombre:'Perfilado de barba',                 precio:6000, tiempo:'15 min'},
   {id:'s09',nombre:'Matizado canas cabello',             precio:8000, tiempo:'20 min'},
-  {id:'s10',nombre:'Matizado canas barba',               precio:5000, tiempo:'15 min'},
-  {id:'s11',nombre:'Corte Express + Perfilado de barba', precio:15000,tiempo:'35 min'}
+  {id:'s10',nombre:'Matizado canas barba',               precio:5000, tiempo:'15 min'}
+  // s11 (Corte Express + Perfilado de barba) retired 2026-07-16 — removed, not just repriced.
 ];
 var PRODUCTOS_DEFAULT=[
   {id:'p01',nombre:'Cera Modeladora Media', precio:8500},
