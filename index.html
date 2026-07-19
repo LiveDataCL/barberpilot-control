@@ -731,8 +731,8 @@
             <option value="any">⚡ Primer disponible</option>
             <option value="b1">Didian</option>
             <option value="b2">Emerson</option>
-            <option value="b3">Samuel</option>
             <option value="b5">Steven</option>
+            <option value="b6">Winder</option>
             <!-- Options refreshed dynamically by loadBB() from GET /barberos -->
           </select>
         </div>
@@ -1033,8 +1033,8 @@
 var BB=[
   {id:'b1',nombre:'Didian',  active:true},
   {id:'b2',nombre:'Emerson', active:true},
-  {id:'b3',nombre:'Samuel',  active:true},
-  {id:'b5',nombre:'Steven',  active:true}
+  {id:'b5',nombre:'Steven',  active:true},
+  {id:'b6',nombre:'Winder',  active:true}
 ];
 (function loadBB(){
   var apiBase='https://barberpilot-api-production.up.railway.app';
@@ -5904,9 +5904,9 @@ var STAFF_KEY='bp_staff_v1';
 var BB_DEFAULT=[
   {id:'b1',nombre:'Didian',  active:true},
   {id:'b2',nombre:'Emerson', active:true},
-  {id:'b3',nombre:'Samuel',  active:true},
   {id:'b4',nombre:'David',   active:false},
-  {id:'b5',nombre:'Steven',  active:true}
+  {id:'b5',nombre:'Steven',  active:true},
+  {id:'b6',nombre:'Winder',  active:true}
 ];
 var SS_DEFAULT=[
   {id:'s01',nombre:'Corte',                              precio:13000,tiempo:'30 min'},
@@ -5928,7 +5928,7 @@ var PRODUCTOS_DEFAULT=[
 var COM_DEFAULT={efectivo:.5,debito:.43,transferencia:.5};
 
 // Canonical bid→name — must match constants.js in the app and BARBER_NAME_MAP in the API
-var BB_CANONICAL_NAMES = {b1:'Didian',b2:'Emerson',b3:'Samuel',b5:'Steven'};
+var BB_CANONICAL_NAMES = {b1:'Didian',b2:'Emerson',b5:'Steven',b6:'Winder'};
 
 function loadStaffConfig(){
   try{
