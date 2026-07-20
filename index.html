@@ -688,11 +688,7 @@
               style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--mono);background:var(--surface)"/>
           </div>
         </div>
-        <div style="margin-bottom:14px">
-          <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Modificado por (tu nombre)</div>
-          <input id="editPagoPor" type="text" placeholder="Ej: Saúl"
-            style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--sans);background:var(--surface)"/>
-        </div>
+
         <div style="display:flex;gap:8px">
           <button onclick="guardarEditPago()"
             style="flex:1;padding:9px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans)">Actualizar</button>
@@ -2157,8 +2153,6 @@ function abrirEditPago(id, pagoActual, precioActual, info, svcActual){
   document.getElementById('editPagoServicio').value = svcActual || '';
   var dl = document.getElementById('editPagoServicioList');
   dl.innerHTML = SS.map(function(s){ return '<option value="'+escAttr(s.nombre)+'">'; }).join('');
-  var por = sessionStorage.getItem('auditModificadoPor') || '';
-  document.getElementById('editPagoPor').value = por;
   document.getElementById('editPagoOverlay').style.display = 'flex';
 }
 function cerrarEditPago(){
@@ -2171,10 +2165,7 @@ function guardarEditPago(){
   var pago = document.getElementById('editPagoSel').value;
   var precio = document.getElementById('editPagoPrecio').value;
   var servicio = (document.getElementById('editPagoServicio').value || '').trim();
-  var por = (document.getElementById('editPagoPor').value || '').trim();
-  if(!por){ toast('Escribe tu nombre en "Modificado por"'); return; }
-  sessionStorage.setItem('auditModificadoPor', por);
-  var body = { pago: pago, modificado_por: por };
+  var body = { pago: pago };
   if(precio) body.precio = parseInt(precio);
   if(servicio) body.snom = servicio;
   fetch(API_URL+'/registros/'+_editPagoId+'/pago', {
