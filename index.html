@@ -5918,6 +5918,7 @@ function salaActualizarServicio(){
 
 // ═══ STAFF MANAGEMENT ════════════════════════════════════
 var STAFF_KEY='bp_staff_v1';
+var _liveCatalogPrecios={}; // servicio_id → precio_activo from /config/negocio/publico
 var BB_DEFAULT=[
   {id:'b1',nombre:'Didian',  active:true},
   {id:'b2',nombre:'Emerson', active:true},
@@ -6113,6 +6114,22 @@ function staffRefreshFromAPI(){
   .catch(function(){renderStaffBB();});
 }
 
+// ── Live catalog price loader ─────────────────────────────────────────────────
+function staffLoadLiveCatalog(){
+  if(!API_URL)return;
+  fetch(API_URL+'/config/negocio/publico')
+  .then(function(r){return r.json();})
+  .then(function(j){
+    if(!j.ok||!Array.isArray(j.servicios))return;
+    j.servicios.forEach(function(s){
+      if(s.servicio_id!==undefined&&s.precio_activo!==undefined)
+        _liveCatalogPrecios[s.servicio_id]=s.precio_activo;
+    });
+    renderStaffSS();
+  })
+  .catch(function(){/* silently fall back to SS[i].precio */});
+}
+
 // ── Deactivate / Reactivate ───────────────────────────────────────────────────
 function staffDeactivate(bid,name){
   if(!confirm('¿Desactivar a '+name+'? Ya no podrá acceder a la app. Sus registros históricos se conservan.'))return;
@@ -6199,6 +6216,7 @@ function staffSubmitNewBarber(){
 function renderStaffPanel(){
   staffUpdateTokenStatus();
   staffRefreshFromAPI();
+  staffLoadLiveCatalog();
   renderStaffCOM();renderStaffSS();renderStaffProds();
 }
 
@@ -6270,7 +6288,7 @@ function renderStaffSS(){
       +'<button '+(isLast?'disabled style="'+btnDis+'"':'style="'+btnBase+'"')+' onclick="staffMoveSvc(\''+s.id+'\',1)" title="Bajar">▼</button>'
       +'</div>'
       +'<input class="staff-input" type="text" value="'+escAttr(s.nombre)+'" placeholder="Nombre" onblur="staffSaveSvcName(\''+s.id+'\',this.value)" style="flex:2">'
-      +'<input class="staff-input" type="number" min="0" value="'+s.precio+'" placeholder="Precio" onblur="staffSaveSvcPrecio(\''+s.id+'\',this.value)" style="max-width:100px">'
+      +'<input class="staff-input" type="number" min="0" value="'+(_liveCatalogPrecios[s.id]!==undefined?_liveCatalogPrecios[s.id]:s.precio)+'" placeholder="Precio" onblur="staffSaveSvcPrecio(\''+s.id+'\',this.value)" style="max-width:100px">'
       +'<button class="staff-del-btn" onclick="staffDelSvc(\''+s.id+'\')" title="Eliminar">&times;</button>'
       +'</div>';
   }
@@ -6291,9 +6309,65 @@ function staffSaveSvcName(id,val){
   saveStaffConfig();
 }
 function staffSaveSvcPrecio(id,val){
-  var n=parseInt(val);if(isNaN(n)||n<0)return;
-  for(var i=0;i<SS.length;i++)if(SS[i].id===id){SS[i].precio=n;break;}
-  saveStaffConfig();
+  var nuevoPrecio=parseInt(val);
+  if(isNaN(nuevoPrecio)||nuevoPrecio<0){renderStaffSS();return;}
+  var svc=null;
+  for(var i=0;i<SS.length;i++)if(SS[i].id===id){svc=SS[i];break;}
+  if(!svc){return;}
+  var precioActual=_liveCatalogPrecios[id]!==undefined?_liveCatalogPrecios[id]:svc.precio;
+  if(nuevoPrecio===precioActual){return;}
+  var fmtCLP=function(n){return '$'+n.toLocaleString('es-CL');};
+  if(!confirm('¿Cambiar '+svc.nombre+' de '+fmtCLP(precioActual)+' a '+fmtCLP(nuevoPrecio)+'?')){
+    renderStaffSS();return;
+  }
+  if(!sessionStorage.getItem('panelJwt')){toast('Sesión de panel requerida para cambiar precios');renderStaffSS();return;}
+  staffPatchPrecio(id,nuevoPrecio,precioActual,false);
+}
+
+function staffPatchPrecio(id,nuevoPrecio,precioActual,confirmMagnitud){
+  var svc=null;
+  for(var i=0;i<SS.length;i++)if(SS[i].id===id){svc=SS[i];break;}
+  var body={nuevo_precio:nuevoPrecio,precio_actual_esperado:precioActual};
+  if(confirmMagnitud)body.confirmacion_magnitud=true;
+  fetch(API_URL+'/api/v2/config/servicios/'+id+'/precio',{
+    method:'PATCH',
+    headers:getJsonAuthHeaders(),
+    body:JSON.stringify(body)
+  })
+  .then(function(r){return r.json().then(function(j){return{status:r.status,body:j};});})
+  .then(function(res){
+    var j=res.body;
+    if(res.status===422&&j.error==='cambio_magnitud_elevada'){
+      var pct=j.variacion_pct||'?';
+      if(!confirm('Cambio inusualmente grande ('+pct+'%). ¿Confirmar de todos modos?')){
+        renderStaffSS();return;
+      }
+      staffPatchPrecio(id,nuevoPrecio,precioActual,true);
+      return;
+    }
+    if(res.status===409&&j.error==='precio_desactualizado'){
+      if(confirm('El precio fue modificado en otra sesión. ¿Recargar el catálogo para ver el valor actual?')){
+        staffLoadLiveCatalog();
+      } else {
+        renderStaffSS();
+      }
+      return;
+    }
+    if(res.status===400&&j.error==='servicio_inactivo'){
+      toast('Este servicio está desactivado y no puede actualizarse');
+      renderStaffSS();return;
+    }
+    if(!j.ok){
+      toast('Error al guardar precio: '+(j.error||'?'));
+      renderStaffSS();return;
+    }
+    _liveCatalogPrecios[id]=nuevoPrecio;
+    if(svc)svc.precio=nuevoPrecio;
+    saveStaffConfig();
+    renderStaffSS();
+    toast((svc?svc.nombre:id)+' actualizado a '+('$'+nuevoPrecio.toLocaleString('es-CL')));
+  })
+  .catch(function(){toast('Error de red al guardar precio');renderStaffSS();});
 }
 function staffDelSvc(id){
   if(!confirm('¿Eliminar este servicio?'))return;
