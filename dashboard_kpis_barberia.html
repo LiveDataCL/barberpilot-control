@@ -229,7 +229,7 @@ table.data-table .total-row td{background:var(--text)!important;color:#fff!impor
     <button class="btn btn-dark btn-sm" onclick="aplicarRango()">Aplicar</button>
   </div>
   <div class="ctrl-sep"></div>
-  <div class="ctrl-group">
+  <div class="ctrl-group" id="barbFiltros">
     <span class="ctrl-label">Barbero</span>
     <button class="pf on" onclick="setBarbero('todos',this)">Todos</button>
     <button class="pf" onclick="setBarbero('Didian',this)">Didian</button>
@@ -288,6 +288,27 @@ var BB_COLORS = {
 // Active barbers — David (b4) deactivated; historical amounts included in totals only
 var ACTIVE_BARBERS = Object.keys(BB_COLORS);
 var DEFAULT_COLOR = { head:'b1', bar:'#9c9a93', line:'#9c9a93', fill:'rgba(156,154,147,.1)' };
+function renderBarberoFiltros(){
+  var cont=document.getElementById('barbFiltros'); if(!cont) return;
+  var cur=filtBarbero;
+  cont.innerHTML='<span class="ctrl-label">Barbero</span>'
+    +'<button class="pf'+(cur==='todos'?' on':'')+'" onclick="setBarbero(\'todos\',this)">Todos</button>'
+    +ACTIVE_BARBERS.map(function(n){
+      return '<button class="pf'+(cur===n?' on':'')+'" onclick="setBarbero(\''+n+'\',this)">'+n+'</button>';
+    }).join('');
+}
+function cargarBarberosKPI(){
+  fetch('https://barberpilot-api-production.up.railway.app/config/negocio/publico?tenant=saulfino')
+    .then(function(r){return r.json();})
+    .then(function(json){
+      if(!json.ok) return;
+      if(Array.isArray(json.barberos)&&json.barberos.length){
+        ACTIVE_BARBERS=json.barberos.map(function(b){return b.nombre;});
+        renderBarberoFiltros();
+      }
+    }).catch(function(){});
+}
+cargarBarberosKPI();
 
 // ═══ DATOS DEMO ══════════════════════════════════════════
 var DEMO_JORNADAS = [

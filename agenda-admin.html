@@ -291,7 +291,7 @@ button{cursor:pointer}
 </header>
 
 <!-- BARBER PILLS -->
-<div class="pills-bar">
+<div class="pills-bar" id="pillsBar">
   <span class="pill on" data-bid="todos" onclick="setFilter('todos')">Todos</span>
   <span class="pill" data-bid="b1" onclick="setFilter('b1')">Didian</span>
   <span class="pill" data-bid="b2" onclick="setFilter('b2')">Emerson</span>
@@ -489,12 +489,34 @@ function irACola() {
 }
 const SLOT_H = 68, SLOT_M = 30;
 
-const BARBERS = [
+let BARBERS = [
   {id:'b1',name:'Didian'},{id:'b2',name:'Emerson'},
   {id:'b5',name:'Steven'},{id:'b6',name:'Winder'},
 ];
-const B_MAP    = {b1:'Didian',b2:'Emerson',b5:'Steven',b6:'Winder'};
-const BID_TO_QID = {b1:'didian',b2:'emerson',b5:'steven',b6:'winder'};
+let B_MAP    = {b1:'Didian',b2:'Emerson',b5:'Steven',b6:'Winder'};
+let BID_TO_QID = {b1:'didian',b2:'emerson',b5:'steven',b6:'winder'};
+function renderPills(){
+  var pb=document.getElementById('pillsBar'); if(!pb) return;
+  pb.innerHTML='<span class="pill on" data-bid="todos" onclick="setFilter(\'todos\')">Todos</span>'
+    +BARBERS.map(function(b){
+      return '<span class="pill" data-bid="'+b.id+'" onclick="setFilter(\''+b.id+'\')">'+b.name+'</span>';
+    }).join('');
+  pb.querySelectorAll('.pill').forEach(function(p){p.classList.toggle('on',p.dataset.bid===filter);});
+}
+function cargarBarberos(){
+  fetch('https://barberpilot-api-production.up.railway.app/config/negocio/publico?tenant=saulfino')
+    .then(function(r){return r.json();})
+    .then(function(json){
+      if(!json.ok) return;
+      if(Array.isArray(json.barberos)&&json.barberos.length){
+        BARBERS=json.barberos.map(function(b){return{id:b.bid,name:b.nombre};});
+        B_MAP={}; BID_TO_QID={};
+        json.barberos.forEach(function(b){B_MAP[b.bid]=b.nombre;BID_TO_QID[b.bid]=b.queue_id;});
+        renderPills();
+      }
+    }).catch(function(){});
+}
+cargarBarberos();
 const SCHED = {
   1:{o:'10:00',c:'20:00'},2:{o:'10:00',c:'20:00'},3:{o:'10:00',c:'20:00'},
   4:{o:'10:00',c:'20:00'},5:{o:'10:00',c:'20:00'},6:{o:'10:00',c:'15:00'},0:null
