@@ -1036,22 +1036,39 @@ var BB=[
   {id:'b5',nombre:'Steven',  active:true},
   {id:'b6',nombre:'Winder',  active:true}
 ];
-(function loadBB(){
+function cargarConfigDesdeServidor(){
   var apiBase='https://barberpilot-api-production.up.railway.app';
-  fetch(apiBase+'/barberos').then(function(r){return r.json();}).then(function(list){
-    BB=list.map(function(b){return{id:b.bid,nombre:b.nombre,active:b.activo};});
-    // Repopulate reasignar barbero select
-    var sel=document.getElementById('editor-bid');
-    if(sel){
-      var cur=sel.value;
-      sel.innerHTML='<option value="">Sin cambio</option><option value="any">⚡ Primer disponible</option>'
-        +BB.filter(function(b){return b.active;}).map(function(b){
-          return '<option value="'+b.id+'">'+b.nombre+'</option>';
-        }).join('');
-      sel.value=cur;
-    }
-  }).catch(function(){});
-})();
+  fetch(apiBase+'/config/negocio/publico?tenant=saulfino')
+    .then(function(r){return r.json();})
+    .then(function(json){
+      if(!json.ok) return;
+      if(Array.isArray(json.servicios)){
+        var _pById={};
+        json.servicios.forEach(function(s){_pById[s.servicio_id]=s.precio_activo;});
+        SS.forEach(function(s){if(_pById[s.id]!=null) s.precio=_pById[s.id];});
+        var _np={};
+        json.servicios.forEach(function(s){
+          if(s.precio_activo==null) return;
+          _np[s.nombre_canonico]=s.precio_activo;
+          (s.aliases||[]).forEach(function(a){_np[a]=s.precio_activo;});
+        });
+        SALA_PRECIOS=_np;
+      }
+      if(Array.isArray(json.barberos)&&json.barberos.length){
+        BB=json.barberos.map(function(b){return{id:b.bid,nombre:b.nombre,active:true};});
+        var sel=document.getElementById('editor-bid');
+        if(sel){
+          var cur=sel.value;
+          sel.innerHTML='<option value="">Sin cambio</option><option value="any">⚡ Primer disponible</option>'
+            +BB.filter(function(b){return b.active;}).map(function(b){
+              return '<option value="'+b.id+'">'+b.nombre+'</option>';
+            }).join('');
+          sel.value=cur;
+        }
+      }
+    }).catch(function(){});
+}
+cargarConfigDesdeServidor();
 var SS=[
   {id:'s01',nombre:'Corte',                       precio:13000,tiempo:'30 min'},
   {id:'s02',nombre:'Barba',                        precio:10000,tiempo:'20 min'},
