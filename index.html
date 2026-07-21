@@ -571,7 +571,7 @@
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:12px">✚ Check-in manual</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
           <div>
-            <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Teléfono *</div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Teléfono (opcional)</div>
             <input id="sala-tel" type="tel" placeholder="+56 9 1234 5678"
               style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--sans);background:var(--surface)"
               onblur="buscarClientePorTel('sala')" />
@@ -715,7 +715,7 @@
               style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--sans);background:var(--surface)"/>
           </div>
           <div>
-            <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Teléfono *</div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Teléfono (opcional)</div>
             <input id="editor-tel" type="tel" onblur="buscarClientePorTel('editor')"
               style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--sans);background:var(--surface)"/>
             <div id="editor-tel-badge" style="font-size:11px;margin-top:4px;color:var(--text3)"></div>
@@ -5295,7 +5295,6 @@ function salaCheckin(){
   if(!nombre){toast('Escribe el nombre del cliente');return;}
   if(!bid){toast('Elige el barbero');return;}
   if(!svc){toast('Elige el servicio');return;}
-  if(!tel){toast('Ingresa el teléfono del cliente');return;}
   if(_telEsPlaceholder(tel)){toast('Ingresa un número real, no uses un número de relleno');return;}
 
   _doCheckin(nombre, bid, svc, tel);
@@ -5921,7 +5920,6 @@ function salaGuardarCliente(){
   var tel=(document.getElementById('editor-tel').value||'').trim();
   var bidNuevo=document.getElementById('editor-bid').value;
   if(!nombre){toast('Escribe el nombre del cliente');return;}
-  if(!tel){toast('Ingresa el teléfono del cliente');return;}
   if(_telEsPlaceholder(tel)){toast('Ingresa un número real, no uses un número de relleno');return;}
   var url,body;
   if(bidNuevo){
