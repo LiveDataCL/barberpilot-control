@@ -6527,6 +6527,33 @@ function clientesConfianzaBadge(c){
   return '<span class="badge bx" title="Nombre sin teléfono asociado a 3+ barberos — puede ser más de una persona real con el mismo nombre">⚠ Baja</span>';
 }
 
+// Reuses the two existing bid→name sources instead of a new hardcoded map:
+// BB_CANONICAL_NAMES (source of truth for the 4 well-known bids) first, then
+// the live BB roster (covers any barbero added since, e.g. future hires).
+function clientesBarberoNombre(bid){
+  if(!bid)return '—';
+  if(typeof BB_CANONICAL_NAMES!=='undefined'&&BB_CANONICAL_NAMES[bid])return BB_CANONICAL_NAMES[bid];
+  var match=(BB||[]).find(function(b){return b.id===bid;});
+  return match?match.nombre:bid;
+}
+
+// Placeholder phone staff use when booking without a real number on hand.
+// Should already be filtered server-side (excluded from confianza_alta /
+// telefono in the API response) — this is a defensive redundant check so
+// the WhatsApp buttons stay safe even before that backend fix is deployed.
+var CLIENTES_TELEFONO_PLACEHOLDER='+56900000000';
+
+function clientesWaButtons(c){
+  var telOk=c.confianza_identidad==='alta'&&c.telefono&&c.telefono!==CLIENTES_TELEFONO_PLACEHOLDER;
+  if(!telOk)return '';
+  var digits=c.telefono.replace(/\D/g,'');
+  var barberoNombre=clientesBarberoNombre(c.barbero_principal);
+  var msgAgradecimiento='💈 Hola '+c.nombre+', ¡Fue un gusto atenderte hoy en Salon Men! Te dejo por acá el link de nuestra página en donde podrás agendar muy fácil tu próximo servicio con '+barberoNombre+'.\n¡Te esperamos!\nhttps://salonmensf.livedata.cl';
+  var msgResena='¡Hola '+c.nombre+'! Esperamos que hayas disfrutado tu corte y servicio hoy en la barbería.\nNos ayuda enormemente que nos dejes una breve opinión en Google para seguir mejorando.\nPara que no pierdas tiempo pensando qué poner, aquí tienes un par de ideas sobre lo que nos sirve mucho que menciones:\n\n✂️ ¿Qué tal quedó tu corte de cabello / arreglo de barba?\n☕ ¿Cómo sentiste la atención, la puntualidad y el ambiente?\n📍 ¿Nos recomendarías como tu barbería preferida en Santiago Centro?\n\n👉 Deja tu reseña en 30 segundos aquí: https://g.page/r/Cee_fupz7sMXEBM/review';
+  return '<a class="bsm" href="https://wa.me/'+digits+'?text='+encodeURIComponent(msgAgradecimiento)+'" target="_blank" rel="noopener" title="Enviar agradecimiento por WhatsApp">💬 Agradecimiento</a>'
+    +'<a class="bsm" href="https://wa.me/'+digits+'?text='+encodeURIComponent(msgResena)+'" target="_blank" rel="noopener" title="Pedir reseña Google por WhatsApp">⭐ Reseña Google</a>';
+}
+
 function renderClientesTable(list){
   var content=document.getElementById('clientesContent');if(!content)return;
   if(!list.length){
@@ -6536,7 +6563,7 @@ function renderClientesTable(list){
   var h='<table class="rt"><thead><tr>'
     +'<th>Nombre</th><th>Teléfono</th><th>Confianza</th><th>Barbero principal</th>'
     +'<th style="text-align:right">Visitas</th><th>Última visita</th><th style="text-align:right">Días sin volver</th>'
-    +'<th>Riesgo fuga</th><th style="text-align:right">Gasto total</th>'
+    +'<th>Riesgo fuga</th><th style="text-align:right">Gasto total</th><th>Acciones</th>'
     +'</tr></thead><tbody>';
   for(var i=0;i<list.length;i++){
     var c=list[i];
@@ -6544,12 +6571,13 @@ function renderClientesTable(list){
       +'<td style="font-weight:500">'+escAttr(c.nombre)+'</td>'
       +'<td style="font-family:var(--mono);color:var(--text2)">'+(c.telefono?escAttr(c.telefono):'<span style="color:var(--text3)">sin teléfono</span>')+'</td>'
       +'<td>'+clientesConfianzaBadge(c.confianza_identidad)+'</td>'
-      +'<td>'+escAttr(c.barbero_principal||'—')+'</td>'
+      +'<td>'+escAttr(clientesBarberoNombre(c.barbero_principal))+'</td>'
       +'<td style="text-align:right;font-family:var(--mono)">'+c.total_visitas+'</td>'
       +'<td style="font-family:var(--mono);color:var(--text2)">'+escAttr(c.ultima_visita)+'</td>'
       +'<td style="text-align:right;font-family:var(--mono)'+(c.dias_desde_ultima>30?';color:var(--warn);font-weight:600':'')+'">'+c.dias_desde_ultima+'</td>'
       +'<td>'+(c.riesgo_fuga?'<span class="badge btr">⚠ En riesgo</span>':'')+'</td>'
       +'<td style="text-align:right;font-family:var(--mono);font-weight:600">$'+fmt(c.gasto_total)+'</td>'
+      +'<td style="white-space:nowrap">'+clientesWaButtons(c)+'</td>'
       +'</tr>';
   }
   h+='</tbody></table>';
