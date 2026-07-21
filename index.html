@@ -4478,25 +4478,25 @@ function gradeLabel(g){
 
 // ── PLAN DE FACTURACIÓN — anclado al dashboard_facturacion ──
 // PLAN_S: plan mensual servicios barbería. Índice 0 = Mayo 2026.
-var PLAN_S_BARBERIA = [
-  6500000,8000000 /*Jun*/,9500000 /*Jul*/,11500000 /*Ago*/,
-  13500000 /*Sep*/,15500000 /*Oct*/,17000000 /*Nov*/,19000000 /*Dic*/,
-  17000000 /*Ene27*/,18500000 /*Feb*/,20000000 /*Mar*/,21500000 /*Abr*/
-];
-var PLAN_BASE_AÑO = 2026, PLAN_BASE_MES_IDX = 4; // Mayo=4 (0-based)
+var _historialMetas = {}; // YYYY-MM → meta del servidor (calcularMetaAnchorServicios)
 
-function metaPlanMesActual(){
-  var d = new Date();
-  var idx = (d.getFullYear()-PLAN_BASE_AÑO)*12 + (d.getMonth()-PLAN_BASE_MES_IDX);
-  idx = Math.max(0, Math.min(idx, PLAN_S_BARBERIA.length-1));
-  return PLAN_S_BARBERIA[idx];
+function cargarMetaDesdeServidor(callback){
+  if(!API_URL){ if(callback) callback(); return; }
+  fetch(API_URL+'/config/negocio', {headers:getJsonAuthHeaders()})
+  .then(function(r){ return r.json(); })
+  .then(function(json){
+    if(json.ok && json.meta){
+      if(json.meta.historial_metas) _historialMetas = json.meta.historial_metas;
+      if(json.meta.facturacion_meta_calculada != null) META_FACT = json.meta.facturacion_meta_calculada;
+    }
+    if(callback) callback();
+  })
+  .catch(function(){ if(callback) callback(); });
 }
+
 function metaPlanParaPeriodo(periodo){ // periodo = 'YYYY-MM'
-  var p = periodo.split('-');
-  var y = parseInt(p[0]), m = parseInt(p[1])-1; // m = 0-based
-  var idx = (y-PLAN_BASE_AÑO)*12 + (m-PLAN_BASE_MES_IDX);
-  idx = Math.max(0, Math.min(idx, PLAN_S_BARBERIA.length-1));
-  return PLAN_S_BARBERIA[idx];
+  if(_historialMetas[periodo] !== undefined) return _historialMetas[periodo];
+  return META_FACT || 0;
 }
 
 // ── MODOS DE BONO ─────────────────────────────────────────────
@@ -4505,7 +4505,7 @@ function metaPlanParaPeriodo(periodo){ // periodo = 'YYYY-MM'
 var BONUS_MODO  = 'porcentaje';
 var BONUS_MONTO = {S:20000, A:10000, B:0, C:0, X:0, M:0};
 var BONUS_PCT   = {S:0.5,   A:0.25,  B:0, C:0, X:0, M:0}; // % de facturación real
-var META_FACT   = metaPlanMesActual(); // siempre del plan; se puede sobreescribir
+var META_FACT   = null; // populated from GET /config/negocio on first KPI render
 
 function cargarConfigKpi(){
   try{
@@ -4522,7 +4522,6 @@ function cargarConfigKpi(){
 function guardarConfigKpi(){
   try{
     var cfg = {modo:BONUS_MODO, montos:BONUS_MONTO, pct:BONUS_PCT};
-    if(META_FACT !== metaPlanMesActual()) cfg.metaOverride = META_FACT;
     localStorage.setItem('sfsf_kpi_config', JSON.stringify(cfg));
   }catch(e){}
 }
@@ -4664,13 +4663,13 @@ function sincronizarMesDesdeApi(periodo, callback){
 
 function renderKpis(){
   cargarKpiEvals();
-  // Sincronizar mes desde Railway si hay API_URL (para que KPIs sean del mes completo)
   if(API_URL && !window._kpiSynced){
     window._kpiSynced = true;
-    // Primero cargar evaluaciones desde Railway, luego sincronizar registros del mes
-    cargarKpiEvalsDesdeRailway(function(){
-      sincronizarMesDesdeApi(kpiPeriodo, function(){
-        renderKpisInner();
+    cargarMetaDesdeServidor(function(){
+      cargarKpiEvalsDesdeRailway(function(){
+        sincronizarMesDesdeApi(kpiPeriodo, function(){
+          renderKpisInner();
+        });
       });
     });
     return;
