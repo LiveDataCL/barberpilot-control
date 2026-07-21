@@ -133,6 +133,7 @@
 
   .badge{display:inline-block;padding:2px 7px;border-radius:20px;font-size:11px;font-weight:500}
   .be{background:#e6f4ea;color:#1a6b3a} .bd{background:#e8eef8;color:#1a4b8b} .btr{background:#fef9e7;color:#8b5e00}
+  .bx{background:#fcebeb;color:#791f1f} /* baja confianza / riesgo — deliberately alarming, never mistake for one person */
 
   .bsm{padding:4px 7px;border:1px solid var(--border);border-radius:4px;background:var(--surface);font-size:11px;cursor:pointer;font-family:var(--sans);transition:all .1s;white-space:nowrap;margin-left:3px}
   .bsm:hover{border-color:var(--text);background:var(--soft)}
@@ -544,7 +545,8 @@
       <div class="tab" onclick="showTab('pHist',this)">Histórico</div>
       <div class="tab" onclick="showTab('pHistorico',this)">📥 Ingresar histórico</div>
       <div class="tab" onclick="showTab('pConfig',this)">⚙ Config</div>
-      <div class="tab" onclick="showTab('pStaff',this)">👥 Staff</div>
+      <div class="tab" onclick="showTab('pStaff',this)">👥 Administración</div>
+      <div class="tab" onclick="showTab('pClientes',this)">👤 Clientes</div>
       <div class="tab" id="tabAgenda" onclick="showTab('pAgenda',this)">📅 Agenda <span id="badgeAgenda" style="display:none;background:#2d5e8e;color:#fff;border-radius:20px;font-size:10px;font-weight:700;padding:1px 7px;margin-left:4px;vertical-align:middle">0</span></div>
     </div>
 
@@ -996,6 +998,29 @@
         <div style="padding-top:12px;border-top:1px solid var(--border);text-align:right">
           <button class="staff-reset-btn" onclick="staffReset()">↩ Restaurar valores por defecto</button>
         </div>
+      </div>
+    </div>
+    <div class="pane" id="pClientes">
+      <div style="padding-bottom:40px">
+        <div class="fbar" style="margin-bottom:6px;flex-wrap:wrap">
+          <span style="font-size:11px;color:var(--text3);align-self:center;margin-right:2px">Barbero:</span>
+          <div id="clientesBarberoFilters" style="display:contents"></div>
+        </div>
+        <div class="fbar" style="margin-bottom:6px;flex-wrap:wrap">
+          <span style="font-size:11px;color:var(--text3);align-self:center;margin-right:2px">Confianza:</span>
+          <button class="fb on" onclick="clientesSetConfianza('',this)">Todas</button>
+          <button class="fb" onclick="clientesSetConfianza('alta',this)">Alta</button>
+          <button class="fb" onclick="clientesSetConfianza('media',this)">Media</button>
+          <button class="fb" onclick="clientesSetConfianza('baja',this)">Baja</button>
+        </div>
+        <div class="fbar" style="margin-bottom:14px;flex-wrap:wrap">
+          <span style="font-size:11px;color:var(--text3);align-self:center;margin-right:2px">Ordenar por:</span>
+          <button class="fb on" onclick="clientesSetSort('dias_desde_ultima',this)">Días sin volver</button>
+          <button class="fb" onclick="clientesSetSort('visitas',this)">Visitas</button>
+          <button class="fb" onclick="clientesSetSort('gasto_total',this)">Gasto total</button>
+        </div>
+        <div id="clientesSummary" style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.6"></div>
+        <div id="clientesContent"></div>
       </div>
     </div>
     <div class="pane" id="pAgenda" style="margin:-18px;overflow:hidden">
@@ -2496,6 +2521,7 @@ function showTab(id,el){
   if(id==='pKpis')renderKpis();
   if(id==='pConfig') cargarAvatares();
   if(id==='pStaff') renderStaffPanel();
+  if(id==='pClientes') renderClientesPanel();
   if(id==='pAgenda'){
     var fr=document.getElementById('agendaIframe');
     if(fr && !fr.src.includes('agenda-admin')) fr.src='agenda-admin.html?embedded=1';
@@ -6411,6 +6437,197 @@ function staffReset(){
   COM=Object.assign({},COM_DEFAULT);
   localStorage.removeItem(STAFF_KEY);
   renderStaffPanel();buildBarbers();buildServices();buildProdBarbers();
+}
+
+// ═══ CLIENTES (recurrencia / retención) ═════════════
+// Backed by GET /clientes/recurrencia — panel JWT only (same session, no new
+// login). 'baja' confianza rows are a name-only match that collided across
+// 3+ barberos in the backend's identity resolution — it can represent more
+// than one real person, so it's always shown with an alarming badge and is
+// never used for any future ranking/leaderboard view.
+var _clientesBarberoSel='', _clientesConfianzaSel='', _clientesSortSel='dias_desde_ultima';
+
+// Client-side column-header sort — independent of the server-side sort_by
+// pills above. Applies in memory to whatever's already loaded, no refetch.
+var _clientesCurrentList=[];
+var _clientesColSort='dias_desde_ultima', _clientesColSortDir='desc';
+var CLIENTES_SORT_COLUMNS={
+  nombre:        function(c){return (c.nombre||'').toLowerCase();},
+  telefono:      function(c){return c.telefono||'';},
+  confianza_identidad: function(c){return {alta:1,media:2,baja:3}[c.confianza_identidad]||9;},
+  barbero_principal:   function(c){return clientesBarberoNombre(c.barbero_principal).toLowerCase();},
+  total_visitas: function(c){return c.total_visitas||0;},
+  ultima_visita: function(c){return c.ultima_visita||'';},
+  dias_desde_ultima:   function(c){return c.dias_desde_ultima;},
+  riesgo_fuga:   function(c){return c.riesgo_fuga?1:0;},
+  gasto_total:   function(c){return c.gasto_total||0;}
+};
+function clientesSortClick(col){
+  if(_clientesColSort===col){
+    _clientesColSortDir=_clientesColSortDir==='asc'?'desc':'asc';
+  } else {
+    _clientesColSort=col;
+    _clientesColSortDir='asc';
+  }
+  renderClientesSorted();
+}
+function clientesSortIndicator(col){
+  if(_clientesColSort!==col)return '';
+  return _clientesColSortDir==='asc'?' ▲':' ▼';
+}
+function renderClientesSorted(){
+  var getter=CLIENTES_SORT_COLUMNS[_clientesColSort];
+  var sorted=_clientesCurrentList.slice();
+  if(getter){
+    sorted.sort(function(a,b){
+      var av=getter(a),bv=getter(b);
+      if(av<bv)return _clientesColSortDir==='asc'?-1:1;
+      if(av>bv)return _clientesColSortDir==='asc'?1:-1;
+      return 0;
+    });
+  }
+  renderClientesTable(sorted);
+}
+
+function buildClientesBarberoFilters(){
+  var el=document.getElementById('clientesBarberoFilters');if(!el)return;
+  if(el.getAttribute('data-built')==='1')return; // BB loads async; only build once populated
+  if(!BB||!BB.length)return;
+  var h='<button class="fb on" onclick="clientesSetBarbero(\'\',this)">Todos</button>';
+  var activeBB=BB.filter(function(b){return b.active!==false;});
+  for(var i=0;i<activeBB.length;i++){
+    h+='<button class="fb" onclick="clientesSetBarbero(\''+escAttr(activeBB[i].id)+'\',this)">'+escAttr(activeBB[i].nombre)+'</button>';
+  }
+  el.innerHTML=h;
+  el.setAttribute('data-built','1');
+}
+function clientesSetBarbero(v,el){
+  _clientesBarberoSel=v;
+  var all=document.querySelectorAll('#clientesBarberoFilters .fb');for(var i=0;i<all.length;i++)all[i].classList.remove('on');
+  el.classList.add('on');
+  renderClientesPanel();
+}
+function clientesSetConfianza(v,el){
+  _clientesConfianzaSel=v;
+  var bar=el.parentElement;var all=bar.querySelectorAll('.fb');for(var i=0;i<all.length;i++)all[i].classList.remove('on');
+  el.classList.add('on');
+  renderClientesPanel();
+}
+function clientesSetSort(v,el){
+  _clientesSortSel=v;
+  var bar=el.parentElement;var all=bar.querySelectorAll('.fb');for(var i=0;i<all.length;i++)all[i].classList.remove('on');
+  el.classList.add('on');
+  renderClientesPanel();
+}
+
+function renderClientesPanel(){
+  buildClientesBarberoFilters();
+  var jwt=sessionStorage.getItem('panelJwt');
+  var content=document.getElementById('clientesContent');
+  var summaryEl=document.getElementById('clientesSummary');
+  if(!content||!summaryEl)return;
+  if(!jwt){
+    content.innerHTML='<div class="empty"><div class="empty-ico">🔒</div><div>Sesión de panel requerida para ver clientes.</div></div>';
+    summaryEl.innerHTML='';
+    return;
+  }
+  content.innerHTML='<div class="empty"><div class="empty-ico">⟳</div><div>Cargando…</div></div>';
+  var params=[];
+  if(_clientesBarberoSel)params.push('barbero_id='+encodeURIComponent(_clientesBarberoSel));
+  if(_clientesConfianzaSel)params.push('confianza='+encodeURIComponent(_clientesConfianzaSel));
+  if(_clientesSortSel)params.push('sort_by='+encodeURIComponent(_clientesSortSel));
+  var qs=params.length?('?'+params.join('&')):'';
+  fetch(API_URL+'/clientes/recurrencia'+qs,{headers:{'Authorization':'Bearer '+jwt}})
+    .then(function(r){return r.json();})
+    .then(function(j){
+      if(!j.ok){
+        content.innerHTML='<div class="empty"><div class="empty-ico">⚠</div><div>'+escAttr(j.error||'Error al cargar clientes')+'</div></div>';
+        summaryEl.innerHTML='';
+        return;
+      }
+      renderClientesSummary(j.summary);
+      _clientesCurrentList=j.clientes||[];
+      renderClientesSorted();
+    })
+    .catch(function(){
+      content.innerHTML='<div class="empty"><div class="empty-ico">⚠</div><div>Error de red al cargar clientes</div></div>';
+    });
+}
+
+function renderClientesSummary(s){
+  var el=document.getElementById('clientesSummary');if(!el||!s)return;
+  el.innerHTML='<strong>'+s.total_identificados+'</strong> clientes identificados &middot; '
+    +'<span style="color:var(--ok)">'+s.confianza_alta+' alta</span> &middot; '
+    +'<span style="color:var(--info)">'+s.confianza_media+' media</span> &middot; '
+    +'<span style="color:#791f1f">'+s.confianza_baja+' baja</span> &middot; '
+    +s.anonimos_excluidos+' anónimos excluidos (sin datos) &middot; '
+    +'<span style="color:var(--warn)">'+s.riesgo_fuga_count+' en riesgo de fuga</span> (&gt;'+s.riesgo_fuga_dias_umbral+' días sin volver)';
+}
+
+function clientesConfianzaBadge(c){
+  if(c==='alta')return '<span class="badge be">Alta</span>';
+  if(c==='media')return '<span class="badge bd">Media</span>';
+  return '<span class="badge bx" title="Nombre sin teléfono asociado a 3+ barberos — puede ser más de una persona real con el mismo nombre">⚠ Baja</span>';
+}
+
+// Reuses the two existing bid→name sources instead of a new hardcoded map:
+// BB_CANONICAL_NAMES (source of truth for the 4 well-known bids) first, then
+// the live BB roster (covers any barbero added since, e.g. future hires).
+function clientesBarberoNombre(bid){
+  if(!bid)return '—';
+  if(typeof BB_CANONICAL_NAMES!=='undefined'&&BB_CANONICAL_NAMES[bid])return BB_CANONICAL_NAMES[bid];
+  var match=(BB||[]).find(function(b){return b.id===bid;});
+  return match?match.nombre:bid;
+}
+
+// Placeholder phone staff use when booking without a real number on hand.
+// Should already be filtered server-side (excluded from confianza_alta /
+// telefono in the API response) — this is a defensive redundant check so
+// the WhatsApp buttons stay safe even before that backend fix is deployed.
+var CLIENTES_TELEFONO_PLACEHOLDER='+56900000000';
+
+function clientesWaButtons(c){
+  var telOk=c.confianza_identidad==='alta'&&c.telefono&&c.telefono!==CLIENTES_TELEFONO_PLACEHOLDER;
+  if(!telOk)return '';
+  var digits=c.telefono.replace(/\D/g,'');
+  var barberoNombre=clientesBarberoNombre(c.barbero_principal);
+  var msgAgradecimiento='💈 Hola '+c.nombre+', ¡Fue un gusto atenderte hoy en Salon Men! Te dejo por acá el link de nuestra página en donde podrás agendar muy fácil tu próximo servicio con '+barberoNombre+'.\n¡Te esperamos!\nhttps://salonmensf.livedata.cl';
+  var msgResena='¡Hola '+c.nombre+'! Esperamos que hayas disfrutado tu corte y servicio hoy en la barbería.\nNos ayuda enormemente que nos dejes una breve opinión en Google para seguir mejorando.\nPara que no pierdas tiempo pensando qué poner, aquí tienes un par de ideas sobre lo que nos sirve mucho que menciones:\n\n✂️ ¿Qué tal quedó tu corte de cabello / arreglo de barba?\n☕ ¿Cómo sentiste la atención, la puntualidad y el ambiente?\n📍 ¿Nos recomendarías como tu barbería preferida en Santiago Centro?\n\n👉 Deja tu reseña en 30 segundos aquí: https://g.page/r/Cee_fupz7sMXEBM/review';
+  return '<a class="bsm" href="https://wa.me/'+digits+'?text='+encodeURIComponent(msgAgradecimiento)+'" target="_blank" rel="noopener" title="Enviar agradecimiento por WhatsApp">💬 Agradecimiento</a>'
+    +'<a class="bsm" href="https://wa.me/'+digits+'?text='+encodeURIComponent(msgResena)+'" target="_blank" rel="noopener" title="Pedir reseña Google por WhatsApp">⭐ Reseña Google</a>';
+}
+
+function renderClientesTable(list){
+  var content=document.getElementById('clientesContent');if(!content)return;
+  if(!list.length){
+    content.innerHTML='<div class="empty"><div class="empty-ico">👤</div><div>Sin clientes para este filtro.</div></div>';
+    return;
+  }
+  var sortTh=function(col,label,alignRight){
+    return '<th style="cursor:pointer;user-select:none'+(alignRight?';text-align:right':'')+'" onclick="clientesSortClick(\''+col+'\')" title="Ordenar por '+label+'">'+label+clientesSortIndicator(col)+'</th>';
+  };
+  var h='<table class="rt"><thead><tr>'
+    +sortTh('nombre','Nombre')+sortTh('telefono','Teléfono')+sortTh('confianza_identidad','Confianza')+sortTh('barbero_principal','Barbero principal')
+    +sortTh('total_visitas','Visitas',true)+sortTh('ultima_visita','Última visita')+sortTh('dias_desde_ultima','Días sin volver',true)
+    +sortTh('riesgo_fuga','Riesgo fuga')+sortTh('gasto_total','Gasto total',true)+'<th>Acciones</th>'
+    +'</tr></thead><tbody>';
+  for(var i=0;i<list.length;i++){
+    var c=list[i];
+    h+='<tr>'
+      +'<td style="font-weight:500">'+escAttr(c.nombre)+'</td>'
+      +'<td style="font-family:var(--mono);color:var(--text2)">'+(c.telefono?escAttr(c.telefono):'<span style="color:var(--text3)">sin teléfono</span>')+'</td>'
+      +'<td>'+clientesConfianzaBadge(c.confianza_identidad)+'</td>'
+      +'<td>'+escAttr(clientesBarberoNombre(c.barbero_principal))+'</td>'
+      +'<td style="text-align:right;font-family:var(--mono)">'+c.total_visitas+'</td>'
+      +'<td style="font-family:var(--mono);color:var(--text2)">'+escAttr(c.ultima_visita)+'</td>'
+      +'<td style="text-align:right;font-family:var(--mono)'+(c.dias_desde_ultima>30?';color:var(--warn);font-weight:600':'')+'">'+c.dias_desde_ultima+'</td>'
+      +'<td>'+(c.riesgo_fuga?'<span class="badge btr">⚠ En riesgo</span>':'')+'</td>'
+      +'<td style="text-align:right;font-family:var(--mono);font-weight:600">$'+fmt(c.gasto_total)+'</td>'
+      +'<td style="white-space:nowrap">'+clientesWaButtons(c)+'</td>'
+      +'</tr>';
+  }
+  h+='</tbody></table>';
+  content.innerHTML=h;
 }
 
 // ═══ AGENDA: BADGE + NOTIFICACIONES PRÓXIMAS ═════════════
