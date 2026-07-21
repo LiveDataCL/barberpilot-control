@@ -6447,6 +6447,48 @@ function staffReset(){
 // never used for any future ranking/leaderboard view.
 var _clientesBarberoSel='', _clientesConfianzaSel='', _clientesSortSel='dias_desde_ultima';
 
+// Client-side column-header sort — independent of the server-side sort_by
+// pills above. Applies in memory to whatever's already loaded, no refetch.
+var _clientesCurrentList=[];
+var _clientesColSort='dias_desde_ultima', _clientesColSortDir='desc';
+var CLIENTES_SORT_COLUMNS={
+  nombre:        function(c){return (c.nombre||'').toLowerCase();},
+  telefono:      function(c){return c.telefono||'';},
+  confianza_identidad: function(c){return {alta:1,media:2,baja:3}[c.confianza_identidad]||9;},
+  barbero_principal:   function(c){return clientesBarberoNombre(c.barbero_principal).toLowerCase();},
+  total_visitas: function(c){return c.total_visitas||0;},
+  ultima_visita: function(c){return c.ultima_visita||'';},
+  dias_desde_ultima:   function(c){return c.dias_desde_ultima;},
+  riesgo_fuga:   function(c){return c.riesgo_fuga?1:0;},
+  gasto_total:   function(c){return c.gasto_total||0;}
+};
+function clientesSortClick(col){
+  if(_clientesColSort===col){
+    _clientesColSortDir=_clientesColSortDir==='asc'?'desc':'asc';
+  } else {
+    _clientesColSort=col;
+    _clientesColSortDir='asc';
+  }
+  renderClientesSorted();
+}
+function clientesSortIndicator(col){
+  if(_clientesColSort!==col)return '';
+  return _clientesColSortDir==='asc'?' ▲':' ▼';
+}
+function renderClientesSorted(){
+  var getter=CLIENTES_SORT_COLUMNS[_clientesColSort];
+  var sorted=_clientesCurrentList.slice();
+  if(getter){
+    sorted.sort(function(a,b){
+      var av=getter(a),bv=getter(b);
+      if(av<bv)return _clientesColSortDir==='asc'?-1:1;
+      if(av>bv)return _clientesColSortDir==='asc'?1:-1;
+      return 0;
+    });
+  }
+  renderClientesTable(sorted);
+}
+
 function buildClientesBarberoFilters(){
   var el=document.getElementById('clientesBarberoFilters');if(!el)return;
   if(el.getAttribute('data-built')==='1')return; // BB loads async; only build once populated
@@ -6504,7 +6546,8 @@ function renderClientesPanel(){
         return;
       }
       renderClientesSummary(j.summary);
-      renderClientesTable(j.clientes||[]);
+      _clientesCurrentList=j.clientes||[];
+      renderClientesSorted();
     })
     .catch(function(){
       content.innerHTML='<div class="empty"><div class="empty-ico">⚠</div><div>Error de red al cargar clientes</div></div>';
@@ -6560,10 +6603,13 @@ function renderClientesTable(list){
     content.innerHTML='<div class="empty"><div class="empty-ico">👤</div><div>Sin clientes para este filtro.</div></div>';
     return;
   }
+  var sortTh=function(col,label,alignRight){
+    return '<th style="cursor:pointer;user-select:none'+(alignRight?';text-align:right':'')+'" onclick="clientesSortClick(\''+col+'\')" title="Ordenar por '+label+'">'+label+clientesSortIndicator(col)+'</th>';
+  };
   var h='<table class="rt"><thead><tr>'
-    +'<th>Nombre</th><th>Teléfono</th><th>Confianza</th><th>Barbero principal</th>'
-    +'<th style="text-align:right">Visitas</th><th>Última visita</th><th style="text-align:right">Días sin volver</th>'
-    +'<th>Riesgo fuga</th><th style="text-align:right">Gasto total</th><th>Acciones</th>'
+    +sortTh('nombre','Nombre')+sortTh('telefono','Teléfono')+sortTh('confianza_identidad','Confianza')+sortTh('barbero_principal','Barbero principal')
+    +sortTh('total_visitas','Visitas',true)+sortTh('ultima_visita','Última visita')+sortTh('dias_desde_ultima','Días sin volver',true)
+    +sortTh('riesgo_fuga','Riesgo fuga')+sortTh('gasto_total','Gasto total',true)+'<th>Acciones</th>'
     +'</tr></thead><tbody>';
   for(var i=0;i<list.length;i++){
     var c=list[i];
