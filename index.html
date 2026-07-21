@@ -133,6 +133,7 @@
 
   .badge{display:inline-block;padding:2px 7px;border-radius:20px;font-size:11px;font-weight:500}
   .be{background:#e6f4ea;color:#1a6b3a} .bd{background:#e8eef8;color:#1a4b8b} .btr{background:#fef9e7;color:#8b5e00}
+  .bx{background:#fcebeb;color:#791f1f} /* baja confianza / riesgo — deliberately alarming, never mistake for one person */
 
   .bsm{padding:4px 7px;border:1px solid var(--border);border-radius:4px;background:var(--surface);font-size:11px;cursor:pointer;font-family:var(--sans);transition:all .1s;white-space:nowrap;margin-left:3px}
   .bsm:hover{border-color:var(--text);background:var(--soft)}
@@ -545,6 +546,7 @@
       <div class="tab" onclick="showTab('pHistorico',this)">📥 Ingresar histórico</div>
       <div class="tab" onclick="showTab('pConfig',this)">⚙ Config</div>
       <div class="tab" onclick="showTab('pStaff',this)">👥 Administración</div>
+      <div class="tab" onclick="showTab('pClientes',this)">👤 Clientes</div>
       <div class="tab" id="tabAgenda" onclick="showTab('pAgenda',this)">📅 Agenda <span id="badgeAgenda" style="display:none;background:#2d5e8e;color:#fff;border-radius:20px;font-size:10px;font-weight:700;padding:1px 7px;margin-left:4px;vertical-align:middle">0</span></div>
     </div>
 
@@ -996,6 +998,29 @@
         <div style="padding-top:12px;border-top:1px solid var(--border);text-align:right">
           <button class="staff-reset-btn" onclick="staffReset()">↩ Restaurar valores por defecto</button>
         </div>
+      </div>
+    </div>
+    <div class="pane" id="pClientes">
+      <div style="padding-bottom:40px">
+        <div class="fbar" style="margin-bottom:6px;flex-wrap:wrap">
+          <span style="font-size:11px;color:var(--text3);align-self:center;margin-right:2px">Barbero:</span>
+          <div id="clientesBarberoFilters" style="display:contents"></div>
+        </div>
+        <div class="fbar" style="margin-bottom:6px;flex-wrap:wrap">
+          <span style="font-size:11px;color:var(--text3);align-self:center;margin-right:2px">Confianza:</span>
+          <button class="fb on" onclick="clientesSetConfianza('',this)">Todas</button>
+          <button class="fb" onclick="clientesSetConfianza('alta',this)">Alta</button>
+          <button class="fb" onclick="clientesSetConfianza('media',this)">Media</button>
+          <button class="fb" onclick="clientesSetConfianza('baja',this)">Baja</button>
+        </div>
+        <div class="fbar" style="margin-bottom:14px;flex-wrap:wrap">
+          <span style="font-size:11px;color:var(--text3);align-self:center;margin-right:2px">Ordenar por:</span>
+          <button class="fb on" onclick="clientesSetSort('dias_desde_ultima',this)">Días sin volver</button>
+          <button class="fb" onclick="clientesSetSort('visitas',this)">Visitas</button>
+          <button class="fb" onclick="clientesSetSort('gasto_total',this)">Gasto total</button>
+        </div>
+        <div id="clientesSummary" style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.6"></div>
+        <div id="clientesContent"></div>
       </div>
     </div>
     <div class="pane" id="pAgenda" style="margin:-18px;overflow:hidden">
@@ -2496,6 +2521,7 @@ function showTab(id,el){
   if(id==='pKpis')renderKpis();
   if(id==='pConfig') cargarAvatares();
   if(id==='pStaff') renderStaffPanel();
+  if(id==='pClientes') renderClientesPanel();
   if(id==='pAgenda'){
     var fr=document.getElementById('agendaIframe');
     if(fr && !fr.src.includes('agenda-admin')) fr.src='agenda-admin.html?embedded=1';
@@ -6411,6 +6437,123 @@ function staffReset(){
   COM=Object.assign({},COM_DEFAULT);
   localStorage.removeItem(STAFF_KEY);
   renderStaffPanel();buildBarbers();buildServices();buildProdBarbers();
+}
+
+// ═══ CLIENTES (recurrencia / retención) ═════════════
+// Backed by GET /clientes/recurrencia — panel JWT only (same session, no new
+// login). 'baja' confianza rows are a name-only match that collided across
+// 3+ barberos in the backend's identity resolution — it can represent more
+// than one real person, so it's always shown with an alarming badge and is
+// never used for any future ranking/leaderboard view.
+var _clientesBarberoSel='', _clientesConfianzaSel='', _clientesSortSel='dias_desde_ultima';
+
+function buildClientesBarberoFilters(){
+  var el=document.getElementById('clientesBarberoFilters');if(!el)return;
+  if(el.getAttribute('data-built')==='1')return; // BB loads async; only build once populated
+  if(!BB||!BB.length)return;
+  var h='<button class="fb on" onclick="clientesSetBarbero(\'\',this)">Todos</button>';
+  var activeBB=BB.filter(function(b){return b.active!==false;});
+  for(var i=0;i<activeBB.length;i++){
+    h+='<button class="fb" onclick="clientesSetBarbero(\''+escAttr(activeBB[i].id)+'\',this)">'+escAttr(activeBB[i].nombre)+'</button>';
+  }
+  el.innerHTML=h;
+  el.setAttribute('data-built','1');
+}
+function clientesSetBarbero(v,el){
+  _clientesBarberoSel=v;
+  var all=document.querySelectorAll('#clientesBarberoFilters .fb');for(var i=0;i<all.length;i++)all[i].classList.remove('on');
+  el.classList.add('on');
+  renderClientesPanel();
+}
+function clientesSetConfianza(v,el){
+  _clientesConfianzaSel=v;
+  var bar=el.parentElement;var all=bar.querySelectorAll('.fb');for(var i=0;i<all.length;i++)all[i].classList.remove('on');
+  el.classList.add('on');
+  renderClientesPanel();
+}
+function clientesSetSort(v,el){
+  _clientesSortSel=v;
+  var bar=el.parentElement;var all=bar.querySelectorAll('.fb');for(var i=0;i<all.length;i++)all[i].classList.remove('on');
+  el.classList.add('on');
+  renderClientesPanel();
+}
+
+function renderClientesPanel(){
+  buildClientesBarberoFilters();
+  var jwt=sessionStorage.getItem('panelJwt');
+  var content=document.getElementById('clientesContent');
+  var summaryEl=document.getElementById('clientesSummary');
+  if(!content||!summaryEl)return;
+  if(!jwt){
+    content.innerHTML='<div class="empty"><div class="empty-ico">🔒</div><div>Sesión de panel requerida para ver clientes.</div></div>';
+    summaryEl.innerHTML='';
+    return;
+  }
+  content.innerHTML='<div class="empty"><div class="empty-ico">⟳</div><div>Cargando…</div></div>';
+  var params=[];
+  if(_clientesBarberoSel)params.push('barbero_id='+encodeURIComponent(_clientesBarberoSel));
+  if(_clientesConfianzaSel)params.push('confianza='+encodeURIComponent(_clientesConfianzaSel));
+  if(_clientesSortSel)params.push('sort_by='+encodeURIComponent(_clientesSortSel));
+  var qs=params.length?('?'+params.join('&')):'';
+  fetch(API_URL+'/clientes/recurrencia'+qs,{headers:{'Authorization':'Bearer '+jwt}})
+    .then(function(r){return r.json();})
+    .then(function(j){
+      if(!j.ok){
+        content.innerHTML='<div class="empty"><div class="empty-ico">⚠</div><div>'+escAttr(j.error||'Error al cargar clientes')+'</div></div>';
+        summaryEl.innerHTML='';
+        return;
+      }
+      renderClientesSummary(j.summary);
+      renderClientesTable(j.clientes||[]);
+    })
+    .catch(function(){
+      content.innerHTML='<div class="empty"><div class="empty-ico">⚠</div><div>Error de red al cargar clientes</div></div>';
+    });
+}
+
+function renderClientesSummary(s){
+  var el=document.getElementById('clientesSummary');if(!el||!s)return;
+  el.innerHTML='<strong>'+s.total_identificados+'</strong> clientes identificados &middot; '
+    +'<span style="color:var(--ok)">'+s.confianza_alta+' alta</span> &middot; '
+    +'<span style="color:var(--info)">'+s.confianza_media+' media</span> &middot; '
+    +'<span style="color:#791f1f">'+s.confianza_baja+' baja</span> &middot; '
+    +s.anonimos_excluidos+' anónimos excluidos (sin datos) &middot; '
+    +'<span style="color:var(--warn)">'+s.riesgo_fuga_count+' en riesgo de fuga</span> (&gt;'+s.riesgo_fuga_dias_umbral+' días sin volver)';
+}
+
+function clientesConfianzaBadge(c){
+  if(c==='alta')return '<span class="badge be">Alta</span>';
+  if(c==='media')return '<span class="badge bd">Media</span>';
+  return '<span class="badge bx" title="Nombre sin teléfono asociado a 3+ barberos — puede ser más de una persona real con el mismo nombre">⚠ Baja</span>';
+}
+
+function renderClientesTable(list){
+  var content=document.getElementById('clientesContent');if(!content)return;
+  if(!list.length){
+    content.innerHTML='<div class="empty"><div class="empty-ico">👤</div><div>Sin clientes para este filtro.</div></div>';
+    return;
+  }
+  var h='<table class="rt"><thead><tr>'
+    +'<th>Nombre</th><th>Teléfono</th><th>Confianza</th><th>Barbero principal</th>'
+    +'<th style="text-align:right">Visitas</th><th>Última visita</th><th style="text-align:right">Días sin volver</th>'
+    +'<th>Riesgo fuga</th><th style="text-align:right">Gasto total</th>'
+    +'</tr></thead><tbody>';
+  for(var i=0;i<list.length;i++){
+    var c=list[i];
+    h+='<tr>'
+      +'<td style="font-weight:500">'+escAttr(c.nombre)+'</td>'
+      +'<td style="font-family:var(--mono);color:var(--text2)">'+(c.telefono?escAttr(c.telefono):'<span style="color:var(--text3)">sin teléfono</span>')+'</td>'
+      +'<td>'+clientesConfianzaBadge(c.confianza_identidad)+'</td>'
+      +'<td>'+escAttr(c.barbero_principal||'—')+'</td>'
+      +'<td style="text-align:right;font-family:var(--mono)">'+c.total_visitas+'</td>'
+      +'<td style="font-family:var(--mono);color:var(--text2)">'+escAttr(c.ultima_visita)+'</td>'
+      +'<td style="text-align:right;font-family:var(--mono)'+(c.dias_desde_ultima>30?';color:var(--warn);font-weight:600':'')+'">'+c.dias_desde_ultima+'</td>'
+      +'<td>'+(c.riesgo_fuga?'<span class="badge btr">⚠ En riesgo</span>':'')+'</td>'
+      +'<td style="text-align:right;font-family:var(--mono);font-weight:600">$'+fmt(c.gasto_total)+'</td>'
+      +'</tr>';
+  }
+  h+='</tbody></table>';
+  content.innerHTML=h;
 }
 
 // ═══ AGENDA: BADGE + NOTIFICACIONES PRÓXIMAS ═════════════
