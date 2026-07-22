@@ -576,7 +576,7 @@
             <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Teléfono (opcional)</div>
             <input id="sala-tel" type="tel" placeholder="+56 9 1234 5678"
               style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--sans);background:var(--surface)"
-              onblur="buscarClientePorTel()" />
+              onblur="buscarClientePorTel('sala')" />
             <div id="sala-tel-badge" style="font-size:11px;margin-top:4px;color:var(--text3)"></div>
           </div>
           <div>
@@ -717,9 +717,10 @@
               style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--sans);background:var(--surface)"/>
           </div>
           <div>
-            <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Teléfono</div>
-            <input id="editor-tel" type="tel"
+            <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Teléfono (opcional)</div>
+            <input id="editor-tel" type="tel" onblur="buscarClientePorTel('editor')"
               style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--sans);background:var(--surface)"/>
+            <div id="editor-tel-badge" style="font-size:11px;margin-top:4px;color:var(--text3)"></div>
           </div>
         </div>
         <div style="margin-bottom:12px">
@@ -5238,27 +5239,77 @@ function salaAutoPreio(){
   document.getElementById('sala-precio').value=p;
 }
 
-function buscarClientePorTel(){
-  if(!API_URL) return;
-  var tel=(document.getElementById('sala-tel').value||'').trim();
-  var badge=document.getElementById('sala-tel-badge');
-  if(!tel){badge.textContent='';return;}
-  badge.textContent='Buscando…';badge.style.color='var(--text3)';
-  fetch(API_URL+'/clientes?q='+encodeURIComponent(tel),{headers:getAuthHeaders()})
-    .then(function(r){return r.json();})
-    .then(function(j){
-      var clientes=j.clientes||[];
-      var telLimpio=tel.replace(/\s/g,'');
-      var match=clientes.find(function(c){return c.telefono&&c.telefono.replace(/\s/g,'')===telLimpio;});
-      if(match){
-        document.getElementById('sala-nombre').value=match.nombre;
-        badge.textContent='✓ Cliente conocido · '+match.visitas+' visita'+(match.visitas!==1?'s':'');
-        badge.style.color='var(--ok)';
-      } else {
-        badge.textContent='● Cliente nuevo';
-        badge.style.color='var(--text3)';
-      }
-    }).catch(function(){badge.textContent='';});
+// Staff-facing placeholder for "no real phone on hand" — mirrors the
+// backend's TELEFONO_PLACEHOLDER_DEFAULT (barberpilot-api index.js). Rejecting
+// it here is a UX nudge only; the backend's unique-index migration (022) is
+// the actual enforcement, this just stops staff from hitting that error blind.
+var TELEFONO_PLACEHOLDER = '+56900000000';
+
+function _telEsPlaceholder(tel){
+  return tel.replace(/\s/g,'')===TELEFONO_PLACEHOLDER;
+}
+
+function _escHtml(s){
+  return String(s).replace(/[&<>"']/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+
+var _clienteLookupTimers={};
+
+// Shared lookup-on-blur for both the manual check-in form (prefix 'sala')
+// and the queue-entry editor modal (prefix 'editor') — same fields
+// (<prefix>-tel, <prefix>-nombre, <prefix>-tel-badge) in both.
+function buscarClientePorTel(prefix){
+  if(!API_URL){toast('Conecta Railway en ⚙ Config primero');return;}
+  var telEl=document.getElementById(prefix+'-tel');
+  var nombreEl=document.getElementById(prefix+'-nombre');
+  var badge=document.getElementById(prefix+'-tel-badge');
+  var tel=(telEl.value||'').trim();
+
+  // Phone changed since a previous match locked the name field — release it,
+  // the old match may no longer apply.
+  if(nombreEl.readOnly){
+    nombreEl.readOnly=false;
+    nombreEl.value='';
+  }
+  if(badge) badge.innerHTML='';
+  if(!tel||_telEsPlaceholder(tel)) return;
+
+  clearTimeout(_clienteLookupTimers[prefix]);
+  _clienteLookupTimers[prefix]=setTimeout(function(){
+    if(badge){badge.textContent='Buscando…';badge.style.color='var(--text3)';}
+    fetch(API_URL+'/clientes/lookup?phone='+encodeURIComponent(tel),{headers:getAuthHeaders()})
+      .then(function(r){return r.json();})
+      .then(function(j){
+        if(j.ok&&j.found&&j.cliente&&j.cliente.nombre){
+          _bloquearClienteEncontrado(prefix,j.cliente.nombre);
+        } else if(badge){
+          badge.textContent='';
+        }
+      }).catch(function(){if(badge) badge.textContent='';});
+  },300);
+}
+
+function _bloquearClienteEncontrado(prefix,nombre){
+  var nombreEl=document.getElementById(prefix+'-nombre');
+  var badge=document.getElementById(prefix+'-tel-badge');
+  nombreEl.value=nombre;
+  nombreEl.readOnly=true;
+  if(badge){
+    badge.innerHTML='✓ Cliente existente: '+_escHtml(nombre)+' · '
+      +'<a href="#" onclick="_liberarClienteEncontrado(\''+prefix+'\');return false" style="color:inherit;text-decoration:underline">¿No es él/ella?</a>';
+    badge.style.color='var(--ok)';
+  }
+}
+
+function _liberarClienteEncontrado(prefix){
+  var nombreEl=document.getElementById(prefix+'-nombre');
+  var badge=document.getElementById(prefix+'-tel-badge');
+  nombreEl.readOnly=false;
+  nombreEl.value='';
+  nombreEl.focus();
+  if(badge) badge.innerHTML='';
 }
 
 function salaCheckin(){
@@ -5270,6 +5321,7 @@ function salaCheckin(){
   if(!nombre){toast('Escribe el nombre del cliente');return;}
   if(!bid){toast('Elige el barbero');return;}
   if(!svc){toast('Elige el servicio');return;}
+  if(_telEsPlaceholder(tel)){toast('Ingresa un número real, no uses un número de relleno');return;}
 
   _doCheckin(nombre, bid, svc, tel);
 }
@@ -5331,7 +5383,9 @@ function _doCheckin(nombre, bid, svc, tel){
       var waitLbl=bid==='any'?'esperando barbero':'~'+j.estimated_wait_min+' min';
       toast('✓ '+nombre+' en '+nb+' · '+waitLbl);
       document.getElementById('sala-tel').value='';
-      document.getElementById('sala-nombre').value='';
+      var salaNombreEl=document.getElementById('sala-nombre');
+      salaNombreEl.readOnly=false;
+      salaNombreEl.value='';
       document.getElementById('sala-bid').value='';
       document.getElementById('sala-svc').value='';
       document.getElementById('sala-precio').value='';
@@ -5822,7 +5876,9 @@ function buscarClienteCRM(){
 }
 
 function salaPrecargarCliente(nombre,tel){
-  document.getElementById('sala-nombre').value=nombre;
+  var salaNombreEl=document.getElementById('sala-nombre');
+  salaNombreEl.readOnly=false;
+  salaNombreEl.value=nombre;
   document.getElementById('sala-tel').value=tel||'';
   if(tel){
     document.getElementById('sala-tel-badge').textContent='✓ Cliente del CRM';
@@ -5841,8 +5897,11 @@ function salaAbrirEditor(queue_id){
   if(!d){toast('Datos del cliente no disponibles');return;}
   _editorQueueId  =queue_id;
   _editorClienteId=d.cliente_id||null;
-  document.getElementById('editor-nombre').value      =d.client_name||'';
+  var editorNombreEl=document.getElementById('editor-nombre');
+  editorNombreEl.readOnly=false;
+  editorNombreEl.value                                 =d.client_name||'';
   document.getElementById('editor-tel').value         =d.phone||'';
+  document.getElementById('editor-tel-badge').textContent='';
   document.getElementById('editor-svc').value         =d.service||'';
   document.getElementById('editor-precio').value      =d.precio||SALA_PRECIOS[d.service]||'';
   document.getElementById('editor-bid').value         ='';
@@ -5887,6 +5946,7 @@ function salaGuardarCliente(){
   var tel=(document.getElementById('editor-tel').value||'').trim();
   var bidNuevo=document.getElementById('editor-bid').value;
   if(!nombre){toast('Escribe el nombre del cliente');return;}
+  if(_telEsPlaceholder(tel)){toast('Ingresa un número real, no uses un número de relleno');return;}
   var url,body;
   if(bidNuevo){
     url=API_URL+'/queue/'+_editorQueueId;
