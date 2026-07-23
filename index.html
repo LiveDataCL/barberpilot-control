@@ -6509,13 +6509,17 @@ var _clientesBarberoSel='', _clientesConfianzaSel='', _clientesSortSel='dias_des
 
 // Client-side column-header sort — independent of the server-side sort_by
 // pills above. Applies in memory to whatever's already loaded, no refetch.
+// Default is ascending dias_desde_ultima — most-recently-visited clients
+// first — matching the backend's own default sort (computeClienteRecurrencia
+// in barberpilot-api), so the initial table load and the API's default order
+// agree instead of only coincidentally matching via this client-side sort.
 var _clientesCurrentList=[];
-var _clientesColSort='dias_desde_ultima', _clientesColSortDir='desc';
+var _clientesColSort='dias_desde_ultima', _clientesColSortDir='asc';
 var CLIENTES_SORT_COLUMNS={
   nombre:        function(c){return (c.nombre||'').toLowerCase();},
   telefono:      function(c){return c.telefono||'';},
   confianza_identidad: function(c){return {alta:1,media:2,baja:3}[c.confianza_identidad]||9;},
-  barbero_principal:   function(c){return clientesBarberoNombre(c.barbero_principal).toLowerCase();},
+  ultimo_barbero: function(c){return clientesBarberoNombre(c.ultimo_barbero).toLowerCase();},
   total_visitas: function(c){return c.total_visitas||0;},
   ultima_visita: function(c){return c.ultima_visita||'';},
   dias_desde_ultima:   function(c){return c.dias_desde_ultima;},
@@ -6650,7 +6654,7 @@ function clientesWaButtons(c){
   var telOk=c.confianza_identidad==='alta'&&c.telefono&&c.telefono!==CLIENTES_TELEFONO_PLACEHOLDER;
   if(!telOk)return '';
   var digits=c.telefono.replace(/\D/g,'');
-  var barberoNombre=clientesBarberoNombre(c.barbero_principal);
+  var barberoNombre=clientesBarberoNombre(c.ultimo_barbero);
   var msgAgradecimiento='💈 Hola '+c.nombre+', ¡Fue un gusto atenderte hoy en Salon Men! Te dejo por acá el link de nuestra página en donde podrás agendar muy fácil tu próximo servicio con '+barberoNombre+'.\n¡Te esperamos!\nhttps://salonmensf.livedata.cl';
   var msgResena='¡Hola '+c.nombre+'! Esperamos que hayas disfrutado tu corte y servicio hoy en la barbería.\nNos ayuda enormemente que nos dejes una breve opinión en Google para seguir mejorando.\nPara que no pierdas tiempo pensando qué poner, aquí tienes un par de ideas sobre lo que nos sirve mucho que menciones:\n\n✂️ ¿Qué tal quedó tu corte de cabello / arreglo de barba?\n☕ ¿Cómo sentiste la atención, la puntualidad y el ambiente?\n📍 ¿Nos recomendarías como tu barbería preferida en Santiago Centro?\n\n👉 Deja tu reseña en 30 segundos aquí: https://g.page/r/Cee_fupz7sMXEBM/review';
   return '<a class="bsm" href="https://wa.me/'+digits+'?text='+encodeURIComponent(msgAgradecimiento)+'" target="_blank" rel="noopener" title="Enviar agradecimiento por WhatsApp">💬 Agradecimiento</a>'
@@ -6667,7 +6671,7 @@ function renderClientesTable(list){
     return '<th style="cursor:pointer;user-select:none'+(alignRight?';text-align:right':'')+'" onclick="clientesSortClick(\''+col+'\')" title="Ordenar por '+label+'">'+label+clientesSortIndicator(col)+'</th>';
   };
   var h='<table class="rt"><thead><tr>'
-    +sortTh('nombre','Nombre')+sortTh('telefono','Teléfono')+sortTh('confianza_identidad','Confianza')+sortTh('barbero_principal','Barbero principal')
+    +sortTh('nombre','Nombre')+sortTh('telefono','Teléfono')+sortTh('confianza_identidad','Confianza')+sortTh('ultimo_barbero','Último barbero')
     +sortTh('total_visitas','Visitas',true)+sortTh('ultima_visita','Última visita')+sortTh('dias_desde_ultima','Días sin volver',true)
     +sortTh('riesgo_fuga','Riesgo fuga')+sortTh('gasto_total','Gasto total',true)+'<th>Acciones</th>'
     +'</tr></thead><tbody>';
@@ -6677,7 +6681,7 @@ function renderClientesTable(list){
       +'<td style="font-weight:500">'+escAttr(c.nombre)+'</td>'
       +'<td style="font-family:var(--mono);color:var(--text2)">'+(c.telefono?escAttr(c.telefono):'<span style="color:var(--text3)">sin teléfono</span>')+'</td>'
       +'<td>'+clientesConfianzaBadge(c.confianza_identidad)+'</td>'
-      +'<td>'+escAttr(clientesBarberoNombre(c.barbero_principal))+'</td>'
+      +'<td>'+escAttr(clientesBarberoNombre(c.ultimo_barbero))+'</td>'
       +'<td style="text-align:right;font-family:var(--mono)">'+c.total_visitas+'</td>'
       +'<td style="font-family:var(--mono);color:var(--text2)">'+escAttr(c.ultima_visita)+'</td>'
       +'<td style="text-align:right;font-family:var(--mono)'+(c.dias_desde_ultima>30?';color:var(--warn);font-weight:600':'')+'">'+c.dias_desde_ultima+'</td>'
