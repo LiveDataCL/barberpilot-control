@@ -617,7 +617,27 @@
               style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--mono);background:var(--surface)" />
           </div>
         </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+          <div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Bebida (opcional)</div>
+            <select id="sala-bebida" onchange="salaToggleBebidaOtro()" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--surface);font-family:var(--sans)">
+              <option value="">Sin bebida</option>
+              <option value="__otro__">Otro…</option>
+            </select>
+          </div>
+          <div id="sala-bebida-otro-wrap" style="display:none">
+            <div style="font-size:11px;color:var(--text3);margin-bottom:4px">¿Cuál?</div>
+            <input id="sala-bebida-otro" type="text" placeholder="Ej: Té helado"
+              style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--sans);background:var(--surface)" />
+          </div>
+        </div>
         <button onclick="salaCheckin()" style="padding:9px 20px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans)">✓ Registrar llegada</button>
+      </div>
+
+      <!-- ── Memoria del cliente (GET /clientes/:id/memoria, panel-auth) ── -->
+      <div id="salaMemoriaPanel" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:16px;margin-bottom:16px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:12px">🧠 Memoria del cliente</div>
+        <div id="salaMemoriaBody" style="font-size:13px"></div>
       </div>
 
       <!-- ── Cola en tiempo real ── -->
@@ -996,6 +1016,19 @@
           <div id="staffProds"></div>
         </div>
 
+        <!-- Amenities (bebidas de cortesía) -->
+        <div style="margin-bottom:26px">
+          <div class="staff-section-hdr">
+            <span>Amenities</span>
+            <span class="staff-note">Bebidas ofrecidas en el check-in</span>
+          </div>
+          <div id="staffBebidas"></div>
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <input id="newBebidaInput" type="text" placeholder="Ej: Té helado" class="staff-input" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();staffAddBebida();}">
+            <button onclick="staffAddBebida()" class="staff-add-btn" style="padding:9px 14px;font-size:12px;white-space:nowrap">+ Agregar</button>
+          </div>
+        </div>
+
         <div style="padding-top:12px;border-top:1px solid var(--border);text-align:right">
           <button class="staff-reset-btn" onclick="staffReset()">↩ Restaurar valores por defecto</button>
         </div>
@@ -1058,6 +1091,9 @@ var BB=[
   {id:'b5',nombre:'Steven',  active:true},
   {id:'b6',nombre:'Winder',  active:true}
 ];
+// Populated from GET /config/negocio/publico's bebidas_disponibles — never
+// hardcoded here, tenant-configurable via the Amenities section (Administración).
+var BEBIDAS_DISPONIBLES=[];
 function cargarConfigDesdeServidor(){
   var apiBase='https://barberpilot-api-production.up.railway.app';
   fetch(apiBase+'/config/negocio/publico?tenant=saulfino')
@@ -1087,6 +1123,11 @@ function cargarConfigDesdeServidor(){
             }).join('');
           sel.value=cur;
         }
+      }
+      if(Array.isArray(json.bebidas_disponibles)){
+        BEBIDAS_DISPONIBLES=json.bebidas_disponibles;
+        renderStaffBebidas();
+        renderSalaBebidaOptions();
       }
     }).catch(function(){});
 }
@@ -5239,6 +5280,27 @@ function salaAutoPreio(){
   document.getElementById('sala-precio').value=p;
 }
 
+function renderSalaBebidaOptions(){
+  var sel=document.getElementById('sala-bebida');
+  if(!sel) return;
+  var cur=sel.value;
+  var h='<option value="">Sin bebida</option>';
+  BEBIDAS_DISPONIBLES.forEach(function(b){
+    h+='<option value="'+escAttr(b)+'">'+_escHtml(b)+'</option>';
+  });
+  h+='<option value="__otro__">Otro…</option>';
+  sel.innerHTML=h;
+  var stillValid=Array.prototype.some.call(sel.options,function(o){return o.value===cur;});
+  if(stillValid) sel.value=cur;
+}
+function salaToggleBebidaOtro(){
+  var sel=document.getElementById('sala-bebida');
+  var wrap=document.getElementById('sala-bebida-otro-wrap');
+  var esOtro=sel.value==='__otro__';
+  wrap.style.display=esOtro?'block':'none';
+  if(!esOtro) document.getElementById('sala-bebida-otro').value='';
+}
+
 // Staff-facing placeholder for "no real phone on hand" — mirrors the
 // backend's TELEFONO_PLACEHOLDER_DEFAULT (barberpilot-api index.js). Rejecting
 // it here is a UX nudge only; the backend's unique-index migration (022) is
@@ -5274,6 +5336,7 @@ function buscarClientePorTel(prefix){
     nombreEl.value='';
   }
   if(badge) badge.innerHTML='';
+  if(prefix==='sala') salaOcultarMemoria();
   if(!tel||_telEsPlaceholder(tel)) return;
 
   clearTimeout(_clienteLookupTimers[prefix]);
@@ -5288,6 +5351,13 @@ function buscarClientePorTel(prefix){
           badge.textContent='';
         }
       }).catch(function(){if(badge) badge.textContent='';});
+    // Separate from the name-autofill lookup above (which uses the public,
+    // unauthenticated /clientes/lookup — fine for a name prefill). The
+    // memoria panel (notas, cumpleanos, bebida/barbero history) is
+    // staff-only data, so it's routed through the panel-authenticated
+    // GET /clientes/:id/memoria (D) instead — never the public route,
+    // regardless of what the public lookup above already returned.
+    if(prefix==='sala') salaCargarMemoria(tel);
   },300);
 }
 
@@ -5310,6 +5380,130 @@ function _liberarClienteEncontrado(prefix){
   nombreEl.value='';
   nombreEl.focus();
   if(badge) badge.innerHTML='';
+  // "¿No es él/ella?" means the phone match this memoria panel is showing
+  // was wrong — hide it immediately, same as changing the phone number
+  // itself already does in buscarClientePorTel. Only the 'sala' prefix has
+  // a memoria panel at all (the 'editor' queue-entry modal doesn't).
+  if(prefix==='sala') salaOcultarMemoria();
+}
+
+// ═══ MEMORIA DEL CLIENTE ═══════════════════════════════════
+// GET/POST/DELETE /clientes/:id/memoria|notas — panel-authenticated
+// (requirePanelRole). Phone→cliente_id resolution here goes through the
+// existing authenticated GET /clientes?q= (same one buscarClienteCRM already
+// uses), not the public /clientes/lookup — the memoria payload itself
+// (notas, cumpleanos) is staff-only.
+var _salaMemoriaClienteId=null;
+
+function salaOcultarMemoria(){
+  _salaMemoriaClienteId=null;
+  var panel=document.getElementById('salaMemoriaPanel');
+  if(panel) panel.style.display='none';
+}
+
+function salaCargarMemoria(tel){
+  var jwt=sessionStorage.getItem('panelJwt');
+  if(!jwt) return; // sin sesión de panel — la memoria simplemente no se muestra, sin toast (esto corre en cada blur del teléfono)
+  fetch(API_URL+'/clientes?q='+encodeURIComponent(tel),{headers:{'Authorization':'Bearer '+jwt}})
+    .then(function(r){return r.json();})
+    .then(function(j){
+      var clientes=j.clientes||[];
+      var telLimpio=tel.replace(/\s/g,'');
+      var match=clientes.find(function(c){return c.telefono&&c.telefono.replace(/\s/g,'')===telLimpio;});
+      if(!match){salaOcultarMemoria();return;}
+      return fetch(API_URL+'/clientes/'+match.id+'/memoria',{headers:{'Authorization':'Bearer '+jwt}})
+        .then(function(r){return r.json();})
+        .then(function(mj){
+          if(!mj.ok){salaOcultarMemoria();return;} // incluye confianza_insuficiente — fail-closed, sin mostrar nada
+          salaMostrarMemoria(match.id, mj);
+        });
+    }).catch(function(){salaOcultarMemoria();});
+}
+
+var SALA_MESES=['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+function salaMostrarMemoria(clienteId, mj){
+  _salaMemoriaClienteId=clienteId;
+  var panel=document.getElementById('salaMemoriaPanel');
+  var body=document.getElementById('salaMemoriaBody');
+  var h='';
+  // Nombre first, most prominent — a visual anchor for staff before reading
+  // any nota aloud in front of the client. Not just relying on the phone-
+  // lookup badge elsewhere on the screen; this panel needs to say who it's
+  // showing memory for on its own.
+  h+='<div style="font-size:16px;font-weight:800;margin-bottom:12px;color:var(--text)">'
+    +'Memoria de '+_escHtml((mj.cliente&&mj.cliente.nombre)||'—')
+    +'</div>';
+  if(mj.ultima_visita){
+    var uv=mj.ultima_visita;
+    h+='<div style="margin-bottom:10px">'
+      +'<div style="color:var(--text3);font-size:11px;margin-bottom:2px">Última visita</div>'
+      +'<div>'+_escHtml(uv.fecha||'—')+(uv.barbero?' · '+_escHtml(uv.barbero):'')+(uv.bebida?' · '+_escHtml(uv.bebida):'')+'</div>'
+      +'</div>';
+  }
+  if(mj.cliente&&mj.cliente.cumple_dia&&mj.cliente.cumple_mes){
+    h+='<div style="margin-bottom:10px">'
+      +'<div style="color:var(--text3);font-size:11px;margin-bottom:2px">Cumpleaños</div>'
+      +'<div>🎂 '+mj.cliente.cumple_dia+' de '+(SALA_MESES[mj.cliente.cumple_mes]||'')+'</div>'
+      +'</div>';
+  }
+  h+='<div style="color:var(--text3);font-size:11px;margin-bottom:4px">Notas</div>';
+  h+='<div id="salaMemoriaNotas">'+_renderSalaMemoriaNotas(mj.notas||[])+'</div>';
+  h+='<div style="display:flex;gap:8px;margin-top:8px">'
+    +'<input id="salaMemoriaNotaInput" type="text" placeholder="Agregar nota…" style="flex:1;padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;font-family:var(--sans);background:var(--surface)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();salaAgregarNota();}">'
+    +'<button onclick="salaAgregarNota()" style="padding:7px 12px;font-size:12px;font-weight:600;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;font-family:var(--sans)">+ Nota</button>'
+    +'</div>';
+  body.innerHTML=h;
+  panel.style.display='block';
+}
+
+function _renderSalaMemoriaNotas(notas){
+  if(!notas.length) return '<div style="font-size:12px;color:var(--text3);font-style:italic">Sin notas.</div>';
+  var h='';
+  notas.forEach(function(n){
+    h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)">'
+      +'<div style="font-size:12px"><div>'+_escHtml(n.texto)+'</div>'
+      +'<div style="color:var(--text3);font-size:10px;margin-top:2px">'+_escHtml(n.creado_por)+' · '+_escHtml((n.creado_en||'').slice(0,10))+'</div></div>'
+      +'<button onclick="salaEliminarNota('+n.id+')" style="padding:2px 7px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;color:var(--err);flex-shrink:0">✕</button>'
+      +'</div>';
+  });
+  return h;
+}
+
+function salaAgregarNota(){
+  if(!_salaMemoriaClienteId) return;
+  var jwt=sessionStorage.getItem('panelJwt');
+  if(!jwt){toast('Sesión de panel requerida');return;}
+  var el=document.getElementById('salaMemoriaNotaInput');
+  var texto=(el.value||'').trim();
+  if(!texto){toast('Escribe una nota');return;}
+  fetch(API_URL+'/clientes/'+_salaMemoriaClienteId+'/notas',{
+    method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+jwt},
+    body:JSON.stringify({texto:texto})
+  }).then(function(r){return r.json();})
+    .then(function(j){
+      if(!j.ok){toast('Error: '+(j.error||'?'));return;}
+      el.value='';
+      return fetch(API_URL+'/clientes/'+_salaMemoriaClienteId+'/memoria',{headers:{'Authorization':'Bearer '+jwt}})
+        .then(function(r){return r.json();})
+        .then(function(mj){if(mj.ok) salaMostrarMemoria(_salaMemoriaClienteId, mj);});
+    }).catch(function(){toast('Error de red');});
+}
+
+function salaEliminarNota(notaId){
+  if(!_salaMemoriaClienteId) return;
+  if(!confirm('¿Eliminar esta nota?')) return;
+  var jwt=sessionStorage.getItem('panelJwt');
+  if(!jwt){toast('Sesión de panel requerida');return;}
+  fetch(API_URL+'/clientes/'+_salaMemoriaClienteId+'/notas/'+notaId,{
+    method:'DELETE',headers:{'Authorization':'Bearer '+jwt}
+  }).then(function(r){return r.json();})
+    .then(function(j){
+      if(!j.ok){toast('Error: '+(j.error||'?'));return;}
+      return fetch(API_URL+'/clientes/'+_salaMemoriaClienteId+'/memoria',{headers:{'Authorization':'Bearer '+jwt}})
+        .then(function(r){return r.json();})
+        .then(function(mj){if(mj.ok) salaMostrarMemoria(_salaMemoriaClienteId, mj);});
+    }).catch(function(){toast('Error de red');});
 }
 
 function salaCheckin(){
@@ -5323,7 +5517,17 @@ function salaCheckin(){
   if(!svc){toast('Elige el servicio');return;}
   if(_telEsPlaceholder(tel)){toast('Ingresa un número real, no uses un número de relleno');return;}
 
-  _doCheckin(nombre, bid, svc, tel);
+  var bebidaSel=document.getElementById('sala-bebida').value;
+  var bebida, bebidaEsOtro=false;
+  if(bebidaSel==='__otro__'){
+    bebida=(document.getElementById('sala-bebida-otro').value||'').trim();
+    bebidaEsOtro=true;
+    if(!bebida){toast('Escribe la bebida en "Otro"');return;}
+  } else {
+    bebida=bebidaSel;
+  }
+
+  _doCheckin(nombre, bid, svc, tel, bebida, bebidaEsOtro);
 }
 
 function _resolverPrimerDisponible(callback){
@@ -5372,10 +5576,10 @@ function _resolverPrimerDisponible(callback){
   });
 }
 
-function _doCheckin(nombre, bid, svc, tel){
+function _doCheckin(nombre, bid, svc, tel, bebida, bebidaEsOtro){
   fetch(API_URL+'/queue/control/checkin',{
     method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({client_name:nombre,phone:tel||null,bid:bid,service:svc})
+    body:JSON.stringify({client_name:nombre,phone:tel||null,bid:bid,service:svc,bebida:bebida||null,bebida_es_otro:!!bebidaEsOtro})
   }).then(function(r){return r.json();})
     .then(function(j){
       if(!j.ok){toast('Error: '+(j.error||'sin respuesta'));return;}
@@ -5390,6 +5594,9 @@ function _doCheckin(nombre, bid, svc, tel){
       document.getElementById('sala-svc').value='';
       document.getElementById('sala-precio').value='';
       document.getElementById('sala-tel-badge').textContent='';
+      document.getElementById('sala-bebida').value='';
+      salaToggleBebidaOtro();
+      salaOcultarMemoria();
       renderSala();
     }).catch(function(e){toast('Error de conexión: '+e.message);});
 }
@@ -6489,6 +6696,54 @@ function staffAddProd(){
   PRODUCTOS.push({id:newId,nombre:'Nuevo producto',precio:0});
   renderStaffProds();saveStaffConfig();
 }
+
+// ── Amenities (bebidas_disponibles) — server-persisted via
+// PATCH /config/bebidas-disponibles (panel-auth, admin only), unlike
+// Personal/Servicios/Productos above which are localStorage-only. Whole-array
+// replace: the list is short, simpler than diffing add/remove server-side.
+function renderStaffBebidas(){
+  var el=document.getElementById('staffBebidas');if(!el)return;
+  var h='';
+  for(var i=0;i<BEBIDAS_DISPONIBLES.length;i++){
+    h+='<div class="staff-row">'
+      +'<div style="flex:1;padding:8px 10px;font-size:13px">'+_escHtml(BEBIDAS_DISPONIBLES[i])+'</div>'
+      +'<button class="staff-del-btn" onclick="staffDelBebida('+i+')" title="Eliminar">&times;</button>'
+      +'</div>';
+  }
+  el.innerHTML=h||'<div style="font-size:12px;color:var(--text3);padding:8px 0">Sin amenities configurados.</div>';
+}
+function staffSaveBebidas(){
+  if(!API_URL){toast('Conecta Railway en ⚙ Config primero');return;}
+  var jwt=sessionStorage.getItem('panelJwt');
+  if(!jwt){toast('Sesión de panel (admin) requerida');return;}
+  fetch(API_URL+'/config/bebidas-disponibles',{
+    method:'PATCH',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+jwt},
+    body:JSON.stringify({bebidas:BEBIDAS_DISPONIBLES})
+  }).then(function(r){return r.json();})
+    .then(function(j){
+      if(!j.ok){toast('Error: '+(j.error||'?'));return;}
+      BEBIDAS_DISPONIBLES=j.bebidas_disponibles;
+      renderStaffBebidas();
+      renderSalaBebidaOptions();
+      toast('✓ Amenities actualizados');
+    }).catch(function(){toast('Error de red');});
+}
+function staffAddBebida(){
+  var el=document.getElementById('newBebidaInput');
+  var val=(el.value||'').trim();
+  if(!val){toast('Escribe un nombre');return;}
+  if(BEBIDAS_DISPONIBLES.indexOf(val)!==-1){toast('Ya existe en la lista');return;}
+  BEBIDAS_DISPONIBLES.push(val);
+  el.value='';
+  staffSaveBebidas();
+}
+function staffDelBebida(i){
+  if(!confirm('¿Eliminar "'+BEBIDAS_DISPONIBLES[i]+'"?'))return;
+  BEBIDAS_DISPONIBLES.splice(i,1);
+  staffSaveBebidas();
+}
+
 function staffReset(){
   if(!confirm('¿Restaurar los valores por defecto? Se perderán los cambios guardados.'))return;
   BB=JSON.parse(JSON.stringify(BB_DEFAULT));
