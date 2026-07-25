@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Salon Men Saúl Fino · Datos para Transferencia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0A0A08;
+    --surface:#151310;
+    --border:rgba(201,168,76,.20);
+    --border-soft:rgba(201,168,76,.12);
+    --ink:#F3EFE4;
+    --ink-soft:#9C9587;
+    --gold:#C9A84C;
+    --gold-strong:#E4C572;
+    --gold-ink:#0A0A08;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Montserrat',-apple-system,'Segoe UI',sans-serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+    padding:36px 16px 48px;
+  }
+  .wrap{max-width:460px;margin:0 auto;}
+
+  /* ── Brand header ───────────────────────── */
+  .brand{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    text-align:center;
+    margin-bottom:34px;
+  }
+  .monogram{
+    width:52px;height:52px;
+    border-radius:50%;
+    background:var(--gold);
+    color:var(--gold-ink);
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Montserrat',sans-serif;
+    font-weight:700;
+    font-size:16px;
+    letter-spacing:.02em;
+    margin-bottom:12px;
+  }
+  .wordmark{
+    font-family:'Cormorant Garamond',serif;
+    font-weight:600;
+    font-size:20px;
+    color:var(--gold-strong);
+    letter-spacing:.01em;
+  }
+  .wordmark small{
+    display:block;
+    font-family:'Montserrat',sans-serif;
+    font-weight:500;
+    font-size:10px;
+    letter-spacing:.16em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    margin-top:4px;
+  }
+
+  .eyebrow{
+    font-size:11px;
+    font-weight:600;
+    letter-spacing:.16em;
+    text-transform:uppercase;
+    color:var(--gold);
+    margin-bottom:10px;
+    text-align:center;
+  }
+  h1{
+    font-family:'Cormorant Garamond',serif;
+    font-weight:600;
+    font-size:32px;
+    letter-spacing:.005em;
+    margin:0 0 8px;
+    color:var(--ink);
+    text-align:center;
+  }
+  .sub{
+    font-size:13.5px;
+    color:var(--ink-soft);
+    margin:0 0 32px;
+    line-height:1.55;
+    text-align:center;
+  }
+
+  /* ── Cards ──────────────────────────────── */
+  .card{
+    position:relative;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:14px;
+    margin-bottom:20px;
+    overflow:hidden;
+  }
+  .card::before{
+    content:"";
+    display:block;
+    height:0;
+    border-top:1px dashed var(--border);
+    margin:0 18px;
+    position:relative;
+    top:66px;
+  }
+  .card-notch{
+    position:absolute;
+    top:62px;
+    width:14px;height:14px;
+    border-radius:50%;
+    background:var(--bg);
+    border:1px solid var(--border);
+  }
+  .card-notch.left{left:-8px;}
+  .card-notch.right{right:-8px;}
+
+  .card-head{
+    padding:17px 20px 15px;
+    display:flex;
+    align-items:center;
+    gap:12px;
+  }
+  .inst-badge{
+    flex-shrink:0;
+    width:34px;height:34px;
+    border-radius:9px;
+    display:flex;align-items:center;justify-content:center;
+    color:#fff;
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:.01em;
+  }
+  .biz-name{
+    font-size:16px;
+    font-weight:600;
+    letter-spacing:.005em;
+    color:var(--ink);
+  }
+  .biz-tag{
+    font-size:10px;
+    font-weight:600;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--gold);
+    margin-top:3px;
+  }
+
+  .card-body{
+    padding:24px 20px 18px;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+  .row{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    gap:12px;
+  }
+  .row .k{
+    font-size:10.5px;
+    font-weight:600;
+    color:var(--ink-soft);
+    text-transform:uppercase;
+    letter-spacing:.07em;
+    white-space:nowrap;
+  }
+  .row .v{
+    font-family:'Montserrat',sans-serif;
+    font-size:15px;
+    font-weight:600;
+    color:var(--ink);
+    text-align:right;
+    letter-spacing:.01em;
+    word-break:break-word;
+  }
+
+  .copy-btn{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    width:100%;
+    margin-top:8px;
+    padding:13px 16px;
+    border:none;
+    border-radius:10px;
+    background:var(--gold);
+    color:var(--gold-ink);
+    font-family:'Montserrat',sans-serif;
+    font-size:13.5px;
+    font-weight:700;
+    letter-spacing:.02em;
+    cursor:pointer;
+    transition:background .18s ease, transform .12s ease;
+    -webkit-tap-highlight-color:transparent;
+    min-height:46px;
+  }
+  .copy-btn:active{transform:scale(.98);}
+  .copy-btn:hover{background:var(--gold-strong);}
+  .copy-btn.copied{background:var(--gold-strong);}
+  .copy-btn svg{flex-shrink:0;}
+
+  footer{
+    margin-top:26px;
+    padding-top:18px;
+    border-top:1px solid var(--border-soft);
+    font-size:11px;
+    color:var(--ink-soft);
+    line-height:1.7;
+    text-align:center;
+  }
+  footer strong{color:var(--gold-strong);font-weight:600;}
+
+  @media (prefers-reduced-motion: reduce){
+    .copy-btn{transition:none;}
+    .copy-btn:active{transform:none;}
+  }
+
+  /* Screen use = branded dark/gold.
+     Print use = falls back to light bg / dark ink for legibility on paper. */
+  @media print{
+    body{background:#fff;color:#15140F;padding:0;}
+    .monogram{background:#C9A84C;color:#15140F;}
+    .wordmark{color:#8B6F1F;}
+    .wordmark small, .sub, footer{color:#5C574B;}
+    .eyebrow{color:#8B6F1F;}
+    h1{color:#15140F;}
+    .card{background:#fff;border:1px solid #C9BE9E;break-inside:avoid;}
+    .card::before{border-top-color:#C9BE9E;}
+    .card-notch{background:#fff;border-color:#C9BE9E;}
+    .biz-name{color:#15140F;}
+    .row .k{color:#6B6555;}
+    .row .v{color:#15140F;}
+    .copy-btn{display:none;}
+    footer strong{color:#15140F;}
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+
+    <div class="brand">
+      <div class="monogram">SF</div>
+      <div class="wordmark">Salon Men Saúl Fino
+        <small>Galería Santiago Centro</small>
+      </div>
+    </div>
+
+    <div class="eyebrow">Datos bancarios</div>
+    <h1>Elige una cuenta</h1>
+    <p class="sub">Toca «Copiar datos» y pega directamente en tu app del banco.</p>
+
+    <div id="cards"></div>
+
+    <footer>
+      Verifica siempre el nombre del titular antes de confirmar una transferencia.<br>
+      <strong>Actualizado 25 jul 2026</strong>
+    </footer>
+  </div>
+
+<script>
+// Each account is just a name + an ordered list of fields.
+// "display" is what's shown on the card; "copy" is what goes in the clipboard block.
+// Add/remove fields per account freely — the renderer doesn't assume a fixed shape.
+const CUENTAS = [
+  {
+    nombre: "Valplaz",
+    tag: "Cuenta 1",
+    institCode: "SB",
+    institColor: "#D71E28",
+    campos: [
+      {k:"Banco",           display:"Scotiabank",      copy:"Scotiabank"},
+      {k:"Tipo de cuenta",  display:"Corriente",       copy:"Corriente"},
+      {k:"RUT",             display:"76.814.251-3",    copy:"76814251-3"},
+      {k:"N° de cuenta",    display:"989 451 499",     copy:"989451499"}
+    ]
+  },
+  {
+    nombre: "Saúl Fino",
+    tag: "Cuenta 2",
+    institCode: "BE",
+    institColor: "#00833E",
+    campos: [
+      {k:"Banco",           display:"Banco Estado",    copy:"Banco Estado"},
+      {k:"Tipo de cuenta",  display:"Cuenta RUT",      copy:"Cuenta RUT"},
+      {k:"RUT",             display:"25.178.135-4",    copy:"25178135-4"},
+      {k:"N° de cuenta",    display:"25 178 135",      copy:"25178135"}
+    ]
+  },
+  {
+    nombre: "Beauty and Wellness",
+    tag: "Cuenta 3",
+    institCode: "SAN",
+    institColor: "#EC0000",
+    campos: [
+      {k:"Banco",           display:"Santander",       copy:"Santander"},
+      {k:"Tipo de cuenta",  display:"Corriente",       copy:"Corriente"},
+      {k:"RUT",             display:"77.540.602-K",    copy:"77540602-K"},
+      {k:"N° de cuenta",    display:"8 691 840-4",     copy:"8691840-4"}
+    ]
+  },
+  {
+    nombre: "Valplaz SpA",
+    tag: "Cuenta 4 · Mercado Pago",
+    institCode: "MP",
+    institColor: "#00B1EA",
+    campos: [
+      {k:"Plataforma",      display:"Mercado Pago",              copy:"Mercado Pago"},
+      {k:"Tipo de cuenta",  display:"Cuenta Vista",              copy:"Cuenta Vista"},
+      {k:"RUT",             display:"76.814.251-3",              copy:"76814251-3"},
+      {k:"N° de cuenta",    display:"1 033 975 288",             copy:"1033975288"},
+      {k:"Correo",          display:"saulfino777@gmail.com",     copy:"saulfino777@gmail.com"}
+    ]
+  }
+];
+
+const iconCopy = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+const iconCheck = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+
+function buildBlock(c){
+  const lines = c.campos.map(f => `${f.k}: ${f.copy}`);
+  lines.push(`Nombre: ${c.nombre}`);
+  return lines.join("\n");
+}
+
+function copyText(text, btn){
+  const done = () => {
+    const original = btn.dataset.original;
+    btn.innerHTML = iconCheck + " ¡Copiado!";
+    btn.classList.add("copied");
+    clearTimeout(btn._t);
+    btn._t = setTimeout(()=>{
+      btn.innerHTML = original;
+      btn.classList.remove("copied");
+    }, 1800);
+  };
+  if(navigator.clipboard && window.isSecureContext){
+    navigator.clipboard.writeText(text).then(done).catch(()=>fallbackCopy(text, done));
+  } else {
+    fallbackCopy(text, done);
+  }
+}
+
+function fallbackCopy(text, done){
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed";
+  ta.style.left = "-9999px";
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  try{ document.execCommand("copy"); done(); }catch(e){}
+  document.body.removeChild(ta);
+}
+
+const container = document.getElementById("cards");
+CUENTAS.forEach(c=>{
+  const card = document.createElement("div");
+  card.className = "card";
+  const rows = c.campos.map(f => `<div class="row"><span class="k">${f.k}</span><span class="v">${f.display}</span></div>`).join("");
+  card.innerHTML = `
+    <span class="card-notch left"></span>
+    <span class="card-notch right"></span>
+    <div class="card-head">
+      <span class="inst-badge" style="background:${c.institColor}">${c.institCode}</span>
+      <div>
+        <div class="biz-name">${c.nombre}</div>
+        <div class="biz-tag">${c.tag}</div>
+      </div>
+    </div>
+    <div class="card-body">
+      ${rows}
+      <button class="copy-btn" type="button">${iconCopy} Copiar datos</button>
+    </div>
+  `;
+  const btn = card.querySelector(".copy-btn");
+  btn.dataset.original = btn.innerHTML;
+  btn.addEventListener("click", ()=> copyText(buildBlock(c), btn));
+  container.appendChild(card);
+});
+</script>
+</body>
+</html>
