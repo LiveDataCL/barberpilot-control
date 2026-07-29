@@ -570,12 +570,12 @@
       <div class="tab" onclick="showTab('pHorarios',this)">🕐 Horarios</div>
       <div class="tab" id="tabAprob" onclick="showTab('pAprob',this)">✅ Aprobar <span id="badgeAprob" style="display:none;background:#d4a843;color:#0a0908;border-radius:20px;font-size:10px;font-weight:700;padding:1px 7px;margin-left:4px">0</span></div>
       <div class="tab" onclick="showTab('pCierre',this)">Cierre jornada</div>
-      <div class="tab" onclick="showTab('pHist',this)">Histórico</div>
-      <div class="tab" onclick="showTab('pHistorico',this)">📥 Ingresar histórico</div>
-      <div class="tab" onclick="showTab('pConfig',this)">⚙ Config</div>
       <div class="tab" onclick="showTab('pStaff',this)">👥 Administración</div>
       <div class="tab" onclick="showTab('pClientes',this)">👤 Clientes</div>
       <div class="tab" id="tabAgenda" onclick="showTab('pAgenda',this)">📅 Agenda <span id="badgeAgenda" style="display:none;background:#2d5e8e;color:#fff;border-radius:20px;font-size:10px;font-weight:700;padding:1px 7px;margin-left:4px;vertical-align:middle">0</span></div>
+      <div class="tab" onclick="showTab('pHist',this)">Histórico</div>
+      <div class="tab" onclick="showTab('pHistorico',this)">📥 Ingresar histórico</div>
+      <div class="tab" onclick="showTab('pConfig',this)">⚙ Config</div>
     </div>
 
     <div class="pane on" id="pReg">
@@ -1783,9 +1783,16 @@ function showTabById(id){
     var fr=document.getElementById('agendaIframe');
     if(fr && !fr.src.includes('agenda-admin')) fr.src='agenda-admin.html?embedded=1';
   } else {
+    // ID-based lookup (matches the tab's onclick attribute, e.g.
+    // showTab('pHist',this)) rather than a positional array indexed
+    // against document order — the array used to assume .tabs' DOM
+    // order matched a fixed list, which silently drifted out of sync
+    // the moment tabs got reordered. Same pattern as applyRoleVisibility().
     var tabs=document.querySelectorAll('.tab');
-    var panes=['pReg','pSum','pCierre','pHist','pCaja','pConfig','pHorarios','pHistorico','pSala'];
-    for(var i=0;i<panes.length;i++)if(panes[i]===id&&tabs[i])tabs[i].classList.add('on');
+    for(var i=0;i<tabs.length;i++){
+      var oc=tabs[i].getAttribute('onclick')||'';
+      if(oc.indexOf("'"+id+"'")!==-1){ tabs[i].classList.add('on'); break; }
+    }
   }
   if(id==='pSala'){ renderSala(); if(_salaInterval) clearInterval(_salaInterval); _salaInterval=setInterval(renderSala,20000); }
 }
