@@ -528,10 +528,7 @@
         <div class="slbl">Barbero <span style="font-weight:400;opacity:.5;font-size:10px">(opcional — sin barbero = sin comision)</span></div>
         <div class="bgrid" id="prodBgrid"></div>
         <div class="slbl" style="margin-top:8px">Producto</div>
-        <div style="display:flex;gap:5px">
-          <button class="pbtn" id="prodBtn_p01" onclick="selProducto(this,'p01')" style="flex:1"><span class="pn">Cera Media</span><span class="pc">$8.500</span></button>
-          <button class="pbtn" id="prodBtn_p02" onclick="selProducto(this,'p02')" style="flex:1"><span class="pn">Cera Fuerte</span><span class="pc">$8.500</span></button>
-        </div>
+        <div style="display:flex;gap:5px" id="prodBtnContainer"></div>
         <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
           <span class="slbl" style="margin:0;flex:1">Cantidad</span>
           <button onclick="chgQty(-1)" style="width:32px;height:32px;border:1.5px solid var(--border);border-radius:var(--r);background:var(--surface2);color:var(--text);font-size:18px;font-weight:700;cursor:pointer;line-height:1;font-family:var(--sans)">−</button>
@@ -1833,7 +1830,7 @@ function init(){
   initPlToggle();
   tick();setInterval(tick,30000);
   loadStaffConfig();
-  buildBarbers();buildServices();buildProdBarbers();buildBarberFilters();buildSalaBidOptions();
+  buildBarbers();buildServices();buildProdBarbers();buildProductos();buildBarberFilters();buildSalaBidOptions();
   cargarSheetsUrl();cargar();cargarGastos();cargarLiquidaciones();cargarHorarios();cargarKpiEvals();renderAll();
   cargarRegistrosDia(); // explicit call — bypasses any API_URL guard inside cargar()
   // Auto-refresh cada 60 segundos si la página está activa
@@ -1956,6 +1953,20 @@ function buildProdBarbers(){
   }
   document.getElementById('prodBgrid').innerHTML=h;
 }
+// Mirrors buildServices() — renders the checkout's product buttons from
+// PRODUCTOS, replacing the two hardcoded prodBtn_p01/p02 buttons that used
+// to live directly in the HTML. data-pid follows the same convention
+// buildProdBarbers() already uses for barber buttons above.
+function buildProductos(){
+  var h='';
+  for(var i=0;i<PRODUCTOS.length;i++){
+    var p=PRODUCTOS[i];
+    h+='<button class="pbtn" data-pid="'+p.id+'" onclick="selProducto(this)" style="flex:1">'
+      +'<span class="pn">'+escAttr(p.nombre)+'</span><span class="pc">$'+fmt(p.precio)+'</span>'
+      +'</button>';
+  }
+  document.getElementById('prodBtnContainer').innerHTML=h;
+}
 function toggleProductos(){
   var panel=document.getElementById('prodPanel');
   var arrow=document.getElementById('prodArrow');
@@ -1970,10 +1981,10 @@ function selProdB(el){
   el.classList.add('on');
   updProdPrev();
 }
-function selProducto(el,pid){
-  selProd.prod=pid;
-  document.getElementById('prodBtn_p01').classList.remove('on');
-  document.getElementById('prodBtn_p02').classList.remove('on');
+function selProducto(el){
+  selProd.prod=el.dataset.pid;
+  var all=document.querySelectorAll('#prodBtnContainer .pbtn');
+  for(var i=0;i<all.length;i++)all[i].classList.remove('on');
   el.classList.add('on');
   updProdPrev();
 }
@@ -6289,10 +6300,9 @@ var SS_DEFAULT=[
   {id:'s10',nombre:'Matizado canas barba',               precio:5000, tiempo:'15 min'}
   // s11 (Corte Express + Perfilado de barba) retired 2026-07-16 — removed, not just repriced.
 ];
-var PRODUCTOS_DEFAULT=[
-  {id:'p01',nombre:'Cera Modeladora Media', precio:8500},
-  {id:'p02',nombre:'Cera Modeladora Fuerte',precio:8500}
-];
+// No PRODUCTOS_DEFAULT here (unlike BB_DEFAULT/SS_DEFAULT above) — productos
+// now live in the real backend (Phase B), so there's no local "factory
+// default" to reset to; see staffReset()'s comment.
 var COM_DEFAULT={efectivo:.5,debito:.43,transferencia:.5};
 
 // Canonical bid→name — must match constants.js in the app and BARBER_NAME_MAP in the API
@@ -6319,7 +6329,7 @@ function loadStaffConfig(){
 function saveStaffConfig(){
   try{
     localStorage.setItem(STAFF_KEY,JSON.stringify({BB:BB,SS:SS,PRODUCTOS:PRODUCTOS,COM:COM}));
-    buildBarbers();buildServices();buildProdBarbers();buildBarberFilters();buildSalaBidOptions();
+    buildBarbers();buildServices();buildProdBarbers();buildProductos();buildBarberFilters();buildSalaBidOptions();
     var el=document.getElementById('staffSaved');
     if(el){el.classList.add('show');setTimeout(function(){el.classList.remove('show');},2000);}
   }catch(e){}
@@ -6464,20 +6474,41 @@ function staffRefreshFromAPI(){
   .catch(function(){renderStaffBB();});
 }
 
-// ── Live catalog price loader ─────────────────────────────────────────────────
+// ── Live catalog loader ────────────────────────────────────────────────────
+// servicios: price-only overlay onto the existing SS[] array (_liveCatalogPrecios)
+// — servicios has no create/deactivate route, so SS's membership never
+// needs to change, only its prices.
+// productos: full-list overlay (not just price) — productos CAN be
+// created/deactivated via the admin panel, so a price-only overlay would
+// never pick up a brand-new product or drop a deactivated one. On success,
+// PRODUCTOS becomes exactly what the API returned (active only, matching
+// what's actually sellable); on any fetch failure, PRODUCTOS simply keeps
+// whatever it already had (the hardcoded PRODUCTOS[] seed on first load,
+// or the last successful overlay) — last-known-good, never blanked. Same
+// "local fallback array + live data overlaid" pattern as servicios' price
+// overlay, applied to the whole list because productos' existence itself
+// can change server-side, not just its prices.
 function staffLoadLiveCatalog(){
   if(!API_URL)return;
   fetch(API_URL+'/config/negocio/publico')
   .then(function(r){return r.json();})
   .then(function(j){
-    if(!j.ok||!Array.isArray(j.servicios))return;
-    j.servicios.forEach(function(s){
-      if(s.servicio_id!==undefined&&s.precio_activo!==undefined)
-        _liveCatalogPrecios[s.servicio_id]=s.precio_activo;
-    });
-    renderStaffSS();
+    if(!j.ok)return;
+    if(Array.isArray(j.servicios)){
+      j.servicios.forEach(function(s){
+        if(s.servicio_id!==undefined&&s.precio_activo!==undefined)
+          _liveCatalogPrecios[s.servicio_id]=s.precio_activo;
+      });
+      renderStaffSS();
+    }
+    if(Array.isArray(j.productos)){
+      PRODUCTOS=j.productos.map(function(p){
+        return {id:p.producto_id,nombre:p.nombre,precio:p.precio_activo};
+      });
+      buildProductos();
+    }
   })
-  .catch(function(){/* silently fall back to SS[i].precio */});
+  .catch(function(){/* silently fall back to SS[i].precio / last-known PRODUCTOS */});
 }
 
 // ── Deactivate / Reactivate ───────────────────────────────────────────────────
@@ -6567,7 +6598,8 @@ function renderStaffPanel(){
   staffUpdateTokenStatus();
   staffRefreshFromAPI();
   staffLoadLiveCatalog();
-  renderStaffCOM();renderStaffSS();renderStaffProds();
+  staffLoadProductosAdmin();
+  renderStaffCOM();renderStaffSS();
 }
 
 function escAttr(s){return(s||'').toString().replace(/&/g,'&amp;').replace(/"/g,'&quot;');}
@@ -6730,43 +6762,170 @@ function staffAddSvc(){
   renderStaffSS();saveStaffConfig();
 }
 
+// ── Productos admin panel — server-persisted via the real
+// /api/v2/config/productos routes (Phase B), unlike Personal/Servicios
+// above which stay localStorage-only (servicios has no create/deactivate
+// route to call). PRODUCTOS_ADMIN is a separate array from the checkout-
+// facing PRODUCTOS: this one holds BOTH active and inactive productos (the
+// admin management view, from the authenticated GET list route) while
+// PRODUCTOS stays active-only (the public/checkout overlay from
+// staffLoadLiveCatalog, see below) — mirrors why GET /api/v2/staff and
+// fetchServiciosActivos-style public routes intentionally return different
+// slices of the same underlying data.
+var PRODUCTOS_ADMIN=[];
+function staffLoadProductosAdmin(){
+  var authH=getAuthHeaders();
+  fetch(API_URL+'/api/v2/config/productos',{headers:authH})
+  .then(function(r){return r.json();})
+  .then(function(j){
+    if(!j.ok){toast('Error al cargar productos: '+(j.error||'?'));return;}
+    PRODUCTOS_ADMIN=j.productos.map(function(p){
+      return {id:p.producto_id,nombre:p.nombre,activo:p.activo,precio:p.precio_activo};
+    });
+    renderStaffProds();
+  })
+  .catch(function(){/* leave PRODUCTOS_ADMIN as last-known-good */});
+}
 function renderStaffProds(){
   var el=document.getElementById('staffProds');if(!el)return;
   var h='';
-  for(var i=0;i<PRODUCTOS.length;i++){
-    var p=PRODUCTOS[i];
-    h+='<div class="staff-row">'
+  for(var i=0;i<PRODUCTOS_ADMIN.length;i++){
+    var p=PRODUCTOS_ADMIN[i];
+    var isActive=p.activo!==false;
+    h+='<div class="staff-row'+(isActive?'':' inactive')+'">'
       +'<input class="staff-input" type="text" value="'+escAttr(p.nombre)+'" placeholder="Nombre" onblur="staffSaveProdNombre(\''+p.id+'\',this.value)" style="flex:2">'
-      +'<input class="staff-input" type="number" min="0" value="'+p.precio+'" placeholder="Precio" onblur="staffSaveProdPrecio(\''+p.id+'\',this.value)" style="max-width:100px">'
-      +'<button class="staff-del-btn" onclick="staffDelProd(\''+p.id+'\')" title="Eliminar">&times;</button>'
-      +'</div>';
+      +'<input class="staff-input" type="number" min="0" value="'+(p.precio!=null?p.precio:'')+'" placeholder="Precio" onblur="staffSaveProdPrecio(\''+p.id+'\',this.value)" style="max-width:100px">';
+    if(isActive){
+      h+='<button class="staff-action-btn deactivate" onclick="staffDeactivateProd(\''+escAttr(p.id)+'\',\''+escAttr(p.nombre)+'\')">Desactivar</button>';
+    } else {
+      h+='<button class="staff-action-btn reactivate" onclick="staffReactivateProd(\''+escAttr(p.id)+'\',\''+escAttr(p.nombre)+'\')">Reactivar</button>';
+    }
+    h+='</div>';
   }
-  el.innerHTML=h;
+  el.innerHTML=h||'<div style="font-size:12px;color:var(--text3);padding:8px 0">Sin productos configurados.</div>';
 }
 function staffSaveProdNombre(id,val){
-  val=(val||'').trim();if(!val)return;
-  for(var i=0;i<PRODUCTOS.length;i++)if(PRODUCTOS[i].id===id){PRODUCTOS[i].nombre=val;break;}
-  saveStaffConfig();
+  val=(val||'').trim();if(!val){staffLoadProductosAdmin();return;}
+  var jwt=sessionStorage.getItem('panelJwt');
+  if(!jwt){toast('Sesión de panel (admin) requerida');staffLoadProductosAdmin();return;}
+  fetch(API_URL+'/api/v2/config/productos/'+id,{
+    method:'PATCH',headers:getJsonAuthHeaders(),body:JSON.stringify({nombre:val})
+  }).then(function(r){return r.json();})
+    .then(function(j){
+      if(!j.ok){toast('Error: '+(j.error||'?'));staffLoadProductosAdmin();return;}
+      staffLoadProductosAdmin();staffLoadLiveCatalog();
+      toast('Nombre actualizado');
+    }).catch(function(){toast('Error de red');staffLoadProductosAdmin();});
 }
+// Mirrors staffSaveSvcPrecio/staffPatchPrecio exactly (confirm dialog,
+// 422 magnitude-guard retry-with-confirmation, 409 stale-price reload,
+// 400 inactive-product block) — only the endpoint and the underlying
+// PRODUCTOS_ADMIN lookup differ.
 function staffSaveProdPrecio(id,val){
-  var n=parseInt(val);if(isNaN(n)||n<0)return;
-  for(var i=0;i<PRODUCTOS.length;i++)if(PRODUCTOS[i].id===id){PRODUCTOS[i].precio=n;break;}
-  saveStaffConfig();
+  var nuevoPrecio=parseInt(val);
+  if(isNaN(nuevoPrecio)||nuevoPrecio<0){renderStaffProds();return;}
+  var prod=null;
+  for(var i=0;i<PRODUCTOS_ADMIN.length;i++)if(PRODUCTOS_ADMIN[i].id===id){prod=PRODUCTOS_ADMIN[i];break;}
+  if(!prod)return;
+  var precioActual=prod.precio;
+  if(nuevoPrecio===precioActual)return;
+  var fmtCLP=function(n){return '$'+n.toLocaleString('es-CL');};
+  if(!confirm('¿Cambiar '+prod.nombre+' de '+fmtCLP(precioActual)+' a '+fmtCLP(nuevoPrecio)+'?')){
+    renderStaffProds();return;
+  }
+  if(!sessionStorage.getItem('panelJwt')){toast('Sesión de panel requerida para cambiar precios');renderStaffProds();return;}
+  staffPatchProdPrecio(id,nuevoPrecio,precioActual,false);
 }
-function staffDelProd(id){
-  if(!confirm('¿Eliminar este producto?'))return;
-  PRODUCTOS=PRODUCTOS.filter(function(p){return p.id!==id;});
-  renderStaffProds();saveStaffConfig();
+function staffPatchProdPrecio(id,nuevoPrecio,precioActual,confirmMagnitud){
+  var prod=null;
+  for(var i=0;i<PRODUCTOS_ADMIN.length;i++)if(PRODUCTOS_ADMIN[i].id===id){prod=PRODUCTOS_ADMIN[i];break;}
+  var body={nuevo_precio:nuevoPrecio,precio_actual_esperado:precioActual};
+  if(confirmMagnitud)body.confirmacion_magnitud=true;
+  fetch(API_URL+'/api/v2/config/productos/'+id+'/precio',{
+    method:'PATCH',headers:getJsonAuthHeaders(),body:JSON.stringify(body)
+  })
+  .then(function(r){return r.json().then(function(j){return{status:r.status,body:j};});})
+  .then(function(res){
+    var j=res.body;
+    if(res.status===422&&j.error==='cambio_magnitud_elevada'){
+      var pct=j.variacion_pct||'?';
+      if(!confirm('Cambio inusualmente grande ('+pct+'%). ¿Confirmar de todos modos?')){
+        renderStaffProds();return;
+      }
+      staffPatchProdPrecio(id,nuevoPrecio,precioActual,true);
+      return;
+    }
+    if(res.status===409&&j.error==='precio_desactualizado'){
+      if(confirm('El precio fue modificado en otra sesión. ¿Recargar el catálogo para ver el valor actual?')){
+        staffLoadProductosAdmin();
+      } else {
+        renderStaffProds();
+      }
+      return;
+    }
+    if(res.status===400&&j.error==='producto_inactivo'){
+      toast('Este producto está desactivado y no puede actualizarse');
+      renderStaffProds();return;
+    }
+    if(!j.ok){
+      toast('Error al guardar precio: '+(j.error||'?'));
+      renderStaffProds();return;
+    }
+    staffLoadProductosAdmin();staffLoadLiveCatalog();
+    toast((prod?prod.nombre:id)+' actualizado a '+('$'+nuevoPrecio.toLocaleString('es-CL')));
+  })
+  .catch(function(){toast('Error de red al guardar precio');renderStaffProds();});
 }
+// No hard DELETE route exists (would orphan historical sales rows) —
+// deactivate/reactivate mirrors staffDeactivate/staffReactivate (barberos).
+function staffDeactivateProd(id,nombre){
+  if(!confirm('¿Desactivar "'+nombre+'"? Ya no aparecerá en el checkout. Se puede reactivar después.'))return;
+  var jwt=sessionStorage.getItem('panelJwt');
+  if(!jwt){toast('Sesión de panel (admin) requerida');return;}
+  fetch(API_URL+'/api/v2/config/productos/'+id+'/deactivate',{method:'PATCH',headers:getJsonAuthHeaders()})
+  .then(function(r){return r.json();})
+  .then(function(j){
+    if(!j.ok){toast('Error: '+(j.error||'?'));return;}
+    staffLoadProductosAdmin();staffLoadLiveCatalog();
+    toast(nombre+' desactivado');
+  }).catch(function(){toast('Error de red');});
+}
+function staffReactivateProd(id,nombre){
+  var jwt=sessionStorage.getItem('panelJwt');
+  if(!jwt){toast('Sesión de panel (admin) requerida');return;}
+  fetch(API_URL+'/api/v2/config/productos/'+id+'/reactivate',{method:'PATCH',headers:getJsonAuthHeaders()})
+  .then(function(r){return r.json();})
+  .then(function(j){
+    if(!j.ok){toast('Error: '+(j.error||'?'));return;}
+    staffLoadProductosAdmin();staffLoadLiveCatalog();
+    toast(nombre+' reactivado');
+  }).catch(function(){toast('Error de red');});
+}
+// Creates via the real POST route — unlike staffAddSvc (no servicios
+// create route exists), so this can't just push a stub into a local array
+// and let inline-edit fill it in after. precio_inicial is required by the
+// API (a producto can't exist without a price), so it's collected upfront.
 function staffAddProd(){
-  var newId='p'+Date.now().toString().slice(-7);
-  PRODUCTOS.push({id:newId,nombre:'Nuevo producto',precio:0});
-  renderStaffProds();saveStaffConfig();
+  var jwt=sessionStorage.getItem('panelJwt');
+  if(!jwt){toast('Sesión de panel (admin) requerida');return;}
+  var nombre=(prompt('Nombre del nuevo producto:')||'').trim();
+  if(!nombre)return;
+  var precioStr=prompt('Precio inicial ($):');
+  var precio=parseInt(precioStr);
+  if(isNaN(precio)||precio<=0){toast('Precio inválido');return;}
+  fetch(API_URL+'/api/v2/config/productos',{
+    method:'POST',headers:getJsonAuthHeaders(),body:JSON.stringify({nombre:nombre,precio_inicial:precio})
+  }).then(function(r){return r.json();})
+    .then(function(j){
+      if(!j.ok){toast('Error: '+(j.error||'?'));return;}
+      staffLoadProductosAdmin();staffLoadLiveCatalog();
+      toast(j.nombre+' creado');
+    }).catch(function(){toast('Error de red');});
 }
 
 // ── Amenities (bebidas_disponibles) — server-persisted via
 // PATCH /config/bebidas-disponibles (panel-auth, admin only), unlike
-// Personal/Servicios/Productos above which are localStorage-only. Whole-array
+// Personal/Servicios above which are localStorage-only. Whole-array
 // replace: the list is short, simpler than diffing add/remove server-side.
 function renderStaffBebidas(){
   var el=document.getElementById('staffBebidas');if(!el)return;
@@ -6815,7 +6974,11 @@ function staffReset(){
   if(!confirm('¿Restaurar los valores por defecto? Se perderán los cambios guardados.'))return;
   BB=JSON.parse(JSON.stringify(BB_DEFAULT));
   SS=JSON.parse(JSON.stringify(SS_DEFAULT));
-  PRODUCTOS=JSON.parse(JSON.stringify(PRODUCTOS_DEFAULT));
+  // PRODUCTOS is intentionally NOT reset here — productos now live in the
+  // real backend (Phase B), not localStorage, so there's nothing local to
+  // revert. renderStaffPanel() below re-fetches the live catalog, which is
+  // the actual source of truth. Resetting the local array would just get
+  // overwritten by that fetch anyway.
   COM=Object.assign({},COM_DEFAULT);
   localStorage.removeItem(STAFF_KEY);
   renderStaffPanel();buildBarbers();buildServices();buildProdBarbers();
