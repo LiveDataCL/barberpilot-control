@@ -68,6 +68,31 @@
     .kpi-bb-grid{grid-template-columns:1fr}
   }
 
+  /* PANEL IZQUIERDO — toggle colapsable (solo desktop, >900px; @media
+     900px/600px de arriba siguen mandando en mobile sin cambios) */
+  .pl-toggle{display:none}
+  @media(min-width:901px){
+    .layout{transition:grid-template-columns .22s ease}
+    .layout.pl-collapsed{grid-template-columns:44px 1fr}
+    .layout.pl-collapsed .pl{overflow:hidden}
+    .layout.pl-collapsed .pl-inner{opacity:0;pointer-events:none}
+    .pl-inner{opacity:1;transition:opacity .15s ease}
+    .pl-toggle{
+      display:flex;align-items:center;justify-content:center;
+      position:fixed;top:50%;left:326px;transform:translateY(-50%);
+      width:28px;height:28px;border-radius:50%;
+      border:1.5px solid var(--border);background:var(--surface);
+      color:var(--text2);cursor:pointer;z-index:150;
+      box-shadow:0 1px 4px rgba(0,0,0,.14);
+      transition:left .22s ease,border-color .12s,background .12s;
+    }
+    .pl-toggle:hover{border-color:var(--text);background:var(--soft);color:var(--text)}
+    .pl-toggle:focus-visible{outline:2px solid var(--text);outline-offset:2px}
+    .layout.pl-collapsed .pl-toggle{left:30px}
+    .pl-toggle-ico{font-size:11px;line-height:1;display:inline-block;transition:transform .22s ease}
+    .layout.pl-collapsed .pl-toggle-ico{transform:rotate(180deg)}
+  }
+
   /* PANEL IZQUIERDO */
   .pl{background:var(--surface);border-right:1px solid var(--border);padding:16px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;height:calc(100vh - 62px);position:sticky;top:62px;min-width:0}
   .slbl{font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:7px}
@@ -425,6 +450,7 @@
 
   <!-- IZQUIERDA -->
   <div class="pl">
+    <div class="pl-inner" id="plInner">
     <div>
       <div class="slbl">1 · Barbero</div>
       <div class="bgrid" id="bgrid"></div>
@@ -528,7 +554,9 @@
         <button class="breg" id="btnProd" onclick="registrarProducto()" disabled style="margin-top:8px">Registrar venta</button>
       </div>
     </div>
+    </div>
   </div>
+  <button class="pl-toggle" id="plToggle" type="button" aria-label="Colapsar panel lateral" aria-expanded="true" onclick="togglePlPanel()"><span class="pl-toggle-ico" aria-hidden="true">‹</span></button>
 
   <!-- DERECHA -->
   <div class="pr-panel">
@@ -1762,8 +1790,40 @@ function showTabById(id){
   if(id==='pSala'){ renderSala(); if(_salaInterval) clearInterval(_salaInterval); _salaInterval=setInterval(renderSala,20000); }
 }
 
+// ═══ PANEL IZQUIERDO COLAPSABLE (desktop) ═══════════════════
+// Colapsa/expande .pl sin desmontar su contenido: .pl-inner solo se
+// oculta (opacity+pointer-events, ver CSS), nunca se remueve del DOM,
+// asi que un check-in o venta de producto a medio llenar sigue intacto
+// al volver a expandir. Preferencia en localStorage — solo esta key,
+// solo lee/escribe aca. El toggle mismo solo es visible en desktop
+// (>900px, ver CSS) asi que esto nunca compite con el stack de mobile.
+function togglePlPanel(){
+  var layout=document.querySelector('.layout');
+  if(!layout)return;
+  var collapsed=layout.classList.toggle('pl-collapsed');
+  try{ localStorage.setItem('bp_pl_collapsed', collapsed?'1':'0'); }catch(e){}
+  var btn=document.getElementById('plToggle');
+  if(btn){
+    btn.setAttribute('aria-expanded', collapsed?'false':'true');
+    btn.setAttribute('aria-label', collapsed?'Expandir panel lateral':'Colapsar panel lateral');
+  }
+}
+function initPlToggle(){
+  var wasCollapsed=false;
+  try{ wasCollapsed = localStorage.getItem('bp_pl_collapsed')==='1'; }catch(e){}
+  if(!wasCollapsed)return;
+  var layout=document.querySelector('.layout');
+  if(layout) layout.classList.add('pl-collapsed');
+  var btn=document.getElementById('plToggle');
+  if(btn){
+    btn.setAttribute('aria-expanded','false');
+    btn.setAttribute('aria-label','Expandir panel lateral');
+  }
+}
+
 // ═══ INIT ════════════════════════════════════════════════
 function init(){
+  initPlToggle();
   tick();setInterval(tick,30000);
   loadStaffConfig();
   buildBarbers();buildServices();buildProdBarbers();buildBarberFilters();buildSalaBidOptions();
