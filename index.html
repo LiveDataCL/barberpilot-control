@@ -7223,6 +7223,17 @@ function waFormatTs(iso){
   return d.getDate()+'/'+(d.getMonth()+1)+' '+hh+':'+mm;
 }
 
+// Single source of truth for how a conversation's contact identity is
+// displayed, everywhere it's shown (list, thread header, notifications).
+// Priority: clientes.nombre (our own verified data) > perfil_whatsapp
+// (the customer's own WhatsApp display name, from Migration 037) >
+// telefono > identificador (last-resort — covers wa_user_id-only
+// conversations with no phone captured at all).
+function waContactLabel(c){
+  if(!c) return '';
+  return c.nombre||c.perfil_whatsapp||c.telefono||c.identificador;
+}
+
 function waRenderConversaciones(list){
   var el=document.getElementById('waConvList');
   if(!el) return;
@@ -7232,7 +7243,7 @@ function waRenderConversaciones(list){
   }
   var h='';
   list.forEach(function(c){
-    var label=c.nombre||c.telefono||c.identificador;
+    var label=waContactLabel(c);
     var isOpen=(c.identificador===_waOpenId);
     var unread=waIsUnread(c);
     var preview=(c.ultimo_mensaje||'').replace(/\n/g,' ');
@@ -7259,7 +7270,7 @@ function waOpenConversacion(identificador){
   var header=document.getElementById('waThreadHeader');
   var msgsEl=document.getElementById('waThreadMsgs');
   var conv=(_waConversaciones||[]).find(function(c){return c.identificador===identificador;});
-  if(header) header.textContent=(conv&&(conv.nombre||conv.telefono))||identificador;
+  if(header) header.textContent=(conv&&waContactLabel(conv))||identificador;
   if(msgsEl) msgsEl.innerHTML='<div class="empty"><div class="empty-ico">⟳</div><div>Cargando…</div></div>';
   // No matching conv (brand-new phone, no message_log rows yet) counts as
   // window-closed — there's no customer-initiated conversation to have
@@ -7414,7 +7425,7 @@ function waPoll(){
             // inside the WhatsApp tab, so the interruptive title-flash +
             // corner card is reserved for when they're looking at a
             // completely different tab.
-            if(!pWhatsappOpen) waNotifyNuevoMensaje(c.nombre||c.telefono||c.identificador);
+            if(!pWhatsappOpen) waNotifyNuevoMensaje(waContactLabel(c));
           }
         });
       }
