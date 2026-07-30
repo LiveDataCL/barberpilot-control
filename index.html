@@ -142,6 +142,9 @@
   .tab{padding:8px 16px;font-size:13px;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;color:var(--text2);transition:all .12s;white-space:nowrap}
   .tab:hover{color:var(--text)}
   .tab.on{color:var(--text);border-bottom-color:var(--text)}
+  .tab-dropdown-item{display:block;padding:10px 16px;border-bottom:none}
+  .tab-dropdown-item:hover{background:var(--surface2)}
+  .tab-dropdown-item.on{background:var(--surface2)}
   .pane{display:none}
   .pane.on{display:block}
 
@@ -564,20 +567,25 @@
     <div class="tabs">
       <div class="tab on" onclick="showTab('pReg',this)">Registros del día</div>
       <div class="tab" onclick="showTab('pSum',this)">Resumen</div>
-      <div class="tab" onclick="showTab('pSala',this)">🪑 Sala de espera</div>
       <div class="tab" onclick="showTab('pSillas',this)">📋 Sillas</div>
+      <div class="tab" onclick="showTab('pSala',this)">🪑 Sala de espera</div>
+      <div class="tab" id="tabWhatsapp" onclick="showTab('pWhatsapp',this)">💬 WhatsApp <span id="badgeWhatsapp" style="display:none;background:#25d366;color:#fff;border-radius:20px;font-size:10px;font-weight:700;padding:1px 7px;margin-left:4px;vertical-align:middle">0</span></div>
       <div class="tab" onclick="showTab('pCaja',this)">💰 Cierre de caja</div>
-      <div class="tab" onclick="showTab('pKpis',this)">🏆 KPIs</div>
       <div class="tab" onclick="showTab('pHorarios',this)">🕐 Horarios</div>
-      <div class="tab" id="tabAprob" onclick="showTab('pAprob',this)">✅ Aprobar <span id="badgeAprob" style="display:none;background:#d4a843;color:#0a0908;border-radius:20px;font-size:10px;font-weight:700;padding:1px 7px;margin-left:4px">0</span></div>
-      <div class="tab" onclick="showTab('pCierre',this)">Cierre jornada</div>
       <div class="tab" onclick="showTab('pStaff',this)">👥 Administración</div>
       <div class="tab" onclick="showTab('pClientes',this)">👤 Clientes</div>
       <div class="tab" id="tabAgenda" onclick="showTab('pAgenda',this)">📅 Agenda <span id="badgeAgenda" style="display:none;background:#2d5e8e;color:#fff;border-radius:20px;font-size:10px;font-weight:700;padding:1px 7px;margin-left:4px;vertical-align:middle">0</span></div>
-      <div class="tab" id="tabWhatsapp" onclick="showTab('pWhatsapp',this)">💬 WhatsApp <span id="badgeWhatsapp" style="display:none;background:#25d366;color:#fff;border-radius:20px;font-size:10px;font-weight:700;padding:1px 7px;margin-left:4px;vertical-align:middle">0</span></div>
-      <div class="tab" onclick="showTab('pHist',this)">Histórico</div>
-      <div class="tab" onclick="showTab('pHistorico',this)">📥 Ingresar histórico</div>
-      <div class="tab" onclick="showTab('pConfig',this)">⚙ Config</div>
+      <div style="position:relative" id="tabMasWrap">
+        <div class="tab" onclick="toggleTabMas(event)">Más ▾</div>
+        <div id="tabMasMenu" style="display:none;position:absolute;top:100%;right:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:100;min-width:190px;overflow:hidden">
+          <div class="tab tab-dropdown-item" onclick="showTab('pKpis',this);closeTabMas()">🏆 KPIs</div>
+          <div class="tab tab-dropdown-item" id="tabAprob" onclick="showTab('pAprob',this);closeTabMas()">✅ Aprobar <span id="badgeAprob" style="display:none;background:#d4a843;color:#0a0908;border-radius:20px;font-size:10px;font-weight:700;padding:1px 7px;margin-left:4px">0</span></div>
+          <div class="tab tab-dropdown-item" onclick="showTab('pCierre',this);closeTabMas()">Cierre jornada</div>
+          <div class="tab tab-dropdown-item" onclick="showTab('pHist',this);closeTabMas()">Histórico</div>
+          <div class="tab tab-dropdown-item" onclick="showTab('pHistorico',this);closeTabMas()">📥 Ingresar histórico</div>
+          <div class="tab tab-dropdown-item" onclick="showTab('pConfig',this);closeTabMas()">⚙ Config</div>
+        </div>
+      </div>
     </div>
 
     <div class="pane on" id="pReg">
@@ -1100,8 +1108,10 @@
             Selecciona una conversación
           </div>
           <div id="waThreadMsgs" style="flex:1;overflow-y:auto;padding:16px;background:var(--bg)"></div>
-          <div style="padding:12px 14px;border-top:1px solid var(--border);background:var(--surface);display:flex;gap:8px" id="waReplyBar">
-            <textarea id="waReplyText" placeholder="Escribe una respuesta…" rows="2" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:13px;resize:none" disabled></textarea>
+          <div style="padding:12px 14px;border-top:1px solid var(--border);background:var(--surface);display:flex;gap:8px;position:relative" id="waReplyBar">
+            <textarea id="waReplyText" placeholder="Escribe una respuesta… (Enter para enviar, Shift+Enter para salto de línea)" rows="2" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:13px;resize:none" disabled onkeydown="waReplyKeydown(event)"></textarea>
+            <button id="waEmojiBtn" onclick="waToggleEmojiPicker(event)" disabled style="padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);font-size:16px;cursor:pointer">😀</button>
+            <div id="waEmojiPicker" style="display:none;position:absolute;bottom:100%;right:14px;margin-bottom:8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:0 4px 16px rgba(0,0,0,.15);padding:8px;z-index:100;width:220px;grid-template-columns:repeat(8,1fr);gap:2px"></div>
             <button id="waReplyBtn" onclick="waSendReply()" disabled style="padding:0 18px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">Enviar</button>
           </div>
         </div>
@@ -1789,6 +1799,22 @@ function descargarJornadaHist(fd){
   a.href=url;a.download='jornada_'+fd+'.json';
   document.body.appendChild(a);a.click();document.body.removeChild(a);
 }
+
+// ── "Más ▾" overflow tab menu ──────────────────────────────────
+function toggleTabMas(e){
+  if(e) e.stopPropagation();
+  var menu=document.getElementById('tabMasMenu');
+  if(!menu) return;
+  menu.style.display=(menu.style.display==='none'||!menu.style.display)?'block':'none';
+}
+function closeTabMas(){
+  var menu=document.getElementById('tabMasMenu');
+  if(menu) menu.style.display='none';
+}
+document.addEventListener('click', function(e){
+  var wrap=document.getElementById('tabMasWrap');
+  if(wrap && !wrap.contains(e.target)) closeTabMas();
+});
 
 function showTabById(id){
   var all;
@@ -7222,6 +7248,7 @@ function waOpenConversacion(identificador){
   if(msgsEl) msgsEl.innerHTML='<div class="empty"><div class="empty-ico">⟳</div><div>Cargando…</div></div>';
   document.getElementById('waReplyText').disabled=false;
   document.getElementById('waReplyBtn').disabled=false;
+  document.getElementById('waEmojiBtn').disabled=false;
   waUpdateBadge(_waConversaciones||[]);
   waRenderConversaciones(_waConversaciones||[]); // re-render list to highlight selection + clear its unread dot
   fetch(API_URL+'/admin/whatsapp/conversaciones/'+encodeURIComponent(identificador)+'/mensajes',{headers:getAuthHeaders()})
@@ -7272,6 +7299,50 @@ function waSendReply(){
     })
     .catch(function(){ btn.disabled=false; toast('Error de conexión'); });
 }
+
+// Enter sends (matching the send button); Shift+Enter inserts a newline
+// instead, left to the textarea's default behavior.
+function waReplyKeydown(e){
+  if(e.key==='Enter' && !e.shiftKey){
+    e.preventDefault();
+    waSendReply();
+  }
+}
+
+// Small self-contained emoji grid — no external library/CDN, just a fixed
+// list of commonly-used emojis (kept short and barbershop-relevant on top
+// of general-purpose ones) rendered into #waEmojiPicker on first open.
+var WA_EMOJIS=['😀','😂','😊','😍','🙏','👍','👎','✂️','💇','💈','📅','✅','❌','🎉','😅','😢','🔥','💬','📞','⏰','👋','💪','🙌','😎'];
+function waToggleEmojiPicker(e){
+  if(e) e.stopPropagation();
+  var picker=document.getElementById('waEmojiPicker');
+  if(!picker) return;
+  var opening=(picker.style.display==='none'||!picker.style.display);
+  if(opening && !picker.dataset.built){
+    picker.innerHTML=WA_EMOJIS.map(function(em){
+      return '<button type="button" onclick="waInsertEmoji(\''+em+'\')" style="border:none;background:none;font-size:18px;cursor:pointer;padding:4px;border-radius:4px;line-height:1" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'none\'">'+em+'</button>';
+    }).join('');
+    picker.dataset.built='1';
+  }
+  picker.style.display=opening?'grid':'none';
+}
+function waInsertEmoji(emoji){
+  var ta=document.getElementById('waReplyText');
+  if(!ta) return;
+  var start=ta.selectionStart||0, end=ta.selectionEnd||0;
+  var val=ta.value||'';
+  ta.value=val.slice(0,start)+emoji+val.slice(end);
+  var pos=start+emoji.length;
+  ta.focus();
+  ta.setSelectionRange(pos,pos);
+}
+document.addEventListener('click', function(e){
+  var replyBar=document.getElementById('waReplyBar');
+  if(replyBar && !replyBar.contains(e.target)){
+    var picker=document.getElementById('waEmojiPicker');
+    if(picker) picker.style.display='none';
+  }
+});
 
 // 25s poll, app-shell level — detects a brand-new conversation, or an
 // existing conversation's last-activity timestamp advancing with inbound
