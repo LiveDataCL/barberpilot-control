@@ -1108,6 +1108,7 @@
             Selecciona una conversación
           </div>
           <div id="waThreadMsgs" style="flex:1;overflow-y:auto;padding:16px;background:var(--bg)"></div>
+          <div id="waWindowWarning" style="display:none;padding:8px 14px;background:#3d2a0a;color:#e8b866;font-size:12px;border-top:1px solid var(--border)">Fuera de la ventana de 24h — este mensaje será rechazado por WhatsApp. Contacta al cliente por otro medio o espera a que te escriba.</div>
           <div style="padding:12px 14px;border-top:1px solid var(--border);background:var(--surface);display:flex;gap:8px;position:relative" id="waReplyBar">
             <textarea id="waReplyText" placeholder="Escribe una respuesta… (Enter para enviar, Shift+Enter para salto de línea)" rows="2" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:13px;resize:none" disabled onkeydown="waReplyKeydown(event)"></textarea>
             <button id="waEmojiBtn" onclick="waToggleEmojiPicker(event)" disabled style="padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);font-size:16px;cursor:pointer">😀</button>
@@ -7027,8 +7028,14 @@ function clientesWaButtons(c){
   var barberoNombre=clientesBarberoNombre(c.ultimo_barbero);
   var msgAgradecimiento='💈 Hola '+c.nombre+', ¡Fue un gusto atenderte hoy en Salon Men! Te dejo por acá el link de nuestra página en donde podrás agendar muy fácil tu próximo servicio con '+barberoNombre+'.\n¡Te esperamos!\nhttps://salonmensf.livedata.cl';
   var msgResena='¡Hola '+c.nombre+'! Esperamos que hayas disfrutado tu corte y servicio hoy en la barbería.\nNos ayuda enormemente que nos dejes una breve opinión en Google para seguir mejorando.\nPara que no pierdas tiempo pensando qué poner, aquí tienes un par de ideas sobre lo que nos sirve mucho que menciones:\n\n✂️ ¿Qué tal quedó tu corte de cabello / arreglo de barba?\n☕ ¿Cómo sentiste la atención, la puntualidad y el ambiente?\n📍 ¿Nos recomendarías como tu barbería preferida en Santiago Centro?\n\n👉 Deja tu reseña en 30 segundos aquí: https://g.page/r/Cee_fupz7sMXEBM/review';
-  return '<a class="bsm" href="https://wa.me/'+digits+'?text='+encodeURIComponent(msgAgradecimiento)+'" target="_blank" rel="noopener" title="Enviar agradecimiento por WhatsApp">💬 Agradecimiento</a>'
-    +'<a class="bsm" href="https://wa.me/'+digits+'?text='+encodeURIComponent(msgResena)+'" target="_blank" rel="noopener" title="Pedir reseña Google por WhatsApp">⭐ Reseña Google</a>';
+  // Routes into our own WhatsApp tab (real conversation + audit trail via
+  // whatsapp_message_log) instead of handing off to a raw wa.me deep link
+  // that bypassed the panel entirely. Message is only pre-filled — the
+  // person must still review and click Enviar themselves, same as before
+  // they'd have had to hit send in their own WhatsApp app.
+  var waAttr=function(s){ return escHtml(s).replace(/"/g,'&quot;'); };
+  return '<button type="button" class="bsm" data-tel="'+digits+'" data-msg="'+waAttr(msgAgradecimiento)+'" onclick="waOpenConversacionForPhone(this.dataset.tel,this.dataset.msg)" title="Enviar agradecimiento por WhatsApp">💬 Agradecimiento</button>'
+    +'<button type="button" class="bsm" data-tel="'+digits+'" data-msg="'+waAttr(msgResena)+'" onclick="waOpenConversacionForPhone(this.dataset.tel,this.dataset.msg)" title="Pedir reseña Google por WhatsApp">⭐ Reseña Google</button>';
 }
 
 function renderClientesTable(list){
@@ -7136,6 +7143,14 @@ var _waConversaciones = null; // null until the first poll completes — that po
 var _waOpenId = null;         // identificador of the thread currently displayed, if any
 var _waTitleFlashInterval = null;
 var _waOriginalTitle = document.title;
+// Whether the currently-open thread is inside Meta's 24h customer-service
+// window (ventana_abierta from GET /conversaciones — true only if there's
+// an inbound message within the last 24h). A brand-new phone with no
+// message_log rows at all has no entry in _waConversaciones, so this is
+// false for it too — same as an explicitly-closed window, since there's no
+// customer-initiated conversation to have opened one.
+var _waWindowOpen = false;
+var WA_WINDOW_CLOSED_MSG = 'Fuera de la ventana de 24h — este mensaje será rechazado por WhatsApp. Contacta al cliente por otro medio o espera a que te escriba.';
 
 // ── Persistent unread tracking (localStorage-backed, survives reload) ──
 // wa_vista_<identificador> holds the ISO timestamp of the last time that
@@ -7246,9 +7261,15 @@ function waOpenConversacion(identificador){
   var conv=(_waConversaciones||[]).find(function(c){return c.identificador===identificador;});
   if(header) header.textContent=(conv&&(conv.nombre||conv.telefono))||identificador;
   if(msgsEl) msgsEl.innerHTML='<div class="empty"><div class="empty-ico">⟳</div><div>Cargando…</div></div>';
+  // No matching conv (brand-new phone, no message_log rows yet) counts as
+  // window-closed — there's no customer-initiated conversation to have
+  // opened one.
+  _waWindowOpen=!!(conv&&conv.ventana_abierta);
   document.getElementById('waReplyText').disabled=false;
-  document.getElementById('waReplyBtn').disabled=false;
+  document.getElementById('waReplyBtn').disabled=!_waWindowOpen;
   document.getElementById('waEmojiBtn').disabled=false;
+  var warnEl=document.getElementById('waWindowWarning');
+  if(warnEl) warnEl.style.display=_waWindowOpen?'none':'block';
   waUpdateBadge(_waConversaciones||[]);
   waRenderConversaciones(_waConversaciones||[]); // re-render list to highlight selection + clear its unread dot
   fetch(API_URL+'/admin/whatsapp/conversaciones/'+encodeURIComponent(identificador)+'/mensajes',{headers:getAuthHeaders()})
@@ -7258,6 +7279,19 @@ function waOpenConversacion(identificador){
       waRenderThread(j.mensajes||[]);
     })
     .catch(function(){});
+}
+
+// Entry point for the Clientes tab's Agradecimiento/Reseña Google
+// buttons — opens the WhatsApp tab on this phone's conversation (which
+// may not exist yet at all; waOpenConversacion already degrades
+// gracefully to an empty thread when there's no matching entry in
+// _waConversaciones, and GET .../mensajes returns an empty list rather
+// than erroring) and pre-fills the reply box. Never sends automatically.
+function waOpenConversacionForPhone(telefono, mensaje){
+  showTabById('pWhatsapp');
+  waOpenConversacion(telefono);
+  var ta=document.getElementById('waReplyText');
+  if(ta && mensaje) ta.value=mensaje;
 }
 
 function waRenderThread(mensajes){
@@ -7286,6 +7320,10 @@ function waSendReply(){
   var btn=document.getElementById('waReplyBtn');
   var texto=(ta.value||'').trim();
   if(!texto || !_waOpenId) return;
+  // Authoritative gate — the button's disabled attribute is a visual cue,
+  // but Enter (waReplyKeydown) calls this function directly, so the real
+  // check has to live here to actually stop a send from going through.
+  if(!_waWindowOpen){ toast(WA_WINDOW_CLOSED_MSG); return; }
   btn.disabled=true;
   fetch(API_URL+'/admin/whatsapp/conversaciones/'+encodeURIComponent(_waOpenId)+'/responder',{
     method:'POST', headers:getJsonAuthHeaders(), body:JSON.stringify({texto:texto})
