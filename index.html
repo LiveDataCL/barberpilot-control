@@ -186,6 +186,7 @@
   .alerta-stack{position:fixed;top:72px;right:18px;display:flex;flex-direction:column;gap:8px;z-index:8500;max-width:300px}
   .alerta-card{background:#1a3a1a;border:1px solid #2d6e2d;border-left:4px solid #4caf50;border-radius:var(--rl);padding:12px 14px;color:#fff;box-shadow:0 4px 16px rgba(0,0,0,.35);animation:alerta-in .25s ease;display:flex;flex-direction:column;gap:4px}
   .alerta-card.agenda{background:#1a2b3a;border-color:#2d5e8e;border-left-color:#4a9fd4}
+  .alerta-card.whatsapp{background:#0f2b1f;border-color:#1d6b45;border-left-color:#25d366}
   .alerta-card-top{display:flex;align-items:center;gap:8px}
   .alerta-ico{font-size:18px;flex-shrink:0}
   .alerta-bnom{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.75}
@@ -573,6 +574,7 @@
       <div class="tab" onclick="showTab('pStaff',this)">👥 Administración</div>
       <div class="tab" onclick="showTab('pClientes',this)">👤 Clientes</div>
       <div class="tab" id="tabAgenda" onclick="showTab('pAgenda',this)">📅 Agenda <span id="badgeAgenda" style="display:none;background:#2d5e8e;color:#fff;border-radius:20px;font-size:10px;font-weight:700;padding:1px 7px;margin-left:4px;vertical-align:middle">0</span></div>
+      <div class="tab" id="tabWhatsapp" onclick="showTab('pWhatsapp',this)">💬 WhatsApp</div>
       <div class="tab" onclick="showTab('pHist',this)">Histórico</div>
       <div class="tab" onclick="showTab('pHistorico',this)">📥 Ingresar histórico</div>
       <div class="tab" onclick="showTab('pConfig',this)">⚙ Config</div>
@@ -1087,6 +1089,23 @@
     </div>
     <div class="pane" id="pAgenda" style="margin:-18px;overflow:hidden">
       <iframe id="agendaIframe" src="" style="width:100%;height:calc(100vh - 104px);border:none;display:block" allow="fullscreen"></iframe>
+    </div>
+    <div class="pane" id="pWhatsapp" style="margin:-18px;overflow:hidden">
+      <div style="display:flex;height:calc(100vh - 104px)">
+        <div style="width:300px;flex-shrink:0;border-right:1px solid var(--border);overflow-y:auto;background:var(--surface2)" id="waConvList">
+          <div class="empty"><div class="empty-ico">⟳</div><div>Cargando conversaciones…</div></div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;min-width:0">
+          <div id="waThreadHeader" style="padding:14px 18px;border-bottom:1px solid var(--border);font-weight:600;font-size:14px;background:var(--surface)">
+            Selecciona una conversación
+          </div>
+          <div id="waThreadMsgs" style="flex:1;overflow-y:auto;padding:16px;background:var(--bg)"></div>
+          <div style="padding:12px 14px;border-top:1px solid var(--border);background:var(--surface);display:flex;gap:8px" id="waReplyBar">
+            <textarea id="waReplyText" placeholder="Escribe una respuesta…" rows="2" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:13px;resize:none" disabled></textarea>
+            <button id="waReplyBtn" onclick="waSendReply()" disabled style="padding:0 18px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">Enviar</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -1795,6 +1814,7 @@ function showTabById(id){
     }
   }
   if(id==='pSala'){ renderSala(); if(_salaInterval) clearInterval(_salaInterval); _salaInterval=setInterval(renderSala,20000); }
+  if(id==='pWhatsapp') waRenderPanel();
 }
 
 // ═══ PANEL IZQUIERDO COLAPSABLE (desktop) ═══════════════════
@@ -2635,6 +2655,7 @@ function showTab(id,el){
     var fr=document.getElementById('agendaIframe');
     if(fr && !fr.src.includes('agenda-admin')) fr.src='agenda-admin.html?embedded=1';
   }
+  if(id==='pWhatsapp') waRenderPanel();
 }
 function filtrar(f,el){
   var all=document.querySelectorAll('.fb');for(var i=0;i<all.length;i++)all[i].classList.remove('on');
@@ -6398,6 +6419,7 @@ function panelApplySession(){
   renderReg(); // re-render with role-aware delete button
   if(API_URL) staffRefreshFromAPI();
   drainOutbox(); // flush any services queued before login
+  waPoll(); // immediate refresh on login rather than waiting up to 25s for the first tick
 }
 
 function panelLogout(){ sessionStorage.removeItem('panelJwt'); location.reload(); }
@@ -7078,10 +7100,220 @@ window.addEventListener('message', function(e) {
   }
 });
 
+// ═══ WHATSAPP INBOX ═══════════════════════════════════════
+// _waConversaciones/_waOpenId/waPoll live at app-shell scope (not inside
+// the tab's render function) so the 25s poll and its new-message
+// notifications (title flash + corner card) keep working no matter which
+// tab is currently open — same reasoning as _sseConn/mostrarAlerta15
+// above, just polling since this endpoint has no push channel yet.
+var _waConversaciones = null; // null until the first poll completes — that poll only seeds the baseline, never notifies
+var _waOpenId = null;         // identificador of the thread currently displayed, if any
+var _waTitleFlashInterval = null;
+var _waOriginalTitle = document.title;
+
+function waRenderPanel(){
+  waStopTitleFlash();
+  waLoadConversaciones();
+  if(_waOpenId) waOpenConversacion(_waOpenId);
+}
+
+function waLoadConversaciones(){
+  if(!API_URL) return;
+  fetch(API_URL+'/admin/whatsapp/conversaciones',{headers:getAuthHeaders()})
+    .then(function(r){return r.json();})
+    .then(function(j){
+      if(!j.ok){ waRenderConversacionesError(j.error); return; }
+      _waConversaciones=j.conversaciones||[];
+      waRenderConversaciones(_waConversaciones);
+    })
+    .catch(function(){ waRenderConversacionesError('conexion'); });
+}
+
+function waRenderConversacionesError(err){
+  var el=document.getElementById('waConvList');
+  if(!el) return;
+  el.innerHTML='<div class="empty"><div class="empty-ico">⚠</div><div style="font-size:13px">No se pudo cargar — '+escHtml(err||'error')+'</div></div>';
+}
+
+function waFormatTs(iso){
+  if(!iso) return '';
+  var d=new Date(iso);
+  var now=new Date();
+  var sameDay=d.toDateString()===now.toDateString();
+  var hh=String(d.getHours()).padStart(2,'0'), mm=String(d.getMinutes()).padStart(2,'0');
+  if(sameDay) return hh+':'+mm;
+  return d.getDate()+'/'+(d.getMonth()+1)+' '+hh+':'+mm;
+}
+
+function waRenderConversaciones(list){
+  var el=document.getElementById('waConvList');
+  if(!el) return;
+  if(!list.length){
+    el.innerHTML='<div class="empty"><div class="empty-ico">💬</div><div style="font-size:13px">Sin conversaciones</div></div>';
+    return;
+  }
+  var h='';
+  list.forEach(function(c){
+    var label=c.nombre||c.telefono||c.identificador;
+    var isOpen=(c.identificador===_waOpenId);
+    var preview=(c.ultimo_mensaje||'').replace(/\n/g,' ');
+    if(preview.length>60) preview=preview.slice(0,60)+'…';
+    h+='<div onclick="waOpenConversacion(\''+String(c.identificador).replace(/'/g,"\\'")+'\')" '
+      +'style="padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;background:'+(isOpen?'var(--surface)':'transparent')+'">'
+      +'<div style="display:flex;justify-content:space-between;align-items:baseline;gap:6px">'
+      +'<div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(label)+'</div>'
+      +'<div style="font-size:10px;color:var(--text3);white-space:nowrap">'+waFormatTs(c.ultima_actividad)+'</div>'
+      +'</div>'
+      +'<div style="font-size:12px;color:var(--text3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'
+      +(c.ultima_direccion==='outbound'?'Tú: ':'')+escHtml(preview)+'</div>'
+      +'</div>';
+  });
+  el.innerHTML=h;
+}
+
+function waOpenConversacion(identificador){
+  _waOpenId=identificador;
+  var header=document.getElementById('waThreadHeader');
+  var msgsEl=document.getElementById('waThreadMsgs');
+  var conv=(_waConversaciones||[]).find(function(c){return c.identificador===identificador;});
+  if(header) header.textContent=(conv&&(conv.nombre||conv.telefono))||identificador;
+  if(msgsEl) msgsEl.innerHTML='<div class="empty"><div class="empty-ico">⟳</div><div>Cargando…</div></div>';
+  document.getElementById('waReplyText').disabled=false;
+  document.getElementById('waReplyBtn').disabled=false;
+  waRenderConversaciones(_waConversaciones||[]); // re-render list to highlight selection
+  fetch(API_URL+'/admin/whatsapp/conversaciones/'+encodeURIComponent(identificador)+'/mensajes',{headers:getAuthHeaders()})
+    .then(function(r){return r.json();})
+    .then(function(j){
+      if(!j.ok || identificador!==_waOpenId) return; // stale response guard — user may have switched threads meanwhile
+      waRenderThread(j.mensajes||[]);
+    })
+    .catch(function(){});
+}
+
+function waRenderThread(mensajes){
+  var el=document.getElementById('waThreadMsgs');
+  if(!el) return;
+  if(!mensajes.length){
+    el.innerHTML='<div class="empty"><div class="empty-ico">💬</div><div style="font-size:13px">Sin mensajes</div></div>';
+    return;
+  }
+  var h='';
+  mensajes.forEach(function(m){
+    var out=m.direction==='outbound';
+    var body=m.body_text?escHtml(m.body_text):(m.template_name?'📋 Plantilla: '+escHtml(m.template_name):'(sin contenido)');
+    h+='<div style="display:flex;justify-content:'+(out?'flex-end':'flex-start')+';margin-bottom:10px">'
+      +'<div style="max-width:70%;padding:8px 12px;border-radius:12px;background:'+(out?'var(--gold-lt,rgba(201,168,76,.18))':'var(--surface)')+';border:1px solid var(--border);font-size:13px">'
+      +'<div>'+body+'</div>'
+      +'<div style="font-size:10px;color:var(--text3);margin-top:4px;text-align:right">'+waFormatTs(m.created_at)+(out?' · '+escHtml(m.status||''):'')+'</div>'
+      +'</div></div>';
+  });
+  el.innerHTML=h;
+  el.scrollTop=el.scrollHeight;
+}
+
+function waSendReply(){
+  var ta=document.getElementById('waReplyText');
+  var btn=document.getElementById('waReplyBtn');
+  var texto=(ta.value||'').trim();
+  if(!texto || !_waOpenId) return;
+  btn.disabled=true;
+  fetch(API_URL+'/admin/whatsapp/conversaciones/'+encodeURIComponent(_waOpenId)+'/responder',{
+    method:'POST', headers:getJsonAuthHeaders(), body:JSON.stringify({texto:texto})
+  })
+    .then(function(r){return r.json();})
+    .then(function(j){
+      btn.disabled=false;
+      if(!j.ok){ toast(j.detalle||j.error||'No se pudo enviar'); return; }
+      ta.value='';
+      waOpenConversacion(_waOpenId);
+    })
+    .catch(function(){ btn.disabled=false; toast('Error de conexión'); });
+}
+
+// 25s poll, app-shell level — detects a brand-new conversation, or an
+// existing conversation's last-activity timestamp advancing with inbound
+// direction. The first poll after login only seeds _waConversaciones as a
+// baseline; it never fires notifications for conversations that already
+// existed before the panel was opened.
+function waPoll(){
+  if(!API_URL || !sessionStorage.getItem('panelJwt')) return;
+  fetch(API_URL+'/admin/whatsapp/conversaciones',{headers:getAuthHeaders()})
+    .then(function(r){return r.json();})
+    .then(function(j){
+      if(!j.ok) return;
+      var fresh=j.conversaciones||[];
+      var isFirstPoll=(_waConversaciones===null);
+      var prevById={};
+      (_waConversaciones||[]).forEach(function(c){ prevById[c.identificador]=c; });
+      var changedIds={};
+
+      if(!isFirstPoll){
+        fresh.forEach(function(c){
+          var prev=prevById[c.identificador];
+          var isNew=!prev;
+          var advancedInbound = prev && c.ultima_direccion==='inbound'
+            && new Date(c.ultima_actividad).getTime() > new Date(prev.ultima_actividad).getTime();
+          if(isNew || advancedInbound){
+            changedIds[c.identificador]=true;
+            var pWhatsappOpen=document.getElementById('pWhatsapp').classList.contains('on');
+            var threadOpen=(pWhatsappOpen && _waOpenId===c.identificador);
+            if(!threadOpen) waNotifyNuevoMensaje(c.nombre||c.telefono||c.identificador);
+          }
+        });
+      }
+      _waConversaciones=fresh;
+      if(document.getElementById('pWhatsapp').classList.contains('on')){
+        waRenderConversaciones(fresh);
+        if(_waOpenId && changedIds[_waOpenId]) waOpenConversacion(_waOpenId);
+      }
+    })
+    .catch(function(){});
+}
+
+function waNotifyNuevoMensaje(label){
+  waStartTitleFlash();
+  mostrarAlertaWhatsapp(label);
+}
+
+function waStartTitleFlash(){
+  if(_waTitleFlashInterval) return; // already flashing — don't stack intervals
+  var showingAlt=false;
+  _waTitleFlashInterval=setInterval(function(){
+    document.title = showingAlt ? _waOriginalTitle : '💬 Nuevo mensaje';
+    showingAlt=!showingAlt;
+  }, 1000);
+}
+function waStopTitleFlash(){
+  if(_waTitleFlashInterval){ clearInterval(_waTitleFlashInterval); _waTitleFlashInterval=null; }
+  document.title=_waOriginalTitle;
+}
+
+function mostrarAlertaWhatsapp(label){
+  var stack=document.getElementById('alertaStack');
+  if(!stack) return;
+  var div=document.createElement('div');
+  div.className='alerta-card whatsapp';
+  div.innerHTML='<div class="alerta-card-top">'
+    +'<span class="alerta-ico">💬</span>'
+    +'<div style="flex:1">'
+    +'<div class="alerta-bnom">WhatsApp</div>'
+    +'<div class="alerta-main">Nuevo mensaje de WhatsApp — '+escHtml(label)+'</div>'
+    +'</div>'
+    +'<button class="alerta-close" onclick="this.closest(\'.alerta-card\').remove()">✕</button>'
+    +'</div>'
+    +'<button onclick="showTabById(\'pWhatsapp\');this.closest(\'.alerta-card\').remove()" '
+    +'style="margin-top:8px;width:100%;padding:7px;background:#25d366;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.04em;font-family:var(--sans)">'
+    +'💬 VER CONVERSACIÓN</button>';
+  stack.appendChild(div);
+  setTimeout(function(){ if(div.parentNode) div.remove(); }, 7000);
+}
+
 // ═══ ARRANCAR ════════════════════════════════════════════
 init();
 actualizarBadgeAgenda();
 setInterval(actualizarBadgeAgenda, 120000);
+waPoll();
+setInterval(waPoll, 25000);
 ;(function(){
   var _jwt=sessionStorage.getItem('panelJwt');
   if(_jwt){
