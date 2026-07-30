@@ -386,17 +386,27 @@ button{cursor:pointer}
         <div class="fg">
           <label class="flbl">Servicio</label>
           <select class="fsel" id="bkSvc">
-            <option value="Corte">Corte</option>
-            <option value="Barba">Barba</option>
-            <option value="Corte + Barba">Corte + Barba</option>
-            <option value="Corte + Barba + Black Mask">Corte + Barba + Black Mask</option>
-            <option value="Black Mask">Black Mask</option>
-            <option value="Masaje craneal">Masaje craneal</option>
+            <option value="corte">Corte Clásico</option>
+            <option value="barba">Barba</option>
+            <option value="perf_corte">Perfilado de Corte</option>
+            <option value="perf_barba">Perfilado de Barba</option>
+            <option value="perf_cejas">Perfilado de Cejas</option>
+            <option value="corte_barba">Corte + Barba</option>
+            <option value="corte_perfb">Corte + Perfilado de Barba</option>
+            <option value="corte_cejas">Corte + Cejas</option>
+            <option value="barba_cejas">Barba + Cejas</option>
+            <option value="mat_cabello">Matizado Canas Cabello</option>
+            <option value="mat_barba">Matizado Canas Barba</option>
+            <option value="disenos">Diseños</option>
           </select>
         </div>
         <div class="fg">
           <label class="flbl">Cliente <span style="font-weight:400;opacity:.5">(opcional)</span></label>
           <input type="text" class="finp" id="bkCliente" placeholder="Sin nombre de cliente"/>
+        </div>
+        <div class="fg" id="bkPhoneField">
+          <label class="flbl">Teléfono <span style="font-weight:400;opacity:.5">(requerido)</span></label>
+          <input type="tel" class="finp" id="bkPhone" placeholder="+56 9 1234 5678"/>
         </div>
       </div>
     </div>
@@ -1022,6 +1032,8 @@ function openBlk(bid, dateStr, hi, hf) {
   document.getElementById('bkIni').disabled=false;
   document.getElementById('bkFin').disabled=false;
   document.getElementById('bkCliente').value='';
+  document.getElementById('bkPhone').value='';
+  document.getElementById('bkPhoneField').style.display='';
   document.getElementById('blkDeleteBtn').style.display='none';
   document.getElementById('blkTipoRow').style.display='';
   setBlkTipo('block');
@@ -1040,9 +1052,36 @@ function openSvcEdit(id) {
   document.getElementById('bkFin').disabled=false;
   document.getElementById('bkFull').checked=false;
   document.getElementById('bkCliente').value=bl.client_name||'';
+  // No phone field here — existing servicio entries live in blocked_slots
+  // (pre-dating this change) and were never captured with a phone; this
+  // path keeps saving to blocked_slots (see submitBlock), so a phone input
+  // here would be unused and confusing.
+  document.getElementById('bkPhoneField').style.display='none';
   setBlkTipo('servicio');
   const svcEl=document.getElementById('bkSvc');
-  if(svcEl) svcEl.value=bl.svc_nom||'Corte';
+  if (svcEl) {
+    const storedSvc = bl.svc_nom || 'corte';
+    const knownValues = Array.from(svcEl.options).map(o => o.value);
+    if (knownValues.includes(storedSvc)) {
+      svcEl.value = storedSvc;
+    } else {
+      // Pre-existing entry stored under the old free-text catalog (e.g.
+      // "Corte + Barba + Black Mask") that has no equivalent in the real
+      // svc_id catalog now used for new servicio bookings. Inject a
+      // matching option so editing shows the true stored value instead of
+      // silently defaulting to whatever option happens to be first —
+      // re-saving without touching this field round-trips the same text.
+      let legacyOpt = svcEl.querySelector('option[data-legacy]');
+      if (!legacyOpt) {
+        legacyOpt = document.createElement('option');
+        legacyOpt.setAttribute('data-legacy', '1');
+        svcEl.insertBefore(legacyOpt, svcEl.firstChild);
+      }
+      legacyOpt.value = storedSvc;
+      legacyOpt.textContent = storedSvc;
+      svcEl.value = storedSvc;
+    }
+  }
   document.getElementById('blkTipoRow').style.display='none';
   document.getElementById('blkTitle').textContent='Editar Servicio';
   document.getElementById('blkSubmitBtn').textContent='GUARDAR CAMBIOS';
@@ -1079,9 +1118,39 @@ async function submitBlock() {
   const hf=document.getElementById('bkFin').value;
   if(!fecha||!hi||!hf){showToast('Completa todos los campos','err');return;}
   if(toMin(hi)>=toMin(hf)){showToast('La hora fin debe ser posterior al inicio','err');return;}
+
+  // NEW servicio bookings go through POST /appointments — real client
+  // linkage (findOrCreateClienteByTelefono), push notification, and
+  // WhatsApp trigger eligibility, same as any other booking. Editing an
+  // EXISTING servicio entry (_editBlkId set, opened via openSvcEdit) still
+  // goes through /blocked-slots below unchanged — those rows predate this
+  // change and live in blocked_slots, with no phone captured, so there is
+  // nothing to migrate them to. 'Bloqueo' mode is untouched either way.
+  if (_blkTipo==='servicio' && !_editBlkId) {
+    const svc_id = document.getElementById('bkSvc').value;
+    const client_name = document.getElementById('bkCliente').value.trim() || 'Cliente';
+    const client_phone = document.getElementById('bkPhone').value.trim();
+    if (!client_phone) { showToast('Teléfono requerido','err'); return; }
+    try {
+      const r = await fetch(`${API}/appointments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bid, svc_id, fecha, hora_inicio: hi, client_name, client_phone })
+        // No whatsapp_consent_version — staff-created bookings don't
+        // capture consent at creation time, same as walk-ins.
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+      closeOv('blkOv');
+      showToast('Servicio reservado ✂️','ok');
+      refresh();
+    } catch(e){ showToast('Error: '+e.message,'err'); }
+    return;
+  }
+
   const body = _blkTipo==='servicio'
     ? { bid, fecha, hora_inicio:hi, hora_fin:hf, tipo:'servicio',
-        svc_nom: document.getElementById('bkSvc').value,
+        svc_nom: (document.getElementById('bkSvc').selectedOptions[0]||{}).textContent || document.getElementById('bkSvc').value,
         client_name: document.getElementById('bkCliente').value.trim()||null }
     : { bid, fecha, hora_inicio:hi, hora_fin:hf, tipo:'block',
         motivo: document.getElementById('bkMotivo').value };
