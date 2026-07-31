@@ -1108,11 +1108,15 @@
             Selecciona una conversación
           </div>
           <div id="waThreadMsgs" style="flex:1;overflow-y:auto;padding:16px;background:var(--bg)"></div>
-          <div id="waWindowWarning" style="display:none;padding:8px 14px;background:#3d2a0a;color:#e8b866;font-size:12px;border-top:1px solid var(--border)">Fuera de la ventana de 24h — este mensaje será rechazado por WhatsApp. Contacta al cliente por otro medio o espera a que te escriba.</div>
+          <div id="waWindowWarning" style="display:none;padding:8px 14px;background:#3d2a0a;color:#e8b866;font-size:12px;border-top:1px solid var(--border)">Fuera de la ventana de 24h — este mensaje será rechazado por WhatsApp. Usa el botón "📋 Plantilla" para enviar un mensaje aprobado en su lugar.</div>
           <div style="padding:12px 14px;border-top:1px solid var(--border);background:var(--surface);display:flex;gap:8px;position:relative" id="waReplyBar">
             <textarea id="waReplyText" placeholder="Escribe una respuesta… (Enter para enviar, Shift+Enter para salto de línea)" rows="2" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:13px;resize:none" disabled onkeydown="waReplyKeydown(event)"></textarea>
             <button id="waEmojiBtn" onclick="waToggleEmojiPicker(event)" disabled style="padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);font-size:16px;cursor:pointer">😀</button>
             <div id="waEmojiPicker" style="display:none;position:absolute;bottom:100%;right:14px;margin-bottom:8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:0 4px 16px rgba(0,0,0,.15);padding:8px;z-index:100;width:220px;grid-template-columns:repeat(8,1fr);gap:2px"></div>
+            <!-- Always enabled once a conversation is open — unlike waReplyBtn,
+                 not gated on _waWindowOpen: templates work outside the 24h
+                 window by design, that's the whole point of this button. -->
+            <button id="waPlantillaBtn" onclick="abrirPlantillaModal()" disabled style="padding:0 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">📋 Plantilla</button>
             <button id="waReplyBtn" onclick="waSendReply()" disabled style="padding:0 18px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">Enviar</button>
           </div>
         </div>
@@ -1131,6 +1135,31 @@
     <div id="histList"><div class="empty"><div>No hay jornadas guardadas en este navegador.</div></div></div>
     <div style="margin-top:14px;text-align:right">
       <button onclick="cerrarHistorico()" style="padding:8px 18px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);font-family:var(--sans);font-size:13px;cursor:pointer">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- WHATSAPP PLANTILLA MODAL — manual template send, for when the 24h
+     service window is closed (or any time; not gated on window status).
+     Reuses the hist-overlay/hist-modal classes, same modal convention as
+     Histórico above. -->
+<div class="hist-overlay" id="waPlantillaOverlay">
+  <div class="hist-modal">
+    <div class="hist-title">
+      Enviar plantilla de WhatsApp
+      <span style="cursor:pointer;color:var(--text3);font-size:20px" onclick="cerrarPlantillaModal()">✕</span>
+    </div>
+    <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px">Plantilla</label>
+    <select id="waPlantillaSelect" onchange="waRenderPlantillaCampos()" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:13px;margin-bottom:4px"></select>
+    <div id="waPlantillaCampos"></div>
+    <label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;margin:16px 0;line-height:1.4;cursor:pointer">
+      <input type="checkbox" id="waPlantillaConsent" style="margin-top:2px">
+      <span>Confirmo que este cliente autorizó verbalmente recibir mensajes de WhatsApp con ofertas y notificaciones</span>
+    </label>
+    <div id="waPlantillaError" style="display:none;color:#c0392b;font-size:12px;margin-bottom:10px"></div>
+    <div style="text-align:right;display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="cerrarPlantillaModal()" style="padding:8px 18px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);font-family:var(--sans);font-size:13px;cursor:pointer">Cancelar</button>
+      <button id="waPlantillaEnviarBtn" onclick="waSendPlantilla()" style="padding:8px 18px;border:none;border-radius:var(--r);background:var(--text);color:#fff;font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer">Enviar plantilla</button>
     </div>
   </div>
 </div>
@@ -7279,6 +7308,9 @@ function waOpenConversacion(identificador){
   document.getElementById('waReplyText').disabled=false;
   document.getElementById('waReplyBtn').disabled=!_waWindowOpen;
   document.getElementById('waEmojiBtn').disabled=false;
+  // Not gated on _waWindowOpen — templates are meant to work regardless of
+  // window status, that's the point of offering them.
+  document.getElementById('waPlantillaBtn').disabled=false;
   var warnEl=document.getElementById('waWindowWarning');
   if(warnEl) warnEl.style.display=_waWindowOpen?'none':'block';
   waUpdateBadge(_waConversaciones||[]);
@@ -7347,6 +7379,88 @@ function waSendReply(){
       waOpenConversacion(_waOpenId);
     })
     .catch(function(){ btn.disabled=false; toast('Error de conexión'); });
+}
+
+// ── Plantilla (template) send — mirrors waSendReply's pattern, calling
+// POST .../plantilla instead of .../responder. Not gated on _waWindowOpen —
+// templates work outside the 24h window by design. Registry mirrors
+// barberpilot-api's WA_TEMPLATE_REGISTRY (index.js) — the backend is the
+// authoritative source and validates independently; this is just enough to
+// render the right fields without an extra round trip.
+var WA_PLANTILLAS={
+  invitacion_agendar:{label:'Invitación a agendar (Marketing)',bodyParams:['nombre_cliente','barbero'],hasUrlButton:true},
+  solicitud_resena_v2:{label:'Solicitud de reseña (Marketing)',bodyParams:['nombre_cliente','servicio'],hasUrlButton:true},
+  solicitud_resena_primera_visita:{label:'Solicitud de reseña — primera visita (Utility)',bodyParams:['nombre_cliente','servicio','barbero'],hasUrlButton:true},
+  confirmacion_walkin:{label:'Confirmación walk-in (Utility)',bodyParams:['nombre_cliente','barbero','tiempo_espera'],hasUrlButton:false},
+  confirmacion_reserva_anticipada_v2:{label:'Confirmación de reserva anticipada (Utility)',bodyParams:['nombre_cliente','barbero','servicio','fecha','hora'],hasUrlButton:false}
+};
+
+function abrirPlantillaModal(){
+  if(!_waOpenId){ toast('Selecciona primero una conversación'); return; }
+  var sel=document.getElementById('waPlantillaSelect');
+  var h='<option value="">Selecciona una plantilla…</option>';
+  Object.keys(WA_PLANTILLAS).forEach(function(key){
+    h+='<option value="'+key+'">'+WA_PLANTILLAS[key].label+'</option>';
+  });
+  sel.innerHTML=h;
+  document.getElementById('waPlantillaCampos').innerHTML='';
+  document.getElementById('waPlantillaConsent').checked=false;
+  document.getElementById('waPlantillaError').style.display='none';
+  document.getElementById('waPlantillaOverlay').classList.add('on');
+}
+function cerrarPlantillaModal(){
+  document.getElementById('waPlantillaOverlay').classList.remove('on');
+}
+function waRenderPlantillaCampos(){
+  var t=WA_PLANTILLAS[document.getElementById('waPlantillaSelect').value];
+  var el=document.getElementById('waPlantillaCampos');
+  if(!t){ el.innerHTML=''; return; }
+  var h='';
+  t.bodyParams.forEach(function(p){
+    h+='<label style="display:block;font-size:12px;font-weight:600;margin:10px 0 4px">'+p+'</label>'
+      +'<input type="text" class="waPlantillaCampo" data-param="'+p+'" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:13px">';
+  });
+  if(t.hasUrlButton) h+='<div style="font-size:11px;color:var(--text3);margin-top:8px">Esta plantilla incluye un botón con enlace (sin variables propias).</div>';
+  el.innerHTML=h;
+}
+function waSendPlantilla(){
+  var key=document.getElementById('waPlantillaSelect').value;
+  var t=WA_PLANTILLAS[key];
+  var errEl=document.getElementById('waPlantillaError');
+  errEl.style.display='none';
+  if(!t){ errEl.textContent='Selecciona una plantilla.'; errEl.style.display='block'; return; }
+  if(!document.getElementById('waPlantillaConsent').checked){
+    errEl.textContent='Debes confirmar la autorización del cliente antes de enviar.';
+    errEl.style.display='block';
+    return;
+  }
+  var variables={}, missing=[];
+  document.querySelectorAll('#waPlantillaCampos .waPlantillaCampo').forEach(function(inp){
+    var v=(inp.value||'').trim();
+    if(!v) missing.push(inp.dataset.param);
+    variables[inp.dataset.param]=v;
+  });
+  if(missing.length){
+    errEl.textContent='Completa todos los campos: '+missing.join(', ');
+    errEl.style.display='block';
+    return;
+  }
+  if(!_waOpenId) return;
+  var btn=document.getElementById('waPlantillaEnviarBtn');
+  btn.disabled=true;
+  fetch(API_URL+'/admin/whatsapp/conversaciones/'+encodeURIComponent(_waOpenId)+'/plantilla',{
+    method:'POST', headers:getJsonAuthHeaders(),
+    body:JSON.stringify({templateName:key, variables:variables, consentAck:true})
+  })
+    .then(function(r){return r.json();})
+    .then(function(j){
+      btn.disabled=false;
+      if(!j.ok){ errEl.textContent=j.detalle||j.error||'No se pudo enviar'; errEl.style.display='block'; return; }
+      cerrarPlantillaModal();
+      toast('Plantilla enviada');
+      waOpenConversacion(_waOpenId);
+    })
+    .catch(function(){ btn.disabled=false; errEl.textContent='Error de conexión'; errEl.style.display='block'; });
 }
 
 // Enter sends (matching the send button); Shift+Enter inserts a newline
