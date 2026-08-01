@@ -5563,6 +5563,7 @@ function _liberarClienteEncontrado(prefix){
 // last-visit card ahead of that, sourced entirely from the cached index.
 var SALA_CLIENTE_IDX_KEY = 'sfsf_cliente_idx';
 var SALA_CLIENTE_IDX_TTL_MS = 10 * 60 * 1000;
+var SALA_CLIENTE_IDX_HARD_TTL_MS = 24 * 60 * 60 * 1000; // past this age the cache is wiped outright, not just refreshed
 var _salaClienteIndice = [];
 var _salaClienteIndiceUltimoFetch = 0; // in-memory guard, not persisted — avoids refetching on rapid tab switches
 
@@ -5601,7 +5602,17 @@ function salaCargarIndiceClientes(){
   try{
     var cached=JSON.parse(localStorage.getItem(SALA_CLIENTE_IDX_KEY)||'null');
     if(cached && Array.isArray(cached.clientes)){
-      _salaClienteIndice = cached.clientes;
+      // Hard expiry, separate from the 10min soft-refresh TTL below: past
+      // 24h the cached copy isn't just stale, it's wiped outright — client
+      // name/phone/last-visit data shouldn't sit indefinitely in
+      // localStorage on a shared salon computer. A background refresh
+      // (rather than a full wipe) would still leave the old data readable
+      // until the fetch resolves, which defeats the point.
+      if(Date.now() - cached.ts > SALA_CLIENTE_IDX_HARD_TTL_MS){
+        localStorage.removeItem(SALA_CLIENTE_IDX_KEY);
+      } else {
+        _salaClienteIndice = cached.clientes;
+      }
     }
   }catch(e){}
 
@@ -6694,7 +6705,15 @@ function panelApplySession(){
   waPoll(); // immediate refresh on login rather than waiting up to 25s for the first tick
 }
 
-function panelLogout(){ sessionStorage.removeItem('panelJwt'); location.reload(); }
+function panelLogout(){
+  sessionStorage.removeItem('panelJwt');
+  // Sala de espera's phone-autocomplete index (name/phone/last-visit per
+  // client) shouldn't outlive the staff session it was fetched for on a
+  // shared salon computer — wipe it on logout rather than leaving it for
+  // the next person to log in and inherit.
+  try{ localStorage.removeItem(SALA_CLIENTE_IDX_KEY); }catch(e){}
+  location.reload();
+}
 
 function panelChangePassword(){
   var cur=document.getElementById('cpCurrent').value||'';
