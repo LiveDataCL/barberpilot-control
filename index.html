@@ -5627,6 +5627,14 @@ function salaCargarIndiceClientes(){
       if(!j.ok || !Array.isArray(j.clientes)) return;
       _salaClienteIndice = j.clientes.map(_salaReducirCliente);
       _salaGuardarIndiceCache();
+      // On a cold cache, this fetch can resolve mid-typing (real network
+      // latency against ~500 rows, not instant) — the index was empty for
+      // whatever's been typed so far, and salaBuscarClienteLocal only ever
+      // runs on oninput, so nothing would show the dropdown until the next
+      // keystroke. Re-run it now against whatever's already in the field so
+      // arriving data doesn't sit unused until the user happens to type again.
+      var telEl = document.getElementById('sala-tel');
+      if(telEl && telEl.value) salaBuscarClienteLocal(telEl.value);
     })
     .catch(function(){}); // silent — the cached copy (if any) keeps working offline
 }
