@@ -610,12 +610,17 @@
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:16px;margin-bottom:16px">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:12px">✚ Check-in manual</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-          <div>
+          <div style="position:relative">
             <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Teléfono (opcional)</div>
-            <input id="sala-tel" type="tel" placeholder="+56 9 1234 5678"
+            <input id="sala-tel" type="tel" placeholder="+56 9 1234 5678" autocomplete="off"
               style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--sans);background:var(--surface)"
+              oninput="salaBuscarClienteLocal(this.value)"
               onblur="buscarClientePorTel('sala')" />
             <div id="sala-tel-badge" style="font-size:11px;margin-top:4px;color:var(--text3)"></div>
+            <!-- Instant local-index dropdown (no network per keystroke) — see
+                 salaBuscarClienteLocal(). Absolutely positioned so it floats
+                 over whatever's below without pushing layout around. -->
+            <div id="sala-tel-dropdown" style="display:none;position:absolute;z-index:20;top:100%;left:0;right:0;margin-top:2px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:0 4px 14px rgba(0,0,0,.12);max-height:220px;overflow-y:auto"></div>
           </div>
           <div>
             <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Nombre *</div>
@@ -670,6 +675,12 @@
           </div>
         </div>
         <button onclick="salaCheckin()" style="padding:9px 20px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans)">✓ Registrar llegada</button>
+      </div>
+
+      <!-- ── Última visita (índice local en caché, sin llamada de red) ── -->
+      <div id="salaUltimaVisitaCard" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:16px;margin-bottom:16px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:12px">🕒 Última visita</div>
+        <div id="salaUltimaVisitaBody" style="font-size:13px"></div>
       </div>
 
       <!-- ── Memoria del cliente (GET /clientes/:id/memoria, panel-auth) ── -->
@@ -1869,7 +1880,7 @@ function showTabById(id){
       if(oc.indexOf("'"+id+"'")!==-1){ tabs[i].classList.add('on'); break; }
     }
   }
-  if(id==='pSala'){ renderSala(); if(_salaInterval) clearInterval(_salaInterval); _salaInterval=setInterval(renderSala,20000); }
+  if(id==='pSala'){ renderSala(); salaCargarIndiceClientes(); if(_salaInterval) clearInterval(_salaInterval); _salaInterval=setInterval(renderSala,20000); }
   if(id==='pWhatsapp') waRenderPanel();
 }
 
@@ -2680,6 +2691,7 @@ function showTab(id,el){
   if(id==='pHistorico')renderIngresarHistorico();
   if(id==='pSala'){
     renderSala();
+    salaCargarIndiceClientes();
     if(_salaInterval) clearInterval(_salaInterval);
     _salaInterval = setInterval(renderSala, 20000);
   } else {
@@ -5478,9 +5490,10 @@ function buscarClientePorTel(prefix){
   if(nombreEl.readOnly){
     nombreEl.readOnly=false;
     nombreEl.value='';
+    if(prefix==='sala') salaOcultarUltimaVisitaCard(); // belonged to the released match
   }
   if(badge) badge.innerHTML='';
-  if(prefix==='sala') salaOcultarMemoria();
+  if(prefix==='sala'){ salaOcultarMemoria(); salaOcultarDropdownClientes(); }
   if(!tel||_telEsPlaceholder(tel)) return;
 
   clearTimeout(_clienteLookupTimers[prefix]);
@@ -5490,7 +5503,7 @@ function buscarClientePorTel(prefix){
       .then(function(r){return r.json();})
       .then(function(j){
         if(j.ok&&j.found&&j.cliente&&j.cliente.nombre){
-          _bloquearClienteEncontrado(prefix,j.cliente.nombre);
+          _bloquearClienteEncontrado(prefix,j.cliente.nombre,tel);
         } else if(badge){
           badge.textContent='';
         }
@@ -5505,11 +5518,20 @@ function buscarClientePorTel(prefix){
   },300);
 }
 
-function _bloquearClienteEncontrado(prefix,nombre){
+function _bloquearClienteEncontrado(prefix,nombre,tel){
   var nombreEl=document.getElementById(prefix+'-nombre');
   var badge=document.getElementById(prefix+'-tel-badge');
   nombreEl.value=nombre;
   nombreEl.readOnly=true;
+  // This runs ~300ms after every blur (even ones that just reconfirm a
+  // match the local-index dropdown already showed), which would otherwise
+  // make salaUltimaVisitaCard flicker away — repopulate it from the same
+  // in-memory index (no network call) rather than dropping it.
+  if(prefix==='sala' && tel){
+    var telNorm=_salaNormalizarTel(tel);
+    var match=_salaClienteIndice.filter(function(c){return c.telefono && _salaNormalizarTel(c.telefono)===telNorm;})[0];
+    if(match) salaMostrarUltimaVisitaCard(match);
+  }
   if(badge){
     badge.innerHTML='✓ Cliente existente: '+_escHtml(nombre)+' · '
       +'<a href="#" onclick="_liberarClienteEncontrado(\''+prefix+'\');return false" style="color:inherit;text-decoration:underline">¿No es él/ella?</a>';
@@ -5528,7 +5550,184 @@ function _liberarClienteEncontrado(prefix){
   // was wrong — hide it immediately, same as changing the phone number
   // itself already does in buscarClientePorTel. Only the 'sala' prefix has
   // a memoria panel at all (the 'editor' queue-entry modal doesn't).
-  if(prefix==='sala') salaOcultarMemoria();
+  if(prefix==='sala'){ salaOcultarMemoria(); salaOcultarUltimaVisitaCard(); }
+}
+
+// ═══ ÍNDICE LOCAL DE CLIENTES (autocomplete de teléfono, Sala de espera) ═══
+// Full tenant client list (~500 rows, GET /clientes, panel-auth) cached in
+// localStorage with a 10min TTL, stale-while-revalidate. Typing in sala-tel
+// filters this in-memory array — zero network calls per keystroke. Separate
+// from the pre-existing buscarClientePorTel()/salaCargarMemoria() blur flow
+// above, which still does its own authenticated lookups (name-lock + notas/
+// cumpleaños) and is left untouched; this just adds an instant dropdown +
+// last-visit card ahead of that, sourced entirely from the cached index.
+var SALA_CLIENTE_IDX_KEY = 'sfsf_cliente_idx';
+var SALA_CLIENTE_IDX_TTL_MS = 10 * 60 * 1000;
+var _salaClienteIndice = [];
+var _salaClienteIndiceUltimoFetch = 0; // in-memory guard, not persisted — avoids refetching on rapid tab switches
+
+function _salaNormalizarTel(tel){
+  return String(tel||'').replace(/[\s\-()]/g,'');
+}
+
+// Only the fields the autocomplete/last-visit card actually needs — the raw
+// GET /clientes response also carries notas/cumpleaños (staff-only, fine to
+// receive over the panel-auth call, but not something that should sit in
+// localStorage indefinitely on a shared counter device). See TECH_DEBT.md.
+function _salaReducirCliente(c){
+  return {
+    id: c.id,
+    nombre: c.nombre,
+    telefono: c.telefono || '',
+    ultimo_barbero: c.ultimo_barbero || null,
+    ultimo_servicio: c.ultimo_servicio || null,
+    ultima_bebida: c.ultima_bebida || null,
+    ultima_visita: c.ultima_visita || null,
+  };
+}
+
+function _salaGuardarIndiceCache(){
+  try{
+    localStorage.setItem(SALA_CLIENTE_IDX_KEY, JSON.stringify({ ts: Date.now(), clientes: _salaClienteIndice }));
+  }catch(e){}
+}
+
+// Called when the Sala tab is shown. Loads the cached copy immediately (if
+// fresh enough to be worth showing instantly) and always kicks off a
+// background refresh — except when a refresh already ran very recently in
+// this same session (rapid tab switching shouldn't refetch every time).
+function salaCargarIndiceClientes(){
+  if(!API_URL) return;
+  try{
+    var cached=JSON.parse(localStorage.getItem(SALA_CLIENTE_IDX_KEY)||'null');
+    if(cached && Array.isArray(cached.clientes)){
+      _salaClienteIndice = cached.clientes;
+    }
+  }catch(e){}
+
+  var jwt=sessionStorage.getItem('panelJwt');
+  if(!jwt) return; // sin sesión de panel — el índice simplemente no se llena, igual que salaCargarMemoria
+  if(Date.now() - _salaClienteIndiceUltimoFetch < 30000) return; // ya se refrescó hace poco
+  _salaClienteIndiceUltimoFetch = Date.now();
+
+  fetch(API_URL+'/clientes', { headers: getAuthHeaders() })
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if(!j.ok || !Array.isArray(j.clientes)) return;
+      _salaClienteIndice = j.clientes.map(_salaReducirCliente);
+      _salaGuardarIndiceCache();
+    })
+    .catch(function(){}); // silent — the cached copy (if any) keeps working offline
+}
+
+// Insert/merge a client into the in-memory index + localStorage cache right
+// away, so a client checked in or completed *this session* is searchable
+// without waiting for the 10min background refresh.
+function salaActualizarIndiceCliente(datos){
+  if(!datos || (!datos.id && !datos.telefono)) return;
+  var telNorm = datos.telefono ? _salaNormalizarTel(datos.telefono) : null;
+  var existente = null;
+  for(var i=0;i<_salaClienteIndice.length;i++){
+    var c=_salaClienteIndice[i];
+    if((datos.id && c.id===datos.id) || (telNorm && c.telefono && _salaNormalizarTel(c.telefono)===telNorm)){
+      existente=c; break;
+    }
+  }
+  if(existente){
+    Object.keys(datos).forEach(function(k){ if(datos[k]!==undefined && datos[k]!==null) existente[k]=datos[k]; });
+  } else {
+    _salaClienteIndice.push(_salaReducirCliente(Object.assign({telefono:''}, datos)));
+  }
+  _salaGuardarIndiceCache();
+}
+
+function salaOcultarDropdownClientes(){
+  var dd=document.getElementById('sala-tel-dropdown');
+  if(dd){ dd.style.display='none'; dd.innerHTML=''; }
+}
+
+function salaOcultarUltimaVisitaCard(){
+  var card=document.getElementById('salaUltimaVisitaCard');
+  if(card) card.style.display='none';
+}
+
+function salaMostrarUltimaVisitaCard(cliente){
+  var card=document.getElementById('salaUltimaVisitaCard');
+  var body=document.getElementById('salaUltimaVisitaBody');
+  if(!card||!body) return;
+  if(!cliente.ultimo_barbero && !cliente.ultima_bebida && !cliente.ultimo_servicio && !cliente.ultima_visita){
+    card.style.display='none';
+    return;
+  }
+  var fecha=(cliente.ultima_visita||'').slice(0,10) || '—';
+  var partes=[];
+  if(cliente.ultimo_barbero) partes.push(_escHtml(cliente.ultimo_barbero));
+  if(cliente.ultimo_servicio) partes.push(_escHtml(cliente.ultimo_servicio));
+  if(cliente.ultima_bebida) partes.push(_escHtml(cliente.ultima_bebida));
+  body.innerHTML =
+    '<div style="color:var(--text3);font-size:11px;margin-bottom:2px">'+_escHtml(fecha)+'</div>'
+    +'<div>'+(partes.length?partes.join(' · '):'—')+'</div>';
+  card.style.display='block';
+}
+
+// Selecting a match (click or exact-match auto-select): lock the name field
+// like the existing blur-based flow does, and render the last-visit card
+// straight from the cached object — no network call. The pre-existing
+// notas/cumpleaños "Memoria" panel still populates separately via the
+// normal onblur→buscarClientePorTel→salaCargarMemoria chain once focus
+// actually leaves the field.
+function _salaSeleccionarClienteIndice(cliente){
+  var telEl=document.getElementById('sala-tel');
+  var nombreEl=document.getElementById('sala-nombre');
+  if(cliente.telefono) telEl.value=cliente.telefono;
+  nombreEl.value=cliente.nombre;
+  nombreEl.readOnly=true;
+  var badge=document.getElementById('sala-tel-badge');
+  if(badge){
+    badge.innerHTML='✓ Cliente existente: '+_escHtml(cliente.nombre)+' · '
+      +'<a href="#" onclick="_liberarClienteEncontrado(\'sala\');return false" style="color:inherit;text-decoration:underline">¿No es él/ella?</a>';
+    badge.style.color='var(--ok)';
+  }
+  salaOcultarDropdownClientes();
+  salaMostrarUltimaVisitaCard(cliente);
+}
+
+// oninput handler on sala-tel — pure local filter over _salaClienteIndice,
+// normalizing both sides (strip spaces/dashes/parens) before comparing.
+function salaBuscarClienteLocal(valorCrudo){
+  var q=_salaNormalizarTel(valorCrudo);
+  if(!q || q.length<3 || !_salaClienteIndice.length){
+    salaOcultarDropdownClientes();
+    return;
+  }
+  var exactas=[], parciales=[];
+  for(var i=0;i<_salaClienteIndice.length;i++){
+    var c=_salaClienteIndice[i];
+    if(!c.telefono) continue;
+    var telC=_salaNormalizarTel(c.telefono);
+    if(telC===q) exactas.push(c);
+    else if(telC.indexOf(q)!==-1) parciales.push(c);
+  }
+  // Exact full-number match — auto-fill immediately, per spec, without
+  // requiring the user to click a dropdown row.
+  if(exactas.length===1 && valorCrudo.trim().length===exactas[0].telefono.replace(/[\s\-()]/g,'').length){
+    _salaSeleccionarClienteIndice(exactas[0]);
+    return;
+  }
+  var resultados=exactas.concat(parciales).slice(0,8);
+  var dd=document.getElementById('sala-tel-dropdown');
+  if(!resultados.length){ salaOcultarDropdownClientes(); return; }
+  var h='';
+  resultados.forEach(function(c){
+    h+='<div onmousedown="event.preventDefault();_salaSeleccionarClienteIndice(_salaClienteIndice['+_salaClienteIndice.indexOf(c)+'])" '
+      +'style="padding:8px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border)" '
+      +'onmouseenter="this.style.background=\'var(--surface2)\'" onmouseleave="this.style.background=\'\'">'
+      +'<div style="font-weight:600">'+_escHtml(c.nombre)+'</div>'
+      +'<div style="font-size:11px;color:var(--text3);font-family:var(--mono)">'+_escHtml(c.telefono)+'</div>'
+      +'</div>';
+  });
+  dd.innerHTML=h;
+  dd.style.display='block';
 }
 
 // ═══ MEMORIA DEL CLIENTE ═══════════════════════════════════
@@ -5730,6 +5929,10 @@ function _doCheckin(nombre, bid, svc, tel, bebida, bebidaEsOtro){
       var nb=bid==='any'?'sala de espera':(BB.find(function(b){return b.id===bid;})||{}).nombre||bid;
       var waitLbl=bid==='any'?'esperando barbero':'~'+j.estimated_wait_min+' min';
       toast('✓ '+nombre+' en '+nb+' · '+waitLbl);
+      // Make this client searchable in the phone-autocomplete index right
+      // away, without waiting for the 10min background refresh. No last-visit
+      // fields yet — those only exist once the service is actually closed.
+      if(j.cliente_id && tel) salaActualizarIndiceCliente({ id:j.cliente_id, nombre:nombre, telefono:tel });
       document.getElementById('sala-tel').value='';
       var salaNombreEl=document.getElementById('sala-nombre');
       salaNombreEl.readOnly=false;
@@ -5741,6 +5944,8 @@ function _doCheckin(nombre, bid, svc, tel, bebida, bebidaEsOtro){
       document.getElementById('sala-bebida').value='';
       salaToggleBebidaOtro();
       salaOcultarMemoria();
+      salaOcultarUltimaVisitaCard();
+      salaOcultarDropdownClientes();
       renderSala();
     }).catch(function(e){toast('Error de conexión: '+e.message);});
 }
@@ -5792,6 +5997,17 @@ function salaCerrarServicio(queue_id,bid,pago,propina,precio){
         var msg='✓ Servicio cerrado · $'+fmt(j.precio)+' · bb $'+fmt(j.bb);
         if(j.propina>0) msg+=' + prop $'+fmt(j.propina);
         toast(msg);
+        // This is the moment a real last-visit (barbero/servicio/bebida)
+        // exists — upsert the autocomplete index immediately instead of
+        // waiting for the 10min background refresh, using the fields
+        // POST /queue/control/registrar now echoes back for this purpose.
+        if(j.cliente_id){
+          salaActualizarIndiceCliente({
+            id: j.cliente_id, telefono: j.cliente_telefono, nombre: ed.client_name,
+            ultimo_barbero: j.bnom, ultimo_servicio: j.snom, ultima_bebida: j.bebida,
+            ultima_visita: j.fecha,
+          });
+        }
         var now=new Date();
         var mismos=regs.filter(function(x){return x.bid===bid;});
         var acumBB=j.bb+(j.propina||0),acumFact=j.precio;
