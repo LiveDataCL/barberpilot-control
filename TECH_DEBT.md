@@ -90,10 +90,20 @@ catalog default).
 used regularly, this should move to Immediate, since it will keep silently
 failing on every single use until fixed.
 
-**Status**: In review — barberpilot-api#28 and barberpilot-control#19
-(draft, unmerged as of 2026-08-03) extend the override mechanism to cover
-`alias_no_mapeado` and require a reason in the sidebar UI. Not closed until
-those merge and are confirmed working against a real device.
+**Status**: Resolved via removal, not the override mechanism. An
+override/reason mechanism (barberpilot-api#28, barberpilot-control#19) was
+built and tested against this exact bug, but the business owner decided
+against keeping "Servicio especial" at all — both PRs were closed unmerged
+2026-08-03 (branches kept for reference/rollback:
+`feature/variable-pricing-override` in both repos). The feature itself is
+being removed in `fix/remove-servicio-especial` (draft PR, unmerged as of
+2026-08-03). Once that merges, this entry closes as
+resolved-by-removal rather than resolved-by-fix — the underlying
+`alias_no_mapeado`/`precio_no_coincide` asymmetry between `POST /registros`
+and `POST /queue/control/registrar` documented above still exists in the
+backend generally (nothing else currently exercises it now that the one
+caller that hit it is gone), so it's left here as a structural note rather
+than deleted outright.
 
 ## 2026-08-03 — Product sales via the checkout sidebar have likely been silently failing to sync since 2026-07-17
 
