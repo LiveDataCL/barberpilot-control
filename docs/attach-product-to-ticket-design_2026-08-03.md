@@ -316,3 +316,235 @@ question by sidestepping it, not by deciding whether the *existing*
 standalone-product sync bug (still tracked separately in `TECH_DEBT.md`)
 needs fixing first — it doesn't, for this feature specifically, since this
 is a different, ID-based write path.
+
+---
+
+## 6. Addendum 2026-08-03 — Persisting attached products before checkout (DESIGN ONLY)
+
+Status: proposed, awaiting approval before implementation. PR #21 shipped
+"Adjuntar producto" with attachment as **local, client-side staging only**
+(§4, Question #1) — this was a deliberate, explicit scope decision at the
+time, not an oversight, but the owner's real usage surfaced a gap: staged
+products live only in one browser tab's memory
+(`_salaEditorData[queue_id].productosAdjuntos`) and are invisible to
+anyone else looking at the Sala de espera card, don't survive a page
+reload, and give no durable confirmation that they "took." Clicking
+"Actualizar servicio" — the only other save-labeled action in the same
+editor modal — does nothing with them, which is what actually surfaced
+this (confirmed as expected-per-original-design, not a bug, in the prior
+investigation).
+
+**Explicitly unchanged**: commission timing. Attaching a product to an
+open ticket still creates **no** `registros` row and triggers **no**
+commission calculation — that remains exclusively a checkout-time effect
+of `POST /queue/control/registrar`'s existing `productos_adjuntos`
+handling (PR #29), untouched by anything below.
+
+### a. Schema
+
+```sql
+-- Migration 040 — queue.productos_adjuntos: server-persisted staging for
+-- products attached to a still-open ticket, before checkout. Nullable-free
+-- (NOT NULL DEFAULT '[]'::jsonb) — same idiom as barberos.whatsapp_
+-- notificaciones (Migration 036): empty array reads unambiguously as
+-- "nothing attached," no null-checking needed anywhere that reads it.
+ALTER TABLE queue ADD COLUMN IF NOT EXISTS productos_adjuntos JSONB NOT NULL DEFAULT '[]'::jsonb;
+```
+
+Stored shape: `[{producto_id, cantidad}]` — deliberately **minimal**, not
+denormalized with `nombre`/`precio`. Names are resolved fresh from
+`productos` on every read (see §c) rather than snapshotted at attach time,
+for the same reason `resolverProducto()` always re-resolves rather than
+trusting a client-cached value: a product could be renamed or deactivated
+between attach and display/checkout, and a stale denormalized name would
+silently drift from the catalog. This exactly mirrors how `queue.service`
+already works today for the *base* service (stored as the raw string typed
+at check-in, not a servicio_id) — no new pattern introduced, just applied
+consistently to the one field that has a real catalog to resolve against.
+
+### b. Endpoint — extend `PUT /queue/:id`, not a new route
+
+Justification: `PUT /queue/:id` is already this codebase's general-purpose
+"update fields on an open queue entry" endpoint (`service`, `client_name`,
+`phone`, `barber_id`, each independently optional via
+`COALESCE($n, column)`). Adding `productos_adjuntos` as one more
+optionally-COALESCEd field fits that existing shape directly — a new
+dedicated route (`PUT /queue/:id/productos` or similar) would just be a
+second place to look for "how does an open ticket get updated," with no
+technical reason to split it out (no different auth, no different
+transaction boundary, no different entry being mutated).
+
+Whole-array replace, not add/remove-by-item server-side — same reasoning
+already established for `PATCH /config/bebidas-disponibles`
+([index.js:1148-1156](../../barberpilot-api/index.js#L1148-L1156)): "the
+frontend list UI always sends the full current list back, simpler than
+diffing add/remove operations server-side for an array this small." The
+frontend already holds the authoritative in-progress list in memory when
+the user clicks "＋" or "✕" on one item — sending the whole array each
+time costs nothing extra and avoids needing any merge/diff logic here.
+
+```js
+// PUT /queue/:id — extend existing handler, additive
+const { service, client_name, phone, barber_id: rawBid, productos_adjuntos } = req.body;
+...
+let productosJson = null; // null → COALESCE leaves the column untouched
+if (productos_adjuntos !== undefined) {
+  if (!Array.isArray(productos_adjuntos)) {
+    return res.status(400).json({ ok: false, error: 'productos_adjuntos debe ser un array' });
+  }
+  const resueltos = [];
+  for (const item of productos_adjuntos) {
+    const productoId = item && item.producto_id;
+    const cantidad = Math.max(1, parseInt(item && item.cantidad) || 1);
+    if (!productoId) return res.status(400).json({ ok: false, error: 'producto_adjunto_sin_id' });
+    // Existence + active only — same resolverProducto() already proven in
+    // PR #29/#30, called WITHOUT a precio argument so its price-match
+    // check (added post-review on PR #30) never engages here. Nothing
+    // about price or commission is validated or computed at this stage —
+    // that stays exclusively at checkout, unchanged.
+    const resolucion = await resolverProducto('saulfino', productoId);
+    if (resolucion.estado === 'producto_no_encontrado') {
+      return res.status(404).json({ ok: false, error: 'producto_no_encontrado', producto_id: productoId });
+    }
+    if (resolucion.estado === 'producto_inactivo') {
+      return res.status(400).json({ ok: false, error: 'producto_inactivo', producto_id: productoId, detalle: `"${resolucion.nombre}" está desactivado` });
+    }
+    resueltos.push({ producto_id: productoId, cantidad });
+  }
+  productosJson = JSON.stringify(resueltos);
+}
+// ... existing UPDATE, extended:
+//   productos_adjuntos = COALESCE($N::jsonb, productos_adjuntos)
+// same COALESCE-when-provided pattern as service/client_name/phone/barber_id —
+// a PUT that only touches client_name (e.g. salaGuardarCliente()) must not
+// accidentally wipe whatever's already attached.
+```
+
+Reuses `resolverProducto()` as-is (barberpilot-api#30, merged) — no changes
+needed to that function for this addendum.
+
+### c. `renderSala()` card display
+
+`GET /queue/control` already does `SELECT * FROM queue ...`, so
+`productos_adjuntos` (raw `[{producto_id,cantidad}]`) is already on every
+row with zero query change. What's missing is name resolution before
+building the `entry` objects the frontend consumes. Proposed: one batched
+lookup per request (not one query per queue row) —
+
+```js
+// After the existing `const { rows } = await query('SELECT * FROM queue ...')`:
+const productoIds = [...new Set(rows.flatMap(e => (e.productos_adjuntos || []).map(p => p.producto_id)))];
+let productoNombres = {};
+if (productoIds.length > 0) {
+  const { rows: prodRows } = await query(
+    `SELECT producto_id, nombre FROM productos WHERE tenant_id='saulfino' AND producto_id = ANY($1)`,
+    [productoIds]
+  );
+  productoNombres = Object.fromEntries(prodRows.map(p => [p.producto_id, p.nombre]));
+}
+// ...then, building each `entry` object, add:
+//   productos_adjuntos: (e.productos_adjuntos || []).map(p => ({
+//     producto_id: p.producto_id, cantidad: p.cantidad,
+//     nombre: productoNombres[p.producto_id] || '(producto no encontrado)',
+//   })),
+```
+
+Applied uniformly to every entry (`enServicio`, `enEspera`, `pool`) since
+the column exists on every `queue` row regardless of status — no
+special-casing needed, and it doesn't preclude attaching before a ticket
+formally enters "EN SERVICIO" if that's ever wanted later, even though
+today's editor UI only exposes attach on in-service cards.
+
+Frontend `renderSala()` card text becomes, e.g., `"Corte + Cera Modeladora
+Media"` — same `" + "` join convention the (now-removed) "Agregar servicio
+extra" used for combining two services, reused here for combining a
+service with its attached product(s):
+
+```js
+var svcLabel = sv.service + (sv.productos_adjuntos && sv.productos_adjuntos.length
+  ? ' + ' + sv.productos_adjuntos.map(function(p){
+      return (p.cantidad>1?p.cantidad+'x ':'')+p.nombre;
+    }).join(' + ')
+  : '');
+```
+
+This replaces (not supplements) the current small "🧴 +N productos · $X"
+badge PR #21 added below the Cerrar button — with the combined text now
+in the main service line, a separate badge saying the same thing again is
+redundant. (Precio subtotal for attached products, if wanted in the UI at
+this stage, can still be shown alongside — this addendum doesn't propose
+removing that, just consolidating the *name* display into one line.)
+
+### d. Checkout sourcing — backend becomes the source of truth, not the request body
+
+This is the one place this addendum recommends a real behavior change
+beyond "add persistence," and it's worth flagging explicitly rather than
+folding in quietly: **`POST /queue/control/registrar` should read
+`productos_adjuntos` from the `queue` row it already fetches
+(`SELECT * FROM queue WHERE id=$1`, [index.js:3729](../../barberpilot-api/index.js#L3729)),
+not from `req.body.productos_adjuntos`.**
+
+Why: the task's own requirement is "a ticket attached-to on one
+device/tab and closed from another still works correctly." If checkout
+keeps trusting whatever the *closing* device's local
+`_salaEditorData[...].productosAdjuntos` happens to hold, a second
+device that never attached anything locally would checkout with an empty
+array even though the server has the real, persisted list — reintroducing
+the exact "wrong device doesn't know" problem this addendum exists to
+close. Sourcing from `entry.productos_adjuntos` (the row already in hand,
+zero extra query) instead makes the server the single source of truth,
+consistent with this project's "no silent duplication of the same source
+of truth" standard — there would otherwise be two candidate answers to
+"what's attached to this ticket" (the DB column vs. whatever the closing
+tab's memory holds) that could silently diverge.
+
+Concretely: the loop that currently reads `req.body.productos_adjuntos`
+in `POST /queue/control/registrar`
+([index.js:3801-3831](../../barberpilot-api/index.js#L3801-L3831)) changes
+its source array to `entry.productos_adjuntos`; everything downstream —
+`resolverProducto()` validation, the flat-10% commission math, the
+per-product `registros` INSERT sharing `ticket_id` — is **completely
+unchanged**, since it already operates on a resolved `{producto_id,
+cantidad}` array regardless of where that array came from. The frontend's
+`salaCerrarServicio()` no longer needs to build/send a
+`productos_adjuntos` body field at all (though leaving it accepted-but-
+ignored costs nothing if it simplifies rollout sequencing).
+
+After a successful checkout, `queue.productos_adjuntos` should reset to
+`'[]'::jsonb` in the same statement that sets `status='DONE'` — its job is
+done, and leaving stale data there risks confusing a future read of that
+row (e.g. if a `queue_id` is ever reused/inspected historically).
+
+**Already covered, not a new gap**: a product deactivated between attach
+and checkout is still caught — `resolverProducto()` runs again at checkout
+time regardless of which array feeds it, same `producto_inactivo` 400
+that exists today.
+
+### What this makes obsolete (net simplification, not just addition)
+
+`renderSala()`'s `_prevProductosAdjuntos` snapshot/restore logic
+(added to survive its own 20s refresh, [index.html:6129-6132](../index.html#L6129-L6132))
+becomes unnecessary once the server is the source of truth — every refresh
+re-fetches the current *persisted* state rather than needing to preserve
+an *ephemeral* one across a reset. Proposed removal as part of Step 2, not
+kept alongside the new mechanism.
+
+### Risk / edge cases
+
+- **Concurrent-edit race**: two staff editing the same ticket's products
+  from different devices at once — whole-array-replace is last-write-wins,
+  no optimistic locking. This is an *existing* risk class already accepted
+  for every other field this same endpoint updates (`service`,
+  `client_name`, etc.) — not a new regression, and not proposed to be
+  solved here; flagging so it's a deliberate non-goal, not an oversight.
+- **Migration numbering**: this would be Migration 040 (039 was
+  `registros.ticket_id`, currently the latest merged).
+
+### Open question for the owner
+
+Confirm the §d checkout-sourcing change (server-authoritative, ignoring
+`req.body.productos_adjuntos` at checkout) is wanted as described, since
+it's the one piece of this addendum that's a genuine behavior change
+rather than pure addition — everything else (schema, PUT validation, card
+display) is purely additive and reversible with zero risk to the existing,
+already-verified checkout flow.
