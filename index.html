@@ -142,13 +142,6 @@
   .sitem{display:flex;align-items:center;justify-content:space-between;padding:8px 11px;border:1px solid var(--border);border-radius:var(--r);cursor:pointer;background:var(--surface2);transition:all .12s;user-select:none}
   .sitem:hover{border-color:var(--text);background:var(--soft)}
   .sitem.on{border-color:var(--text);background:var(--text);color:#fff}
-  .sitem-custom{border:1.5px dashed var(--border);background:var(--surface);cursor:default}
-  .sitem-custom:hover{border-color:var(--text);background:var(--surface)}
-  .custom-inputs{display:flex;gap:6px;margin-top:6px;align-items:center}
-  .custom-input{padding:5px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;font-family:var(--sans);background:var(--surface);width:100%}
-  .custom-input:focus{outline:none;border-color:var(--text)}
-  .btn-custom-sel{padding:5px 10px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap}
-  .btn-custom-sel:hover{opacity:.85}
   .sn{font-weight:500;font-size:13px} .st{font-size:10px;opacity:.55;margin-top:1px} .sp{font-family:var(--mono);font-size:12px;font-weight:600;white-space:nowrap;margin-left:7px}
 
   .pgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px}
@@ -502,23 +495,6 @@
     </div>
     <div id="secServicio">
       <div class="slbl">2 · Servicio</div>
-
-      <!-- SERVICIO PERSONALIZADO — siempre visible, sin scroll -->
-      <div id="sitemCustom" data-id="custom"
-           style="display:flex;align-items:center;gap:6px;padding:7px 10px;border:1.5px dashed var(--border);border-radius:var(--r);background:var(--surface);margin-bottom:5px;transition:border-color .12s;cursor:pointer"
-           onclick="focusCustom()">
-        <span style="font-size:11px;color:var(--text3);white-space:nowrap">✏</span>
-        <input id="customNombre" type="text" placeholder="Servicio especial…"
-          onclick="event.stopPropagation()"
-          oninput="onCustomInput()"
-          style="flex:1;min-width:0;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--sans);background:var(--surface2)">
-        <input id="customPrecio" type="number" placeholder="$" min="0" step="500"
-          onclick="event.stopPropagation()"
-          oninput="onCustomInput()"
-          style="width:72px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:var(--mono);text-align:right;background:var(--surface2)">
-        <button onclick="selServicioCustom(event)"
-          style="padding:4px 10px;background:var(--text);color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0">Usar</button>
-      </div>
 
       <div class="slist" id="slist"></div>
     </div>
@@ -2215,52 +2191,6 @@ function registrarProducto(){
   printTicket62(r);
 }
 
-// ═══ SERVICIO PERSONALIZADO ════════════════════════════════
-function focusCustom(){
-  document.getElementById('customNombre').focus();
-}
-
-function onCustomInput(){
-  var nombre  = (document.getElementById('customNombre').value||'').trim();
-  var precio  = parseInt(document.getElementById('customPrecio').value)||0;
-  var el      = document.getElementById('sitemCustom');
-  if(nombre && precio>0){
-    el.style.borderColor = 'var(--text)';
-    el.style.borderStyle = 'solid';
-  } else {
-    el.style.borderColor = 'var(--border)';
-    el.style.borderStyle = 'dashed';
-  }
-  // Si ya estaba seleccionado, actualizar preview en tiempo real
-  if(sel.s==='custom'){
-    sel.customNombre=nombre;
-    sel.customPrecio=precio;
-    updPrev();
-    chkBtn();
-  }
-}
-
-function selServicioCustom(e){
-  e.stopPropagation(); // evitar que el click burbujee al sitem
-  var nombre = (document.getElementById('customNombre').value||'').trim();
-  var precio  = parseInt(document.getElementById('customPrecio').value)||0;
-  if(!nombre){ document.getElementById('customNombre').focus(); toast('Escribe el nombre del servicio'); return; }
-  if(precio<=0){ document.getElementById('customPrecio').focus(); toast('Ingresa el precio'); return; }
-
-  // Registrar como servicio ad-hoc en sel
-  sel.s = 'custom';
-  sel.customNombre = nombre;
-  sel.customPrecio = precio;
-
-  // Marcar visualmente
-  var all=document.querySelectorAll('.sitem');
-  for(var i=0;i<all.length;i++) all[i].classList.remove('on');
-  document.getElementById('sitemCustom').classList.add('on');
-
-  updPrev();
-  chkBtn();
-}
-
 // ═══ PROPINA ═══════════════════════════════════════════════
 function selPropina(el){
   var all=document.querySelectorAll('[data-tip]');
@@ -2332,9 +2262,7 @@ function selP(el){
 
 function updPrev(){
   var b=find(BB,sel.b),p=sel.p;
-  var s=sel.s==='custom'
-    ? {nombre:sel.customNombre||'Servicio personalizado',precio:sel.customPrecio||0}
-    : find(SS,sel.s);
+  var s=find(SS,sel.s);
   document.getElementById('pvB').textContent=b?b.nombre:'—';
   document.getElementById('pvS').textContent=s?s.nombre:'—';
   document.getElementById('pvP').textContent=p?(p.charAt(0).toUpperCase()+p.slice(1)):'—';
@@ -2350,20 +2278,14 @@ function updPrev(){
   }
 }
 function chkBtn(){
-  var svcOk = sel.s && (sel.s!=='custom' || (sel.customNombre&&sel.customPrecio>0));
-  document.getElementById('btnR').disabled=!(sel.b&&svcOk&&sel.p);
+  document.getElementById('btnR').disabled=!(sel.b&&sel.s&&sel.p);
 }
 
 // ═══ REGISTRAR ═══════════════════════════════════════════
 function registrar(){
   if(!sel.b||!sel.s||!sel.p)return;
   var b=find(BB,sel.b),p=sel.p;
-  var s;
-  if(sel.s==='custom'){
-    s={id:'custom',nombre:sel.customNombre,precio:sel.customPrecio,tiempo:'—'};
-  } else {
-    s=find(SS,sel.s);
-  }
+  var s=find(SS,sel.s);
   var com=COM[p],bb=Math.round(s.precio*com),neg=s.precio-bb;
 
   var propina = sel.propina||0;
@@ -2418,9 +2340,7 @@ function registrar(){
 }
 
 function resetForm(){
-  sel={b:null,s:null,p:null,propina:0,propinaTipo:'0',customNombre:'',customPrecio:0};
-  var cn=document.getElementById('customNombre'); if(cn) cn.value='';
-  var cp=document.getElementById('customPrecio'); if(cp) cp.value='';
+  sel={b:null,s:null,p:null,propina:0,propinaTipo:'0'};
   // Limpiar UI propina
   var all=document.querySelectorAll('[data-tip]');
   for(var i=0;i<all.length;i++) all[i].classList.remove('on');
