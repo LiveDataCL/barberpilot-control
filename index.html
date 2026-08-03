@@ -519,6 +519,14 @@
         <button onclick="selServicioCustom(event)"
           style="padding:4px 10px;background:var(--text);color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0">Usar</button>
       </div>
+      <!-- Motivo del precio — requerido: el backend rechaza cualquier snom/precio
+           que no calce con el catálogo salvo que se envíe override+motivo (ver
+           TECH_DEBT.md, "Servicio especial... no funcional desde 2026-07-17"). -->
+      <div id="sitemCustomMotivoWrap" style="display:none;padding:0 10px 5px;margin-top:-3px">
+        <input id="customMotivo" type="text" placeholder="Motivo del precio (obligatorio)…"
+          oninput="onCustomInput()"
+          style="width:100%;padding:5px 7px;border:1px solid var(--border);border-radius:4px;font-size:11px;font-family:var(--sans);background:var(--surface2)">
+      </div>
 
       <div class="slist" id="slist"></div>
     </div>
@@ -1106,6 +1114,17 @@
             <input id="newProductoPrecio" type="number" min="0" step="500" placeholder="Precio" class="staff-input" style="max-width:100px">
             <button onclick="staffAddProd()" class="staff-add-btn" style="padding:9px 14px;font-size:12px;white-space:nowrap">+ Agregar</button>
           </div>
+        </div>
+
+        <!-- Overrides de precio — visibilidad mínima para "Servicio especial":
+             registro_precio_override era write-only hasta ahora (ver
+             TECH_DEBT.md). Tabla plana de solo lectura, sin gráficos. -->
+        <div style="margin-bottom:26px">
+          <div class="staff-section-hdr">
+            <span>Overrides de precio</span>
+            <span class="staff-note">Servicios registrados fuera de catálogo (nombre libre o precio distinto)</span>
+          </div>
+          <div id="staffPrecioOverrides" style="font-size:12px;color:var(--text3);padding:8px 0">Cargando…</div>
         </div>
 
         <!-- Amenities (bebidas de cortesía) -->
@@ -2223,10 +2242,13 @@ function focusCustom(){
 function onCustomInput(){
   var nombre  = (document.getElementById('customNombre').value||'').trim();
   var precio  = parseInt(document.getElementById('customPrecio').value)||0;
+  var motivo  = (document.getElementById('customMotivo').value||'').trim();
   var el      = document.getElementById('sitemCustom');
+  var motivoWrap = document.getElementById('sitemCustomMotivoWrap');
   if(nombre && precio>0){
     el.style.borderColor = 'var(--text)';
     el.style.borderStyle = 'solid';
+    motivoWrap.style.display = 'block';
   } else {
     el.style.borderColor = 'var(--border)';
     el.style.borderStyle = 'dashed';
@@ -2235,6 +2257,7 @@ function onCustomInput(){
   if(sel.s==='custom'){
     sel.customNombre=nombre;
     sel.customPrecio=precio;
+    sel.customMotivo=motivo;
     updPrev();
     chkBtn();
   }
@@ -2244,13 +2267,21 @@ function selServicioCustom(e){
   e.stopPropagation(); // evitar que el click burbujee al sitem
   var nombre = (document.getElementById('customNombre').value||'').trim();
   var precio  = parseInt(document.getElementById('customPrecio').value)||0;
+  var motivo  = (document.getElementById('customMotivo').value||'').trim();
   if(!nombre){ document.getElementById('customNombre').focus(); toast('Escribe el nombre del servicio'); return; }
   if(precio<=0){ document.getElementById('customPrecio').focus(); toast('Ingresa el precio'); return; }
+  if(!motivo){
+    document.getElementById('sitemCustomMotivoWrap').style.display='block';
+    document.getElementById('customMotivo').focus();
+    toast('Escribe el motivo del precio (el backend lo requiere para registrar un servicio fuera de catálogo)');
+    return;
+  }
 
   // Registrar como servicio ad-hoc en sel
   sel.s = 'custom';
   sel.customNombre = nombre;
   sel.customPrecio = precio;
+  sel.customMotivo = motivo;
 
   // Marcar visualmente
   var all=document.querySelectorAll('.sitem');
@@ -2350,7 +2381,7 @@ function updPrev(){
   }
 }
 function chkBtn(){
-  var svcOk = sel.s && (sel.s!=='custom' || (sel.customNombre&&sel.customPrecio>0));
+  var svcOk = sel.s && (sel.s!=='custom' || (sel.customNombre&&sel.customPrecio>0&&sel.customMotivo));
   document.getElementById('btnR').disabled=!(sel.b&&svcOk&&sel.p);
 }
 
@@ -2392,6 +2423,15 @@ function registrar(){
     hora:pad(now.getHours())+':'+pad(now.getMinutes()),
     ts:now.getTime()
   };
+  // "Servicio especial": snom es texto libre y/o precio distinto al catálogo,
+  // así que el backend SIEMPRE lo rechazará (alias_no_mapeado o
+  // precio_no_coincide) salvo que se envíe override+motivo — no es condicional
+  // porque el frontend no puede predecir de antemano si el nombre calza con
+  // un alias del catálogo o no (ver TECH_DEBT.md).
+  if(sel.s==='custom'){
+    r.override = true;
+    r.override_reason = sel.customMotivo;
+  }
   // Calcular número de servicio y acumulados para este barbero
   var svcAnteriores = regs.filter(function(x){ return x.bid === r.bid; });
   r.numServicio = svcAnteriores.length + 1;
@@ -2418,9 +2458,11 @@ function registrar(){
 }
 
 function resetForm(){
-  sel={b:null,s:null,p:null,propina:0,propinaTipo:'0',customNombre:'',customPrecio:0};
+  sel={b:null,s:null,p:null,propina:0,propinaTipo:'0',customNombre:'',customPrecio:0,customMotivo:''};
   var cn=document.getElementById('customNombre'); if(cn) cn.value='';
   var cp=document.getElementById('customPrecio'); if(cp) cp.value='';
+  var cm=document.getElementById('customMotivo'); if(cm) cm.value='';
+  var cmw=document.getElementById('sitemCustomMotivoWrap'); if(cmw) cmw.style.display='none';
   // Limpiar UI propina
   var all=document.querySelectorAll('[data-tip]');
   for(var i=0;i<all.length;i++) all[i].classList.remove('on');
@@ -6966,6 +7008,47 @@ function renderStaffPanel(){
   staffLoadLiveCatalog();
   loadProductosCatalogo();
   renderStaffCOM();renderStaffSS();renderStaffProds();
+  cargarPrecioOverrides();
+}
+
+// Overrides de precio — read-only audit list (GET /api/v2/config/precio-overrides,
+// admin-only). Deliberately minimal: last 500, most recent first, plain table.
+function cargarPrecioOverrides(){
+  var el=document.getElementById('staffPrecioOverrides');if(!el)return;
+  var jwt=sessionStorage.getItem('panelJwt');
+  if(!API_URL||!jwt){el.innerHTML='<div style="font-size:12px;color:var(--text3);padding:8px 0">Sesión de panel (admin) requerida para ver overrides.</div>';return;}
+  el.innerHTML='<div style="font-size:12px;color:var(--text3);padding:8px 0">Cargando…</div>';
+  fetch(API_URL+'/api/v2/config/precio-overrides',{headers:getAuthHeaders()})
+    .then(function(r){return r.json();})
+    .then(function(j){
+      if(!j.ok){el.innerHTML='<div style="font-size:12px;color:var(--text3);padding:8px 0">'+(j.error==='Se requiere rol admin'?'Se requiere rol admin.':'Error: '+(j.error||'?'))+'</div>';return;}
+      renderPrecioOverrides(j.overrides||[]);
+    })
+    .catch(function(){el.innerHTML='<div style="font-size:12px;color:var(--text3);padding:8px 0">Error de red al cargar overrides.</div>';});
+}
+function renderPrecioOverrides(overrides){
+  var el=document.getElementById('staffPrecioOverrides');if(!el)return;
+  if(overrides.length===0){el.innerHTML='<div style="font-size:12px;color:var(--text3);padding:8px 0">Sin overrides registrados.</div>';return;}
+  var h='<table style="width:100%;border-collapse:collapse;font-size:12px">'
+    +'<thead><tr style="text-align:left;color:var(--text3);border-bottom:1px solid var(--border)">'
+    +'<th style="padding:5px 7px">Fecha</th><th style="padding:5px 7px">Barbero</th>'
+    +'<th style="padding:5px 7px">Servicio</th><th style="padding:5px 7px;text-align:right">Enviado</th>'
+    +'<th style="padding:5px 7px;text-align:right">Activo</th><th style="padding:5px 7px">Motivo</th>'
+    +'<th style="padding:5px 7px">Quién</th></tr></thead><tbody>';
+  for(var i=0;i<overrides.length;i++){
+    var o=overrides[i];
+    h+='<tr style="border-bottom:1px solid var(--border)">'
+      +'<td style="padding:6px 7px;font-family:var(--mono);color:var(--text3)">'+escAttr(o.fecha||(o.creado_en||'').slice(0,10))+' '+escAttr(o.hora||'')+'</td>'
+      +'<td style="padding:6px 7px">'+escAttr(o.bnom||'—')+'</td>'
+      +'<td style="padding:6px 7px">'+escAttr(o.snom||'(servicio no encontrado, id '+escAttr(o.registro_id)+')')+'</td>'
+      +'<td style="padding:6px 7px;text-align:right;font-family:var(--mono)">$'+fmt(o.precio_submitted)+'</td>'
+      +'<td style="padding:6px 7px;text-align:right;font-family:var(--mono);color:var(--text3)">'+(o.precio_activo!=null?'$'+fmt(o.precio_activo):'— (sin catálogo)')+'</td>'
+      +'<td style="padding:6px 7px">'+escAttr(o.override_reason||'')+'</td>'
+      +'<td style="padding:6px 7px;color:var(--text3)">'+escAttr(o.actor_nombre||o.actor_tipo||'—')+'</td>'
+      +'</tr>';
+  }
+  h+='</tbody></table>';
+  el.innerHTML=h;
 }
 
 function escAttr(s){return(s||'').toString().replace(/&/g,'&amp;').replace(/"/g,'&quot;');}
