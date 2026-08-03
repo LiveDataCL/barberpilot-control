@@ -867,28 +867,6 @@
           <input id="editor-precio" type="number" placeholder="Precio"
             style="padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--mono);background:var(--surface)"/>
         </div>
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px">
-          <select id="editor-svc-extra" onchange="salaEditorExtraPreio()"
-            style="flex:1;padding:7px 10px;border:1.5px dashed var(--border2);border-radius:var(--r);font-size:12px;background:var(--surface);font-family:var(--sans);color:var(--text2)">
-            <option value="">＋ Agregar servicio extra…</option>
-            <option value="Corte">Corte</option>
-            <option value="Barba">Barba</option>
-            <option value="Corte + Barba">Corte + Barba</option>
-            <option value="Corte + Perfilado de barba">Corte + Perfilado de barba</option>
-            <option value="Perfilado de corte">Perfilado de corte</option>
-            <option value="Perfilado de cejas">Perfilado de cejas</option>
-            <option value="Barba + Cejas">Barba + Cejas</option>
-            <option value="Perfilado de barba">Perfilado de barba</option>
-            <option value="Matizado canas cabello">Matizado canas cabello</option>
-            <option value="Matizado canas barba">Matizado canas barba</option>
-            <option value="Corte + Cejas">Corte + Cejas</option>
-            <!-- s11 (Corte Express + Perfilado de barba) retired 2026-07-16 — removed, not just repriced. -->
-          </select>
-          <input id="editor-extra-precio" type="number" placeholder="+"
-            style="width:70px;padding:7px 8px;border:1.5px dashed var(--border2);border-radius:var(--r);font-size:12px;font-family:var(--mono);background:var(--surface)"/>
-          <button onclick="salaAddExtraServicio()"
-            style="padding:7px 13px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);font-size:15px;cursor:pointer;font-weight:700">＋</button>
-        </div>
         <button onclick="salaActualizarServicio()"
           style="padding:8px 18px;background:var(--ok);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans)">Actualizar servicio</button>
       </div>
@@ -6566,8 +6544,6 @@ function salaAbrirEditor(queue_id){
   document.getElementById('editor-svc').value         =d.service||'';
   document.getElementById('editor-precio').value      =d.precio||SALA_PRECIOS[d.service]||'';
   document.getElementById('editor-bid').value         ='';
-  document.getElementById('editor-svc-extra').value   ='';
-  document.getElementById('editor-extra-precio').value='';
   document.getElementById('salaEditorTitle').textContent='✏ '+(d.client_name||'Cliente');
   var ov=document.getElementById('salaEditorOverlay');
   ov.style.display='flex';
@@ -6581,24 +6557,6 @@ function salaCerrarEditor(){
 function salaEditorAutoPreio(){
   var svc=document.getElementById('editor-svc').value;
   if(svc) document.getElementById('editor-precio').value=SALA_PRECIOS[svc]||'';
-}
-
-function salaEditorExtraPreio(){
-  var svc=document.getElementById('editor-svc-extra').value;
-  if(svc) document.getElementById('editor-extra-precio').value=SALA_PRECIOS[svc]||'';
-}
-
-function salaAddExtraServicio(){
-  var extra=document.getElementById('editor-svc-extra').value;
-  var extraP=parseInt(document.getElementById('editor-extra-precio').value)||0;
-  if(!extra){toast('Elige el servicio extra');return;}
-  var svcActual=(document.getElementById('editor-svc').value||'').trim();
-  var precioActual=parseInt(document.getElementById('editor-precio').value)||0;
-  document.getElementById('editor-svc').value   =svcActual?svcActual+' + '+extra:extra;
-  document.getElementById('editor-precio').value=precioActual+extraP;
-  document.getElementById('editor-svc-extra').value='';
-  document.getElementById('editor-extra-precio').value='';
-  toast('Servicio extra agregado');
 }
 
 function salaGuardarCliente(){
