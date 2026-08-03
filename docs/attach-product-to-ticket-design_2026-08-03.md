@@ -362,66 +362,99 @@ already works today for the *base* service (stored as the raw string typed
 at check-in, not a servicio_id) — no new pattern introduced, just applied
 consistently to the one field that has a real catalog to resolve against.
 
-### b. Endpoint — extend `PUT /queue/:id`, not a new route
+### b. Endpoint — DECIDED 2026-08-03: two small atomic endpoints, not whole-array-replace on `PUT /queue/:id`
 
-Justification: `PUT /queue/:id` is already this codebase's general-purpose
-"update fields on an open queue entry" endpoint (`service`, `client_name`,
-`phone`, `barber_id`, each independently optional via
-`COALESCE($n, column)`). Adding `productos_adjuntos` as one more
-optionally-COALESCEd field fits that existing shape directly — a new
-dedicated route (`PUT /queue/:id/productos` or similar) would just be a
-second place to look for "how does an open ticket get updated," with no
-technical reason to split it out (no different auth, no different
-transaction boundary, no different entry being mutated).
+**Superseded**: the original draft of this section proposed extending
+`PUT /queue/:id` with a whole-array-replace `productos_adjuntos` field,
+matching the `PATCH /config/bebidas-disponibles` precedent. Flagged in
+review as a real concurrent-edit race (two staff attaching different
+products to the same open ticket within the ~20s refresh window — the
+second PUT silently overwrites the first's addition, no error, no log,
+just a vanished line item and its commission). Owner chose the structural
+fix over documenting-and-deferring: **atomic append/remove at the SQL
+level**, not whole-array-replace, for this field specifically.
 
-Whole-array replace, not add/remove-by-item server-side — same reasoning
-already established for `PATCH /config/bebidas-disponibles`
-([index.js:1148-1156](../../barberpilot-api/index.js#L1148-L1156)): "the
-frontend list UI always sends the full current list back, simpler than
-diffing add/remove operations server-side for an array this small." The
-frontend already holds the authoritative in-progress list in memory when
-the user clicks "＋" or "✕" on one item — sending the whole array each
-time costs nothing extra and avoids needing any merge/diff logic here.
+`productos_adjuntos` therefore does **not** go through `PUT /queue/:id` at
+all (that endpoint's existing COALESCE-per-field shape is still correct
+and untouched for `service`/`client_name`/`phone`/`barber_id`). Two new,
+narrow, sub-resource endpoints instead — each entry keyed uniquely by
+`producto_id` (attaching the same product twice increments `cantidad`
+rather than creating a duplicate line, which also makes "remove" and
+"is this already attached" both unambiguous):
+
+- `POST /queue/:id/productos-adjuntos` — body `{producto_id, cantidad}`.
+  Attaches, or increments `cantidad` if that `producto_id` is already
+  present.
+- `DELETE /queue/:id/productos-adjuntos/:producto_id` — removes that
+  entry entirely (matches the frontend's existing "✕" affordance, which
+  removes the whole line, not a partial-quantity decrement).
+
+Atomicity via `SELECT ... FOR UPDATE` row-locking within a transaction —
+the standard, well-understood Postgres read-modify-write pattern, simpler
+to get right than a single complex JSONB-array SQL expression:
 
 ```js
-// PUT /queue/:id — extend existing handler, additive
-const { service, client_name, phone, barber_id: rawBid, productos_adjuntos } = req.body;
-...
-let productosJson = null; // null → COALESCE leaves the column untouched
-if (productos_adjuntos !== undefined) {
-  if (!Array.isArray(productos_adjuntos)) {
-    return res.status(400).json({ ok: false, error: 'productos_adjuntos debe ser un array' });
+app.post('/queue/:id/productos-adjuntos', requirePanelRole('operator'), async (req, res) => {
+  const productoId = req.body && req.body.producto_id;
+  const cantidad = Math.max(1, parseInt(req.body && req.body.cantidad) || 1);
+  if (!productoId) return res.status(400).json({ ok: false, error: 'producto_adjunto_sin_id' });
+  // Existence + active only — resolverProducto() as-is (PR #30), called
+  // WITHOUT a precio argument so its price-match check never engages
+  // here. No price/commission logic at this stage — that's exclusively
+  // at checkout, unchanged.
+  const resolucion = await resolverProducto('saulfino', productoId);
+  if (resolucion.estado === 'producto_no_encontrado') {
+    return res.status(404).json({ ok: false, error: 'producto_no_encontrado', producto_id: productoId });
   }
-  const resueltos = [];
-  for (const item of productos_adjuntos) {
-    const productoId = item && item.producto_id;
-    const cantidad = Math.max(1, parseInt(item && item.cantidad) || 1);
-    if (!productoId) return res.status(400).json({ ok: false, error: 'producto_adjunto_sin_id' });
-    // Existence + active only — same resolverProducto() already proven in
-    // PR #29/#30, called WITHOUT a precio argument so its price-match
-    // check (added post-review on PR #30) never engages here. Nothing
-    // about price or commission is validated or computed at this stage —
-    // that stays exclusively at checkout, unchanged.
-    const resolucion = await resolverProducto('saulfino', productoId);
-    if (resolucion.estado === 'producto_no_encontrado') {
-      return res.status(404).json({ ok: false, error: 'producto_no_encontrado', producto_id: productoId });
-    }
-    if (resolucion.estado === 'producto_inactivo') {
-      return res.status(400).json({ ok: false, error: 'producto_inactivo', producto_id: productoId, detalle: `"${resolucion.nombre}" está desactivado` });
-    }
-    resueltos.push({ producto_id: productoId, cantidad });
+  if (resolucion.estado === 'producto_inactivo') {
+    return res.status(400).json({ ok: false, error: 'producto_inactivo', producto_id: productoId, detalle: `"${resolucion.nombre}" está desactivado` });
   }
-  productosJson = JSON.stringify(resueltos);
-}
-// ... existing UPDATE, extended:
-//   productos_adjuntos = COALESCE($N::jsonb, productos_adjuntos)
-// same COALESCE-when-provided pattern as service/client_name/phone/barber_id —
-// a PUT that only touches client_name (e.g. salaGuardarCliente()) must not
-// accidentally wipe whatever's already attached.
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    // FOR UPDATE locks this row until COMMIT/ROLLBACK — a concurrent
+    // second attach on the SAME ticket blocks here until this
+    // transaction finishes, then reads the value THIS one just wrote.
+    // No lost update possible, regardless of what either client's local
+    // state thought was true when the request was sent.
+    const { rows } = await client.query('SELECT productos_adjuntos FROM queue WHERE id=$1 FOR UPDATE', [req.params.id]);
+    if (!rows[0]) { await client.query('ROLLBACK'); return res.status(404).json({ ok: false, error: 'entrada de cola no encontrada' }); }
+    const current = rows[0].productos_adjuntos || [];
+    const idx = current.findIndex(p => p.producto_id === productoId);
+    if (idx >= 0) current[idx].cantidad += cantidad;
+    else current.push({ producto_id: productoId, cantidad });
+    await client.query('UPDATE queue SET productos_adjuntos=$1::jsonb WHERE id=$2', [JSON.stringify(current), req.params.id]);
+    await client.query('COMMIT');
+    res.json({ ok: true, productos_adjuntos: current, nombre: resolucion.nombre });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ ok: false, error: e.message });
+  } finally {
+    client.release();
+  }
+});
+
+app.delete('/queue/:id/productos-adjuntos/:producto_id', requirePanelRole('operator'), async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query('SELECT productos_adjuntos FROM queue WHERE id=$1 FOR UPDATE', [req.params.id]);
+    if (!rows[0]) { await client.query('ROLLBACK'); return res.status(404).json({ ok: false, error: 'entrada de cola no encontrada' }); }
+    const current = (rows[0].productos_adjuntos || []).filter(p => p.producto_id !== req.params.producto_id);
+    await client.query('UPDATE queue SET productos_adjuntos=$1::jsonb WHERE id=$2', [JSON.stringify(current), req.params.id]);
+    await client.query('COMMIT');
+    res.json({ ok: true, productos_adjuntos: current });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ ok: false, error: e.message });
+  } finally {
+    client.release();
+  }
+});
 ```
 
-Reuses `resolverProducto()` as-is (barberpilot-api#30, merged) — no changes
-needed to that function for this addendum.
+Reuses `resolverProducto()` as-is (barberpilot-api#30, merged) — no
+changes needed to that function for this addendum.
 
 ### c. `renderSala()` card display
 
@@ -531,20 +564,33 @@ kept alongside the new mechanism.
 
 ### Risk / edge cases
 
-- **Concurrent-edit race**: two staff editing the same ticket's products
-  from different devices at once — whole-array-replace is last-write-wins,
-  no optimistic locking. This is an *existing* risk class already accepted
-  for every other field this same endpoint updates (`service`,
-  `client_name`, etc.) — not a new regression, and not proposed to be
-  solved here; flagging so it's a deliberate non-goal, not an oversight.
-- **Migration numbering**: this would be Migration 040 (039 was
+- **Concurrent-edit race — RESOLVED 2026-08-03**: two staff attaching
+  different products to the same open ticket within the ~20s refresh
+  window would, under whole-array-replace, silently lose one of them (no
+  error, no log — see the concrete walkthrough logged in this session's
+  conversation history for the exact timestamped sequence). Consequence
+  is silent revenue/commission loss, not just a UI glitch, so — unlike the
+  same class of risk already accepted for `service`/`client_name` on
+  `PUT /queue/:id` — this was worth the structural fix rather than
+  documenting and deferring. §b now uses atomic `SELECT ... FOR UPDATE`
+  attach/remove instead of whole-array-replace for this field, closing the
+  race rather than just detecting or documenting it.
+- **Migration numbering**: this is Migration 040 (039 was
   `registros.ticket_id`, currently the latest merged).
 
-### Open question for the owner
+### Decisions confirmed 2026-08-03
 
-Confirm the §d checkout-sourcing change (server-authoritative, ignoring
-`req.body.productos_adjuntos` at checkout) is wanted as described, since
-it's the one piece of this addendum that's a genuine behavior change
-rather than pure addition — everything else (schema, PUT validation, card
-display) is purely additive and reversible with zero risk to the existing,
-already-verified checkout flow.
+- **§d checkout-sourcing**: confirmed as described — `POST /queue/control/registrar`
+  reads `productos_adjuntos` exclusively from the persisted `queue` row;
+  any client-body-supplied value for that field at checkout time is
+  ignored.
+- **Concurrency**: atomic append/remove (§b), not optimistic-concurrency
+  detection or document-and-defer — see Risk/edge cases above.
+- **Obsolete code removal**: `renderSala()`'s `_prevProductosAdjuntos`
+  snapshot/restore hack ([index.html:6129-6132](../index.html#L6129-L6132))
+  is removed as part of Step 2 — server-as-source-of-truth makes it
+  unnecessary, and it would otherwise be dead code preserving a
+  now-nonexistent local-staging concept.
+
+Implementation in progress: `feature/persist-attached-products-to-queue`
+(barberpilot-api + barberpilot-control), draft PRs, not merged.
