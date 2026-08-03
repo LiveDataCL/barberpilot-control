@@ -6598,7 +6598,14 @@ function salaAddExtraServicio(){
   document.getElementById('editor-precio').value=precioActual+extraP;
   document.getElementById('editor-svc-extra').value='';
   document.getElementById('editor-extra-precio').value='';
-  toast('Servicio extra agregado');
+  // Antes esto solo mergeaba los campos localmente — el usuario tenía que
+  // ADEMÁS hacer clic en "Actualizar servicio" para que se guardara de
+  // verdad, algo fácil de pasar por alto (root cause confirmado). Ahora
+  // persiste en el mismo clic. keepOpen=true porque salaActualizarServicio()
+  // por defecto cierra el editor al guardar (salaCerrarEditor()) — cerrarlo
+  // aquí impediría agregar un segundo/tercer extra sin volver a abrir el
+  // editor. El botón ✕ ya existe para cerrar manualmente cuando se termine.
+  salaActualizarServicio(true);
 }
 
 function salaGuardarCliente(){
@@ -6632,7 +6639,7 @@ function salaGuardarCliente(){
     }).catch(function(e){toast('Error: '+e.message);});
 }
 
-function salaActualizarServicio(){
+function salaActualizarServicio(keepOpen){
   if(!API_URL||!_editorQueueId) return;
   var svc=(document.getElementById('editor-svc').value||'').trim();
   var precio=parseInt(document.getElementById('editor-precio').value)||0;
@@ -6648,7 +6655,11 @@ function salaActualizarServicio(){
           _salaEditorData[_editorQueueId].service=svc;
           _salaEditorData[_editorQueueId].precio=precio;
         }
-        salaCerrarEditor();
+        // keepOpen: called from salaAddExtraServicio() right after merging an
+        // extra service in — closing here would force reopening the editor
+        // to add a second/third extra. The explicit ✕ / click-outside close
+        // the editor when the user is actually done (salaEditorOverlay).
+        if(!keepOpen) salaCerrarEditor();
       } else toast('Error: '+(j.error||''));
     }).catch(function(e){toast('Error: '+e.message);});
 }
