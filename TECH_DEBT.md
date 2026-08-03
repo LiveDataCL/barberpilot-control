@@ -105,7 +105,7 @@ backend generally (nothing else currently exercises it now that the one
 caller that hit it is gone), so it's left here as a structural note rather
 than deleted outright.
 
-## 2026-08-03 — Product sales via the checkout sidebar have likely been silently failing to sync since 2026-07-17
+## 2026-08-03 — Product sales via the checkout sidebar were silently failing to sync — CONFIRMED LIVE, fix implemented
 
 **Description**: `registrarProducto()` ([index.html:2168](index.html#L2168))
 sends the product name as `snom` through the exact same `POST /registros`
@@ -114,49 +114,70 @@ barberpilot-api `index.js:1420-1481` — see the "Servicio especial" entry
 above for the full mechanism). Product names ("Cera Modeladora Fuerte",
 "Champú 2 en 1 (Biotina)", etc.) are matched against `servicio_alias`, a
 table that only ever contains haircut/barba service phrases — a product
-name will essentially never match. Before today's fix (barberpilot-api#28),
-`alias_no_mapeado` was a hard, unconditional reject with no override path at
-all, so **every product sale through this path would 400 permanently and
-sit stuck in `bp_outbox` forever**, identical in shape to the "Servicio
-especial" bug but affecting a different, more heavily-used feature.
+name will essentially never match, so `alias_no_mapeado` — a hard,
+unconditional reject with no override path — fires on every attempt,
+**every product sale through this path 400s permanently and sits stuck in
+`bp_outbox` forever**, identical in shape to the "Servicio especial" bug.
 
-Confirmed empirically, not assumed: cross-referenced `GET /registros/dia`
-against the real production API for 2026-07-28 through 2026-08-03 (the week
-before this was found) — zero rows matched any of the four real product IDs
-(`p01`, `p02`, `p05`, `p06`) or names from the live catalog
-(`GET /config/negocio/publico?tenant=saulfino`), despite the products
-catalog being live and PR #18 having just wired the checkout UI to it. This
-is strong circumstantial evidence the failure is real and ongoing, not
-theoretical — but it has not been confirmed against an actual browser's
-`bp_outbox` localStorage on the register, since that requires physical
-access to the device.
+**Confirmed live 2026-08-03**, not just circumstantial: a stuck `bp_outbox`
+item from the owner's own console — `sid:"p02"`, `snom:"Cera Modeladora
+Fuerte"`, correct flat-10% commission math, `status:"pending"`,
+`attempts:33`, `last_error:"HTTP 400"`. Verified via `GET /registros/dia`
+that this exact item never reached the database.
 
-`registrarProducto()` was **not** updated to send `override`/
-`override_reason` as part of today's fix (that PR only touched the sidebar's
-"SERVICIO PERSONALIZADO" custom-service flow) — product sales through this
-path will continue failing identically until this is addressed separately.
+**Full historical scope, corrected**: the original "since 2026-07-17"
+framing was based on a one-week check and was too narrow. Querying
+`GET /stats/mes/:periodo` across 2026-05 through 2026-08 found **12 product
+sales that DID succeed** (4 in June, 8 in July, the last on 2026-07-24 —
+mostly under barbero b3/Samuel, since deactivated), all with the genuine
+live-checkout `id: TK<epoch>` format (not the "Ingresar histórico" backfill
+tool's `TK_MAN_` format — confirmed that tool never touches this validation
+path at all: `descargarHistorico()` only builds a client-side downloadable
+JSON with zero API calls, and the README's manual-import path,
+`POST /registros/bulk`, has no validation of any kind). **Zero product
+sales have succeeded in all of August.** The exact cutover date between
+"gate was permissive" and "gate started rejecting products" sits somewhere
+between 2026-07-24 and 2026-08-01 — not pinned down further; no `servicio_alias`
+table read access to confirm precisely, and not worth guessing beyond the
+evidence.
 
-**Why deferred**: Discovered as a side effect of investigating the
-"Servicio especial" bug, not something this task was scoped to fix.
-Fixing it needs its own decision: either (a) have `registrarProducto()`
-also always send `override:true`/`override_reason` (same mechanism, quick),
-or (b) exempt product-shaped `snom`/`sid` values from the
-`servicio_alias`-based validation entirely at the backend (arguably more
-correct, since a product was never a "service" to begin with and shouldn't
-need a price-override justification for being, definitionally, not in the
-services catalog) — that decision should be made deliberately, not
-defaulted into by reusing whatever Option A ships for services.
+This is very likely why the owner believed past product sales succeeded —
+a stuck outbox item shows as an unremarkable "pending" count, never the red
+"Error de sync" badge (that only fires once `attempts>=5` **and** the item
+independently gets flagged `status:'error'`; HTTP-level rejections that
+stay `status:'pending'` forever — like this one, 33 attempts in — never
+escalate to the visible badge at all).
 
-**Severity**: High — if confirmed, this means product revenue recorded
-locally in the panel may not exist in the production database at all,
-which is a real financial/reporting gap (not just a UI annoyance), for
-however long products have been sold through this path.
+**Fix**: `fix/validate-product-registros-by-catalog` (barberpilot-api,
+draft, unmerged as of 2026-08-03). Adds a `resolverProducto()` helper
+(shared with PR #29's `productos_adjuntos` handling, avoiding a second copy
+of the same lookup) that checks whether `POST /registros`' `sid` matches a
+real `producto_id` **before** falling into the `servicio_alias` matcher —
+if it does, resolve as a product (existence + active-only, no price-match
+enforcement, deliberately — see the PR for why) and skip the service-only
+alias logic entirely. Normal service registro validation is provably
+untouched (diff shows the existing `if(catalogRows.length>0){...}` block's
+body moved into an `else`, zero lines inside it changed). No frontend
+change needed — confirmed `registrarProducto()` already sends the real
+`producto_id` as `sid`. Once deployed, the currently-stuck item (and any
+other silently-pending product sales on any device) self-heal automatically
+on their next retry — `drainOutbox()` retries both `pending` and `error`
+items every 30s, on page load, on reconnect, and on panel login; no manual
+`localStorage` cleanup needed per device, though a device does need its tab
+open/reloaded at some point for its own stuck items to retry.
 
-**Urgency**: Immediate, pending confirmation — needs to be verified against
-a real register's `bp_outbox` localStorage (or production logs, if
-available) to convert "strong circumstantial evidence" into a confirmed
-diagnosis before scoping a fix, same discipline as the "Servicio especial"
-DB-check in the original investigation.
+**Why deferred**: Not deferred any further — implemented same-day once
+confirmed live and quantified. Kept as an open TECH_DEBT entry only until
+the PR actually merges and deploys.
 
-**Status**: Open. Not yet fixed — flagged prominently, no code change made
-under this entry.
+**Severity**: High — confirmed, not hypothetical: product revenue recorded
+locally in the panel did not exist in the production database for every
+sale attempted since the cutover (~2026-07-24 to 08-01 onward).
+
+**Urgency**: Immediate — fix implemented, awaiting merge/deploy + visual
+confirmation (same gate as every other change touching real money this
+session).
+
+**Status**: Fix implemented, in review. Not closed until
+`fix/validate-product-registros-by-catalog` merges, deploys, and the
+previously-stuck outbox item is confirmed to have actually synced.
