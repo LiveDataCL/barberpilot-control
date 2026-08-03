@@ -1,10 +1,15 @@
-# Attach a product sale to an already-open ticket — design doc (DESIGN ONLY, not implemented)
+# Attach a product sale to an already-open ticket — design doc
 
-Status: awaiting César's approval. No migration or route code has been written.
+Status: **decisions confirmed 2026-08-03, implementation in progress** on
+`feature/attach-product-to-service-commission` (draft PRs, not merged —
+same visual-confirmation gate as every other billing-adjacent change this
+session). §4 below records the confirmed decisions; the original open
+questions are kept struck through rather than deleted, so the reasoning
+trail stays intact.
+
 Covers: the core data-model problem, two candidate approaches with tradeoffs,
-a concrete consumer-by-consumer blast-radius inventory for the more promising
-approach, and explicit open questions that need a decision before
-implementation starts.
+a concrete consumer-by-consumer blast-radius inventory for the chosen
+approach, and the resolved decisions that unblocked implementation.
 
 This mirrors the precedent of
 [barberpilot-api/docs/productos_catalog_design_2026-07-29.md](../../barberpilot-api/docs/productos_catalog_design_2026-07-29.md)
@@ -254,3 +259,60 @@ build artifacts and static doc/JSON snapshots).
    TECH_DEBT item) need to land before or alongside this feature, since
    otherwise every newly-attached product sale would fail to sync the same
    way standalone ones already silently have been?
+
+---
+
+## 5. Confirmed decisions (2026-08-03) — resolves §4
+
+**Approach**: Option A confirmed (additive `ticket_id` column, per the
+recommendation and blast-radius inventory above).
+
+**Commission** (resolves open question #3): a product attached to a service
+gets a **flat 10% to the barbero** (`bb = round(precio * 0.10)`,
+`neg = precio - bb`), **independent of `pago`** — unlike services, which vary
+50%/43%/50% by payment method. This applies **only** when a product is
+explicitly attached to a service on the same ticket. Standalone product
+sales (`registrarProducto()`, no attachment) are **completely unaffected** —
+confirmed by re-reading that code as part of this decision
+([index.html:2093-2117](../index.html#L2093-L2117)): it already computes
+`bb = b ? Math.round(total*COM_PRODUCTO) : 0` with `COM_PRODUCTO = 0.10`
+flat, with **no `pago`-based branching at all** — the "new" attach-only rule
+is numerically identical to what standalone sales already do whenever a
+barbero is assigned. There is no collision to resolve; the only real
+difference is that an attached product will always have a barbero (the one
+performing the service), so `bb` is never the `bid:'none'`-triggered zero
+case standalone sales allow. **Forward-only** — no retroactive correction of
+past product sales.
+
+**Question #1 (which ticket to attach to)**: resolved to the more natural
+case — attach only while a service is **still open** in Sala de espera
+(before checkout). No support (yet) for attaching to an already-closed
+ticket; that's a different, larger UX problem (finding a past ticket,
+re-opening it) not in scope here. Implementation: the attach action is a
+**local, client-side staging step only** — no network call per attach.
+Staged products live in `_salaEditorData[queue_id].productosAdjuntos`
+(an array), and are sent as `productos_adjuntos: [{producto_id, cantidad}]`
+in the existing `salaCerrarServicio()` → `POST /queue/control/registrar`
+call at actual checkout time. This means the service registro and every
+attached product registro are created in the same request, sharing
+`ticket_id` — matching "created together" from the expected flow.
+
+**Question #2 (grouped display in reports)**: not addressed by this
+implementation — remains true to the Option A default: every row still
+displays independently in "Registros del día," Cierre de caja, etc.
+Visually merging same-`ticket_id` rows into one displayed line is optional,
+future, separate UI work — nothing here requires it, and nothing here
+prevents it later.
+
+**Question #4 (alias/override validation)**: resolved by **not routing
+attached products through `resolverServicioYValidarPrecio()`/`servicio_alias`
+matching at all.** Attached products are referenced by their real
+`producto_id` (an exact catalog lookup against `productos`/
+`tenant_producto_precios`, sourced from the PR #18 live catalog) — there is
+no free-text name to fuzzy-match, so the `alias_no_mapeado` failure mode
+that made "Servicio especial" and standalone product sales permanently
+un-syncable simply doesn't apply to this new path. This resolves the
+question by sidestepping it, not by deciding whether the *existing*
+standalone-product sync bug (still tracked separately in `TECH_DEBT.md`)
+needs fixing first — it doesn't, for this feature specifically, since this
+is a different, ID-based write path.

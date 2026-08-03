@@ -891,6 +891,24 @@
         </div>
         <button onclick="salaActualizarServicio()"
           style="padding:8px 18px;background:var(--ok);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans)">Actualizar servicio</button>
+
+        <div style="height:1px;background:var(--border);margin:16px 0"></div>
+        <!-- Sección 3: productos adjuntos — additive, no reemplaza "Agregar
+             servicio extra" arriba. Staging local únicamente (sin llamada de
+             red); se envían junto con el checkout en salaCerrarServicio().
+             Comisión (10% plano) se calcula recién al registrar, en el
+             backend — ver docs/attach-product-to-ticket-design_2026-08-03.md. -->
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:10px">Adjuntar producto</div>
+        <div id="salaProductosAdjuntosList" style="margin-bottom:8px"></div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select id="editor-producto" style="flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface);font-family:var(--sans)">
+            <option value="">Elegir producto…</option>
+          </select>
+          <input id="editor-producto-qty" type="number" min="1" step="1" value="1"
+            style="width:56px;padding:7px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;font-family:var(--mono);text-align:center;background:var(--surface)"/>
+          <button onclick="salaAdjuntarProducto()"
+            style="padding:7px 13px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);font-size:15px;cursor:pointer;font-weight:700">＋</button>
+        </div>
       </div>
     </div>
 
@@ -6066,6 +6084,17 @@ function salaCerrarServicio(queue_id,bid,pago,propina,precio){
   var precioPreview=precio>0?precio:(SALA_PRECIOS[ed.service]||0);
   var bbPreview=precioPreview>0?Math.round(precioPreview*(COM[pago]||0.5)):0;
   var negPreview=precioPreview-bbPreview;
+  // Productos adjuntados vía el editor (staging local) — 10% plano de
+  // comisión, sin importar `pago` (docs/attach-product-to-ticket-design_2026-08-03.md).
+  var productosAdjuntos=ed.productosAdjuntos||[];
+  var productosLineas='',productosTotalBB=0,productosTotal=0;
+  for(var _pi=0;_pi<productosAdjuntos.length;_pi++){
+    var _p=productosAdjuntos[_pi];
+    var _pTotal=_p.precio*_p.cantidad;
+    var _pBB=Math.round(_pTotal*0.10);
+    productosTotal+=_pTotal;productosTotalBB+=_pBB;
+    productosLineas+='+ '+(_p.cantidad>1?_p.cantidad+'x ':'')+_p.nombre+': $'+fmt(_pTotal)+' (bb $'+fmt(_pBB)+')\n';
+  }
   var confirmMsg='─── RESUMEN DEL SERVICIO ───\n\n'
     +'Cliente:   '+(ed.client_name||'—')+'\n'
     +'Barbero:   '+barber.nombre+'\n'
@@ -6073,14 +6102,18 @@ function salaCerrarServicio(queue_id,bid,pago,propina,precio){
     +'Pago:      '+pago.charAt(0).toUpperCase()+pago.slice(1)+'\n'
     +'Precio:    $'+fmt(precioPreview)+'\n'
     +(propina>0?'Propina:   $'+fmt(propina)+'\n':'')
+    +(productosAdjuntos.length>0?'\nProductos adjuntos (10% comisión c/u):\n'+productosLineas:'')
     +'\n'
-    +'→ Barbero recibe: $'+fmt(bbPreview)+(propina>0?' + propina $'+fmt(propina)+' = $'+fmt(bbPreview+propina):'')+'\n'
-    +'Negocio retiene: $'+fmt(negPreview)+'\n\n'
+    +'→ Barbero recibe: $'+fmt(bbPreview)+(propina>0?' + propina $'+fmt(propina):'')+(productosAdjuntos.length>0?' + productos $'+fmt(productosTotalBB):'')+' = $'+fmt(bbPreview+propina+productosTotalBB)+'\n'
+    +'Negocio retiene: $'+fmt(negPreview+(productosTotal-productosTotalBB))+'\n\n'
     +'¿Cerrar servicio y generar ticket?';
   if(!window.confirm(confirmMsg)) return;
   // Confirmed — close the service in the API
   var body={queue_id:queue_id,bid:bid,pago:pago,propina:propina||0};
   if(precio>0) body.precio=precio;
+  if(productosAdjuntos.length>0){
+    body.productos_adjuntos=productosAdjuntos.map(function(p){return {producto_id:p.producto_id,cantidad:p.cantidad};});
+  }
   fetch(API_URL+'/queue/control/registrar',{
     method:'POST',headers:getJsonAuthHeaders(),
     body:JSON.stringify(body)
@@ -6088,9 +6121,26 @@ function salaCerrarServicio(queue_id,bid,pago,propina,precio){
     .then(function(j){
       if(j.ok){
         delete _pagoSelections[queue_id]; // clear persisted selection for this queue item
+        if(ed.productosAdjuntos) ed.productosAdjuntos=[]; // consumed — checkout succeeded
         var msg='✓ Servicio cerrado · $'+fmt(j.precio)+' · bb $'+fmt(j.bb);
         if(j.propina>0) msg+=' + prop $'+fmt(j.propina);
+        if(j.productos_adjuntos&&j.productos_adjuntos.length>0) msg+=' + '+j.productos_adjuntos.length+' producto'+(j.productos_adjuntos.length!==1?'s':'');
         toast(msg);
+        // Reflect the attached-product registros locally right away (same
+        // rationale as the service registro below) — same source of truth
+        // (registros), just N extra rows instead of one, each with its own
+        // 10%-flat bb/neg already computed by the backend.
+        if(j.productos_adjuntos&&j.productos_adjuntos.length>0){
+          j.productos_adjuntos.forEach(function(pa){
+            regs.unshift({
+              id:pa.registro_id,bid:bid,bnom:barber.nombre,sid:pa.producto_id,snom:pa.nombre,
+              precio:pa.precio,pago:pago,com:0.10,bb:pa.bb,neg:pa.neg,propina:0,
+              fecha:String(new Date().getDate()).padStart(2,'0')+'/'+String(new Date().getMonth()+1).padStart(2,'0')+'/'+new Date().getFullYear(),
+              hora:String(new Date().getHours()).padStart(2,'0')+':'+String(new Date().getMinutes()).padStart(2,'0'),
+              ts:Date.now(),
+            });
+          });
+        }
         // This is the moment a real last-visit (barbero/servicio/bebida)
         // exists — upsert the autocomplete index immediately instead of
         // waiting for the 10min background refresh, using the fields
@@ -6174,6 +6224,15 @@ function renderSala(){
     .then(function(r){return r.json();})
     .then(function(j){
       if(!j.ok) throw new Error(j.error);
+      // Preserve any staged (not-yet-checked-out) attached products across
+      // this refresh — renderSala() runs on a 20s interval and used to wipe
+      // _salaEditorData entirely, which would silently discard products a
+      // staff member attached but hadn't checked out yet.
+      var _prevProductosAdjuntos={};
+      Object.keys(_salaEditorData).forEach(function(qid){
+        var prev=_salaEditorData[qid];
+        if(prev&&prev.productosAdjuntos&&prev.productosAdjuntos.length) _prevProductosAdjuntos[qid]=prev.productosAdjuntos;
+      });
       _salaEditorData={};
       var h='';
       BB.filter(function(b){return b.active!==false;}).map(function(b){return b.id;}).forEach(function(bid){
@@ -6220,7 +6279,7 @@ function renderSala(){
           var sv=b.enServicio;
           var desde=sv.service_start?new Date(sv.service_start).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'}):'—';
           h+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:5px">EN SERVICIO</div>';
-          _salaEditorData[sv.queue_id]={client_name:sv.client_name,phone:sv.phone||'',service:sv.service,precio:SALA_PRECIOS[sv.service]||12000,cliente_id:sv.cliente_id||null};
+          _salaEditorData[sv.queue_id]={client_name:sv.client_name,phone:sv.phone||'',service:sv.service,precio:SALA_PRECIOS[sv.service]||12000,cliente_id:sv.cliente_id||null,productosAdjuntos:_prevProductosAdjuntos[sv.queue_id]||[]};
           h+='<div style="margin-bottom:8px">';
           h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">';
           h+='<div style="font-weight:500">'+sv.client_name+'</div>';
@@ -6247,6 +6306,13 @@ function renderSala(){
           h+='<button onclick="salaCerrarServicio('+sv.queue_id+',\''+bid+'\',document.getElementById(\'pago-'+sv.queue_id+'\').value,parseInt(document.getElementById(\'prop-'+sv.queue_id+'\').value)||0,parseInt(document.getElementById(\'prc-'+sv.queue_id+'\').value)||0)" ';
           h+='style="padding:6px 12px;background:var(--ok);color:#fff;border:none;border-radius:var(--r);font-size:12px;font-weight:600;cursor:pointer">💳 Cerrar</button>';
           h+='</div>';
+          // Staged (not-yet-checked-out) attached products — attached via the
+          // ✏ Editar modal, sent along at checkout (salaCerrarServicio()).
+          if(_salaEditorData[sv.queue_id].productosAdjuntos.length>0){
+            var _padj=_salaEditorData[sv.queue_id].productosAdjuntos;
+            var _padjTotal=_padj.reduce(function(a,p){return a+p.precio*p.cantidad;},0);
+            h+='<div style="font-size:11px;color:var(--text2);margin-bottom:8px;padding:4px 8px;background:var(--surface2);border-radius:var(--r)">🧴 +'+_padj.length+' producto'+(_padj.length!==1?'s':'')+' adjunto'+(_padj.length!==1?'s':'')+' · $'+fmt(_padjTotal)+'</div>';
+          }
           h+='<div style="height:1px;background:var(--border);margin-bottom:10px"></div>';
         } else {
           h+='<div style="font-size:11px;color:var(--text3);margin-bottom:10px;font-style:italic">Sin servicio activo</div>';
@@ -6255,7 +6321,7 @@ function renderSala(){
         if(b.enEspera.length>0){
           h+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:6px">EN ESPERA</div>';
           b.enEspera.forEach(function(e,i){
-            _salaEditorData[e.queue_id]={client_name:e.client_name,phone:e.phone||'',service:e.service,precio:SALA_PRECIOS[e.service]||12000,cliente_id:e.cliente_id||null};
+            _salaEditorData[e.queue_id]={client_name:e.client_name,phone:e.phone||'',service:e.service,precio:SALA_PRECIOS[e.service]||12000,cliente_id:e.cliente_id||null,productosAdjuntos:_prevProductosAdjuntos[e.queue_id]||[]};
             h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border)">';
             h+='<div style="font-size:13px"><span style="color:var(--text3);font-family:var(--mono);font-size:11px">'+(i+1)+'. </span>'+e.client_name+'</div>';
             h+='<div style="display:flex;align-items:center;gap:4px">';
@@ -6556,6 +6622,7 @@ function salaPrecargarCliente(nombre,tel){
 function salaAbrirEditor(queue_id){
   var d=_salaEditorData[queue_id];
   if(!d){toast('Datos del cliente no disponibles');return;}
+  if(!d.productosAdjuntos) d.productosAdjuntos=[];
   _editorQueueId  =queue_id;
   _editorClienteId=d.cliente_id||null;
   var editorNombreEl=document.getElementById('editor-nombre');
@@ -6568,6 +6635,9 @@ function salaAbrirEditor(queue_id){
   document.getElementById('editor-bid').value         ='';
   document.getElementById('editor-svc-extra').value   ='';
   document.getElementById('editor-extra-precio').value='';
+  document.getElementById('editor-producto-qty').value='1';
+  salaBuildProductoOptions();
+  salaRenderProductosAdjuntos();
   document.getElementById('salaEditorTitle').textContent='✏ '+(d.client_name||'Cliente');
   var ov=document.getElementById('salaEditorOverlay');
   ov.style.display='flex';
@@ -6576,6 +6646,65 @@ function salaAbrirEditor(queue_id){
 function salaCerrarEditor(){
   document.getElementById('salaEditorOverlay').style.display='none';
   renderSala();
+}
+
+// ═══ PRODUCTOS ADJUNTOS (Sala de espera → editor de ticket) ═══════════════
+// Staging local — sin llamada de red por adjuntar/quitar. Se envían recién
+// al hacer checkout (salaCerrarServicio() → POST /queue/control/registrar
+// con productos_adjuntos:[{producto_id,cantidad}]), donde el backend
+// calcula bb/neg con el 10% plano y crea un registro propio por producto,
+// compartiendo ticket_id con el servicio. Usa el catálogo real PRODUCTOS
+// (backend-wired, PR #18) — no una lista hardcodeada.
+function salaBuildProductoOptions(){
+  var sel=document.getElementById('editor-producto');if(!sel)return;
+  var h='<option value="">Elegir producto…</option>';
+  for(var i=0;i<PRODUCTOS.length;i++){
+    var p=PRODUCTOS[i];
+    if(p.activo===false)continue;
+    h+='<option value="'+p.id+'">'+escAttr(p.nombre)+' — $'+fmt(p.precio)+'</option>';
+  }
+  sel.innerHTML=h;
+}
+function salaAdjuntarProducto(){
+  if(!_editorQueueId)return;
+  var sel=document.getElementById('editor-producto');
+  var pid=sel.value;
+  if(!pid){toast('Elige un producto');return;}
+  var prod=find(PRODUCTOS,pid);
+  if(!prod){toast('Producto no encontrado');return;}
+  var qty=Math.max(1,parseInt(document.getElementById('editor-producto-qty').value)||1);
+  var d=_salaEditorData[_editorQueueId];
+  if(!d)return;
+  if(!d.productosAdjuntos)d.productosAdjuntos=[];
+  d.productosAdjuntos.push({producto_id:prod.id,nombre:prod.nombre,precio:prod.precio,cantidad:qty});
+  sel.value='';
+  document.getElementById('editor-producto-qty').value='1';
+  salaRenderProductosAdjuntos();
+  toast('Producto adjuntado — se registrará al cerrar el ticket');
+}
+function salaQuitarProductoAdjunto(idx){
+  if(!_editorQueueId)return;
+  var d=_salaEditorData[_editorQueueId];
+  if(!d||!d.productosAdjuntos)return;
+  d.productosAdjuntos.splice(idx,1);
+  salaRenderProductosAdjuntos();
+}
+function salaRenderProductosAdjuntos(){
+  var el=document.getElementById('salaProductosAdjuntosList');if(!el)return;
+  var d=_editorQueueId?_salaEditorData[_editorQueueId]:null;
+  var list=(d&&d.productosAdjuntos)||[];
+  if(list.length===0){el.innerHTML='<div style="font-size:11px;color:var(--text3);font-style:italic;padding:2px 0">Sin productos adjuntos aún.</div>';return;}
+  var h='';
+  for(var i=0;i<list.length;i++){
+    var p=list[i];
+    h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:var(--surface2);border-radius:var(--r);margin-bottom:4px;font-size:12px">'
+      +'<span>'+(p.cantidad>1?p.cantidad+'x ':'')+escAttr(p.nombre)+'</span>'
+      +'<span style="display:flex;align-items:center;gap:8px">'
+      +'<b>$'+fmt(p.precio*p.cantidad)+'</b>'
+      +'<button onclick="salaQuitarProductoAdjunto('+i+')" style="background:none;border:none;color:var(--err);cursor:pointer;font-size:13px;padding:0 2px">✕</button>'
+      +'</span></div>';
+  }
+  el.innerHTML=h;
 }
 
 function salaEditorAutoPreio(){
