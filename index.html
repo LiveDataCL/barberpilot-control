@@ -69,14 +69,41 @@
   }
 
   /* PANEL IZQUIERDO — toggle colapsable (solo desktop, >900px; @media
-     900px/600px de arriba siguen mandando en mobile sin cambios) */
+     900px/600px de arriba siguen mandando en mobile sin cambios).
+     Colapsado = rail de solo-iconos (~60px). El contenido real
+     (.pl-inner) nunca se restructura ni se remueve del DOM — al
+     colapsar solo se oculta, y reaparece como flyout (hover o
+     focus-within) anclado junto al rail, asi que ninguna accion del
+     checkout deja de ser clickeable/usable estando colapsado. */
   .pl-toggle{display:none}
+  .pl-rail{display:none}
   @media(min-width:901px){
-    .layout{transition:grid-template-columns .22s ease}
-    .layout.pl-collapsed{grid-template-columns:44px 1fr}
-    .layout.pl-collapsed .pl{overflow:hidden}
-    .layout.pl-collapsed .pl-inner{opacity:0;pointer-events:none}
-    .pl-inner{opacity:1;transition:opacity .15s ease}
+    .layout.pl-collapsed{grid-template-columns:60px 1fr}
+    .layout.pl-collapsed .pl{overflow:visible;padding:12px 8px}
+    .layout.pl-collapsed .pl-rail{display:flex;flex-direction:column;align-items:center;gap:6px;padding-top:6px}
+    .layout.pl-collapsed .pl-inner{
+      opacity:0;pointer-events:none;
+      position:absolute;top:0;left:60px;width:340px;height:calc(100vh - 62px);
+      background:var(--surface);border:1px solid var(--border);
+      border-radius:0 var(--rl) var(--rl) 0;box-shadow:0 8px 24px rgba(0,0,0,.18);
+      padding:16px;overflow-y:auto;z-index:140;
+    }
+    .layout.pl-collapsed .pl:hover .pl-inner,
+    .layout.pl-collapsed .pl:focus-within .pl-inner{opacity:1;pointer-events:auto}
+    .pl-rail-btn{
+      position:relative;width:40px;height:40px;flex-shrink:0;
+      border:1.5px solid var(--border);border-radius:var(--r);background:var(--surface2);
+      color:var(--text2);font-size:17px;line-height:1;cursor:pointer;
+      display:flex;align-items:center;justify-content:center;font-family:var(--sans);
+    }
+    .pl-rail-btn:hover,.pl-rail-btn:focus-visible{border-color:var(--text);background:var(--soft);outline:none}
+    .pl-rail-btn::after{
+      content:attr(data-pl-tip);position:absolute;left:calc(100% + 10px);top:50%;
+      transform:translateY(-50%);background:var(--text);color:#fff;
+      font-size:11px;font-weight:600;padding:5px 9px;border-radius:6px;
+      white-space:nowrap;opacity:0;pointer-events:none;z-index:200;
+    }
+    .pl-rail-btn:hover::after,.pl-rail-btn:focus-visible::after{opacity:1}
     .pl-toggle{
       display:flex;align-items:center;justify-content:center;
       position:fixed;top:50%;left:326px;transform:translateY(-50%);
@@ -84,13 +111,19 @@
       border:1.5px solid var(--border);background:var(--surface);
       color:var(--text2);cursor:pointer;z-index:150;
       box-shadow:0 1px 4px rgba(0,0,0,.14);
-      transition:left .22s ease,border-color .12s,background .12s;
     }
     .pl-toggle:hover{border-color:var(--text);background:var(--soft);color:var(--text)}
     .pl-toggle:focus-visible{outline:2px solid var(--text);outline-offset:2px}
-    .layout.pl-collapsed .pl-toggle{left:30px}
-    .pl-toggle-ico{font-size:11px;line-height:1;display:inline-block;transition:transform .22s ease}
+    .layout.pl-collapsed .pl-toggle{left:46px}
+    .pl-toggle-ico{font-size:11px;line-height:1;display:inline-block}
     .layout.pl-collapsed .pl-toggle-ico{transform:rotate(180deg)}
+  }
+  @media(min-width:901px) and (prefers-reduced-motion: no-preference){
+    .layout{transition:grid-template-columns .22s ease}
+    .pl-inner{transition:opacity .15s ease}
+    .pl-toggle{transition:left .22s ease,border-color .12s,background .12s}
+    .pl-toggle-ico{transition:transform .22s ease}
+    .pl-rail-btn::after{transition:opacity .12s}
   }
 
   /* PANEL IZQUIERDO */
@@ -454,12 +487,19 @@
 
   <!-- IZQUIERDA -->
   <div class="pl">
+    <div class="pl-rail" id="plRail">
+      <button type="button" class="pl-rail-btn" data-pl-tip="Barbero" aria-label="Ir a Barbero" onclick="plRailFocus('secBarbero')">💈</button>
+      <button type="button" class="pl-rail-btn" data-pl-tip="Servicio" aria-label="Ir a Servicio" onclick="plRailFocus('secServicio')">✂️</button>
+      <button type="button" class="pl-rail-btn" data-pl-tip="Forma de pago" aria-label="Ir a Forma de pago" onclick="plRailFocus('secPago')">💳</button>
+      <button type="button" class="pl-rail-btn" data-pl-tip="Propina" aria-label="Ir a Propina" onclick="plRailFocus('secPropina')">💛</button>
+      <button type="button" class="pl-rail-btn" data-pl-tip="Venta de producto" aria-label="Ir a Venta de producto" onclick="plRailFocus('secProductoSale')">🧴</button>
+    </div>
     <div class="pl-inner" id="plInner">
-    <div>
+    <div id="secBarbero">
       <div class="slbl">1 · Barbero</div>
       <div class="bgrid" id="bgrid"></div>
     </div>
-    <div>
+    <div id="secServicio">
       <div class="slbl">2 · Servicio</div>
 
       <!-- SERVICIO PERSONALIZADO — siempre visible, sin scroll -->
@@ -481,7 +521,7 @@
 
       <div class="slist" id="slist"></div>
     </div>
-    <div>
+    <div id="secPago">
       <div class="slbl">3 · Forma de pago</div>
       <div class="pgrid">
         <button class="pbtn" data-pay="efectivo" onclick="selP(this)"><span class="pn">Efectivo</span><span class="pc">50%</span></button>
@@ -501,7 +541,7 @@
         <div class="pr"><span class="pl2">Negocio retiene</span><span class="pv b" id="pvN">—</span></div>
       </div>
     </div>
-    <div>
+    <div id="secPropina">
       <div class="slbl">4 · Propina (opcional)</div>
       <div style="display:flex;gap:6px;align-items:center">
         <div style="display:flex;gap:4px;flex:1">
@@ -523,7 +563,7 @@
     <button class="breg" id="btnR" onclick="registrar()" disabled>✂ Registrar y generar ticket</button>
 
     <!-- VENTA DE PRODUCTO -->
-    <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
+    <div id="secProductoSale" style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
       <button onclick="toggleProductos()" id="btnToggleProd"
         style="width:100%;padding:10px 14px;background:var(--surface2);border:1.5px solid var(--border);border-radius:var(--r);color:var(--text2);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer;text-align:left;display:flex;align-items:center;gap:8px;transition:border-color .12s">
         <span>Ceras</span><span>Venta de Producto</span><span id="prodArrow" style="margin-left:auto;font-size:10px;opacity:.5">▼</span>
@@ -1888,23 +1928,38 @@ function showTabById(id){
 // Colapsa/expande .pl sin desmontar su contenido: .pl-inner solo se
 // oculta (opacity+pointer-events, ver CSS), nunca se remueve del DOM,
 // asi que un check-in o venta de producto a medio llenar sigue intacto
-// al volver a expandir. Preferencia en localStorage — solo esta key,
-// solo lee/escribe aca. El toggle mismo solo es visible en desktop
+// al volver a expandir. Colapsado, .pl-inner reaparece como flyout al
+// hacer hover/focus sobre .pl (CSS :hover/:focus-within) — el rail de
+// iconos (#plRail) solo da acceso rapido con plRailFocus(), nunca es
+// la unica forma de llegar a un control. Preferencia en localStorage,
+// scoped por tenant (hardcoded 'saulfino' — este panel es single-tenant,
+// ver resto del archivo). El toggle mismo solo es visible en desktop
 // (>900px, ver CSS) asi que esto nunca compite con el stack de mobile.
+var PL_COLLAPSE_KEY='bp_sidebar_collapsed_saulfino';
 function togglePlPanel(){
   var layout=document.querySelector('.layout');
   if(!layout)return;
   var collapsed=layout.classList.toggle('pl-collapsed');
-  try{ localStorage.setItem('bp_pl_collapsed', collapsed?'1':'0'); }catch(e){}
+  try{ localStorage.setItem(PL_COLLAPSE_KEY, collapsed?'1':'0'); }catch(e){}
   var btn=document.getElementById('plToggle');
   if(btn){
     btn.setAttribute('aria-expanded', collapsed?'false':'true');
     btn.setAttribute('aria-label', collapsed?'Expandir panel lateral':'Colapsar panel lateral');
   }
 }
+// Rail de iconos (colapsado): lleva el foco al primer control de esa
+// seccion, lo que dispara el flyout via :focus-within (misma via que
+// usaria un usuario de teclado) y hace scroll si hiciera falta.
+function plRailFocus(sectionId){
+  var sec=document.getElementById(sectionId);
+  if(!sec)return;
+  sec.scrollIntoView({block:'nearest'});
+  var target=sec.querySelector('button,input,[tabindex]');
+  if(target)target.focus();
+}
 function initPlToggle(){
   var wasCollapsed=false;
-  try{ wasCollapsed = localStorage.getItem('bp_pl_collapsed')==='1'; }catch(e){}
+  try{ wasCollapsed = localStorage.getItem(PL_COLLAPSE_KEY)==='1'; }catch(e){}
   if(!wasCollapsed)return;
   var layout=document.querySelector('.layout');
   if(layout) layout.classList.add('pl-collapsed');
