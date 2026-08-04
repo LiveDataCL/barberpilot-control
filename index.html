@@ -351,6 +351,7 @@
   .silla-client{font-size:15px;font-weight:600;margin-bottom:3px}
   .silla-svc{font-size:12px;color:var(--text2)}
   .silla-desde{font-size:11px;color:var(--text3);margin-top:8px}
+  .silla-remaining{font-size:11px;color:var(--text2);font-weight:600;margin-top:2px}
   .silla-next-banner{background:var(--text);color:#fff;border-radius:var(--rl);padding:18px 22px;margin-bottom:18px;display:flex;align-items:center;gap:18px}
   .silla-next-name{font-size:24px;font-weight:700;letter-spacing:.01em}
   .silla-next-label{font-size:10px;letter-spacing:.1em;text-transform:uppercase;opacity:.55;margin-bottom:3px}
@@ -6348,6 +6349,8 @@ function renderSillas(){
         // En corte
         var desde=sv.service_start
           ?new Date(sv.service_start).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'}):'—';
+        var remainMin=bd.remaining_min;
+        var remainLbl=(remainMin==null)?'':(remainMin<=0?'Terminando':'Termina en ~'+remainMin+'min');
         h+='<div class="silla-card ocupada">';
         h+='<div class="silla-head ocupada">';
         h+='<div><div class="silla-nombre">'+b.nombre+'</div>';
@@ -6358,16 +6361,19 @@ function renderSillas(){
         h+='<div class="silla-client">'+sv.client_name+'</div>';
         h+='<div class="silla-svc">'+sv.service+'</div>';
         h+='<div class="silla-timer" id="stimer-'+b.id+'">—</div>';
+        if(remainLbl) h+='<div class="silla-remaining">'+remainLbl+'</div>';
         h+='<div class="silla-desde">En silla desde las '+desde+'</div>';
         if(sv.service_start) h+='<input type="hidden" id="sstart-'+b.id+'" value="'+sv.service_start+'">';
         h+='</div></div>';
       } else if(esPresente && !bd.ausente){
         // Libre y presente
+        var esperaLbl=nEspera+' en espera';
+        if(nEspera>0 && bd.queue_wait_min!=null) esperaLbl+=' · ~'+bd.queue_wait_min+'min';
         h+='<div class="silla-card libre">';
         h+='<div class="silla-head libre">';
         h+='<div><div class="silla-nombre" style="color:var(--ok)">'+b.nombre+'</div>';
         h+='<div class="silla-status-lbl" style="color:var(--ok)">Libre</div></div>';
-        h+='<div style="font-size:11px;color:var(--text3)">'+nEspera+' en espera</div>';
+        h+='<div style="font-size:11px;color:var(--text3)">'+esperaLbl+'</div>';
         h+='</div>';
         h+='<div class="silla-body">';
         h+='<div style="font-size:28px;margin:6px 0;color:var(--ok)">✓</div>';
