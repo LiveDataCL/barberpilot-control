@@ -181,3 +181,44 @@ session).
 **Status**: Fix implemented, in review. Not closed until
 `fix/validate-product-registros-by-catalog` merges, deploys, and the
 previously-stuck outbox item is confirmed to have actually synced.
+
+## 2026-08-03 — A ticket closed via the barber app's own status endpoint bypasses attached-product billing entirely
+
+**Description**: Found while implementing server-persisted "Adjuntar
+producto" (`docs/attach-product-to-ticket-design_2026-08-03.md` §6).
+There are two independent ways a `queue` row becomes `status='DONE'`:
+
+- The panel's checkout, `POST /queue/control/registrar` — creates the
+  service `registros` row, reads and bills any `productos_adjuntos`,
+  computes commission, resets `productos_adjuntos` to `[]`.
+- The barber app's own close action, `PUT /queue/:id/status` with
+  `{status:'DONE'}` (barberpilot-api `index.js:4396`) — sets `status='DONE'`
+  and does queue-position/duration-learning bookkeeping, but **creates no
+  `registros` row at all** and has no knowledge of `productos_adjuntos`.
+
+If a panel staff member attaches a product to an in-progress ticket
+(cross-sell) and the barber then closes that same ticket from their own
+app (via the second path) before the panel checks it out, the attached
+product is never billed and never generates commission — the `queue` row
+becomes `status='DONE'` (disappearing from `GET /queue/control`'s
+`WHERE status != 'DONE'` filter, so it's no longer visible/actionable in
+Sala de espera) with `productos_adjuntos` still populated but now
+unreachable through any UI. Not cleared, not billed — just orphaned.
+
+**Why deferred**: This is a pre-existing architectural duality (two
+independent ways to close a ticket) that predates attached products
+entirely — reconciling it (e.g. having the app's status endpoint also
+check for and bill `productos_adjuntos`, or blocking a DONE transition
+via that path while products are attached) is a larger decision about
+which path should be authoritative for billing, out of scope for the
+persist-attached-products task that surfaced it.
+
+**Severity**: Medium — real commission/revenue loss if it happens, but
+requires a specific sequence (product attached via panel, then the
+*barber's own app* closes the same ticket before panel checkout) that may
+be rare in actual usage today; not confirmed to have happened yet.
+
+**Urgency**: Monitor-only until attached-product usage is common enough
+for this sequence to plausibly occur — revisit if/when it is.
+
+**Status**: Open.
