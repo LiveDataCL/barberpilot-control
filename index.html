@@ -6006,12 +6006,13 @@ function salaCerrarServicio(queue_id,bid,pago,propina,precio){
     +'Negocio retiene: $'+fmt(negPreview+(productosTotal-productosTotalBB))+'\n\n'
     +'¿Cerrar servicio y generar ticket?';
   if(!window.confirm(confirmMsg)) return;
-  // Confirmed — close the service in the API
+  // Confirmed — close the service in the API. productos_adjuntos is no
+  // longer sent here — the backend reads it straight from the persisted
+  // queue row (docs/attach-product-to-ticket-design_2026-08-03.md §d),
+  // so a ticket attached-to on one device and closed from another still
+  // works correctly.
   var body={queue_id:queue_id,bid:bid,pago:pago,propina:propina||0};
   if(precio>0) body.precio=precio;
-  if(productosAdjuntos.length>0){
-    body.productos_adjuntos=productosAdjuntos.map(function(p){return {producto_id:p.producto_id,cantidad:p.cantidad};});
-  }
   fetch(API_URL+'/queue/control/registrar',{
     method:'POST',headers:getJsonAuthHeaders(),
     body:JSON.stringify(body)
@@ -6122,15 +6123,13 @@ function renderSala(){
     .then(function(r){return r.json();})
     .then(function(j){
       if(!j.ok) throw new Error(j.error);
-      // Preserve any staged (not-yet-checked-out) attached products across
-      // this refresh — renderSala() runs on a 20s interval and used to wipe
-      // _salaEditorData entirely, which would silently discard products a
-      // staff member attached but hadn't checked out yet.
-      var _prevProductosAdjuntos={};
-      Object.keys(_salaEditorData).forEach(function(qid){
-        var prev=_salaEditorData[qid];
-        if(prev&&prev.productosAdjuntos&&prev.productosAdjuntos.length) _prevProductosAdjuntos[qid]=prev.productosAdjuntos;
-      });
+      // productosAdjuntos now comes straight from the server on every
+      // fetch (attach/remove persist immediately via
+      // salaAdjuntarProducto()/salaQuitarProductoAdjunto() — no more
+      // local-only staging), same as service/precio/client_name already
+      // do. No snapshot/restore-across-refresh trick needed anymore: the
+      // server IS the current state, there's no ephemeral local state to
+      // protect from being overwritten by this same refresh.
       _salaEditorData={};
       var h='';
       BB.filter(function(b){return b.active!==false;}).map(function(b){return b.id;}).forEach(function(bid){
@@ -6177,7 +6176,7 @@ function renderSala(){
           var sv=b.enServicio;
           var desde=sv.service_start?new Date(sv.service_start).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'}):'—';
           h+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:5px">EN SERVICIO</div>';
-          _salaEditorData[sv.queue_id]={client_name:sv.client_name,phone:sv.phone||'',service:sv.service,precio:SALA_PRECIOS[sv.service]||12000,cliente_id:sv.cliente_id||null,productosAdjuntos:_prevProductosAdjuntos[sv.queue_id]||[]};
+          _salaEditorData[sv.queue_id]={client_name:sv.client_name,phone:sv.phone||'',service:sv.service,precio:SALA_PRECIOS[sv.service]||12000,cliente_id:sv.cliente_id||null,productosAdjuntos:sv.productos_adjuntos||[]};
           h+='<div style="margin-bottom:8px">';
           h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">';
           h+='<div style="font-weight:500">'+sv.client_name+'</div>';
@@ -6187,7 +6186,13 @@ function renderSala(){
           h+='<button onclick="salaEliminarEntrada('+sv.queue_id+')" style="padding:2px 7px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;color:var(--err)">✕</button>';
           h+='</div>';
           h+='</div>';
-          h+='<div style="font-size:12px;color:var(--text2)">'+sv.service+' · desde '+desde+'</div>';
+          // Texto combinado servicio + producto(s) adjunto(s) — reemplaza el
+          // badge separado que existía antes; ya no hace falta repetir la
+          // misma información dos veces en la tarjeta.
+          var _svcLabel=sv.service+((sv.productos_adjuntos&&sv.productos_adjuntos.length)
+            ?' + '+sv.productos_adjuntos.map(function(p){return (p.cantidad>1?p.cantidad+'x ':'')+p.nombre;}).join(' + ')
+            :'');
+          h+='<div style="font-size:12px;color:var(--text2)">'+_svcLabel+' · desde '+desde+'</div>';
           h+='</div>';
           h+='<div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap">';
           h+='<input id="prc-'+sv.queue_id+'" type="number" min="0" step="1000" ';
@@ -6204,13 +6209,6 @@ function renderSala(){
           h+='<button onclick="salaCerrarServicio('+sv.queue_id+',\''+bid+'\',document.getElementById(\'pago-'+sv.queue_id+'\').value,parseInt(document.getElementById(\'prop-'+sv.queue_id+'\').value)||0,parseInt(document.getElementById(\'prc-'+sv.queue_id+'\').value)||0)" ';
           h+='style="padding:6px 12px;background:var(--ok);color:#fff;border:none;border-radius:var(--r);font-size:12px;font-weight:600;cursor:pointer">💳 Cerrar</button>';
           h+='</div>';
-          // Staged (not-yet-checked-out) attached products — attached via the
-          // ✏ Editar modal, sent along at checkout (salaCerrarServicio()).
-          if(_salaEditorData[sv.queue_id].productosAdjuntos.length>0){
-            var _padj=_salaEditorData[sv.queue_id].productosAdjuntos;
-            var _padjTotal=_padj.reduce(function(a,p){return a+p.precio*p.cantidad;},0);
-            h+='<div style="font-size:11px;color:var(--text2);margin-bottom:8px;padding:4px 8px;background:var(--surface2);border-radius:var(--r)">🧴 +'+_padj.length+' producto'+(_padj.length!==1?'s':'')+' adjunto'+(_padj.length!==1?'s':'')+' · $'+fmt(_padjTotal)+'</div>';
-          }
           h+='<div style="height:1px;background:var(--border);margin-bottom:10px"></div>';
         } else {
           h+='<div style="font-size:11px;color:var(--text3);margin-bottom:10px;font-style:italic">Sin servicio activo</div>';
@@ -6219,11 +6217,14 @@ function renderSala(){
         if(b.enEspera.length>0){
           h+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:6px">EN ESPERA</div>';
           b.enEspera.forEach(function(e,i){
-            _salaEditorData[e.queue_id]={client_name:e.client_name,phone:e.phone||'',service:e.service,precio:SALA_PRECIOS[e.service]||12000,cliente_id:e.cliente_id||null,productosAdjuntos:_prevProductosAdjuntos[e.queue_id]||[]};
+            _salaEditorData[e.queue_id]={client_name:e.client_name,phone:e.phone||'',service:e.service,precio:SALA_PRECIOS[e.service]||12000,cliente_id:e.cliente_id||null,productosAdjuntos:e.productos_adjuntos||[]};
             h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border)">';
             h+='<div style="font-size:13px"><span style="color:var(--text3);font-family:var(--mono);font-size:11px">'+(i+1)+'. </span>'+e.client_name+'</div>';
             h+='<div style="display:flex;align-items:center;gap:4px">';
-            h+='<div style="font-size:11px;color:var(--text2)">'+e.service+'</div>';
+            var _esperaLabel=e.service+((e.productos_adjuntos&&e.productos_adjuntos.length)
+              ?' + '+e.productos_adjuntos.map(function(p){return (p.cantidad>1?p.cantidad+'x ':'')+p.nombre;}).join(' + ')
+              :'');
+            h+='<div style="font-size:11px;color:var(--text2)">'+_esperaLabel+'</div>';
             h+='<button onclick="salaAbrirEditor('+e.queue_id+')" style="padding:2px 7px;font-size:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer">✏</button>';
             h+=salaWaHref(e.phone, e.client_name, b.nombre, false);
             h+='<button onclick="salaEliminarEntrada('+e.queue_id+')" style="padding:2px 6px;font-size:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;color:var(--err)">✕</button>';
@@ -6545,12 +6546,16 @@ function salaCerrarEditor(){
 }
 
 // ═══ PRODUCTOS ADJUNTOS (Sala de espera → editor de ticket) ═══════════════
-// Staging local — sin llamada de red por adjuntar/quitar. Se envían recién
-// al hacer checkout (salaCerrarServicio() → POST /queue/control/registrar
-// con productos_adjuntos:[{producto_id,cantidad}]), donde el backend
-// calcula bb/neg con el 10% plano y crea un registro propio por producto,
-// compartiendo ticket_id con el servicio. Usa el catálogo real PRODUCTOS
-// (backend-wired, PR #18) — no una lista hardcodeada.
+// Persistido en el servidor (docs/attach-product-to-ticket-design_2026-08-03.md
+// §6) — adjuntar/quitar llaman de inmediato a
+// POST/DELETE /queue/:id/productos-adjuntos (atómico vía FOR UPDATE en el
+// backend, evita la carrera de dos personas adjuntando distinto producto
+// al mismo ticket casi al mismo tiempo). Ya NO es staging local: el
+// servidor es la fuente de verdad, por eso _salaEditorData ya viene
+// poblado con productos_adjuntos en cada fetch de renderSala(), igual que
+// service/precio/client_name. El checkout (salaCerrarServicio()) ya no
+// necesita enviar productos_adjuntos — el backend lo lee directo de la
+// fila de queue.
 function salaBuildProductoOptions(){
   var sel=document.getElementById('editor-producto');if(!sel)return;
   var h='<option value="">Elegir producto…</option>';
@@ -6561,29 +6566,54 @@ function salaBuildProductoOptions(){
   }
   sel.innerHTML=h;
 }
+// El backend (atómico) devuelve solo [{producto_id,cantidad}] — resuelve
+// nombre/precio para mostrar usando el catálogo PRODUCTOS ya cargado en
+// el cliente, sin round-trip extra. (renderSala()'s GET /queue/control sí
+// devuelve nombre/precio ya resueltos server-side, así que esto solo hace
+// falta tras un adjuntar/quitar puntual, no en cada refresh.)
+function salaResolverProductosAdjuntosLocal(raw){
+  return (raw||[]).map(function(p){
+    var prod=find(PRODUCTOS,p.producto_id);
+    return {producto_id:p.producto_id,cantidad:p.cantidad,nombre:prod?prod.nombre:p.producto_id,precio:prod?prod.precio:0};
+  });
+}
 function salaAdjuntarProducto(){
   if(!_editorQueueId)return;
   var sel=document.getElementById('editor-producto');
   var pid=sel.value;
   if(!pid){toast('Elige un producto');return;}
-  var prod=find(PRODUCTOS,pid);
-  if(!prod){toast('Producto no encontrado');return;}
   var qty=Math.max(1,parseInt(document.getElementById('editor-producto-qty').value)||1);
-  var d=_salaEditorData[_editorQueueId];
-  if(!d)return;
-  if(!d.productosAdjuntos)d.productosAdjuntos=[];
-  d.productosAdjuntos.push({producto_id:prod.id,nombre:prod.nombre,precio:prod.precio,cantidad:qty});
-  sel.value='';
-  document.getElementById('editor-producto-qty').value='1';
-  salaRenderProductosAdjuntos();
-  toast('Producto adjuntado — se registrará al cerrar el ticket');
+  var qid=_editorQueueId;
+  fetch(API_URL+'/queue/'+qid+'/productos-adjuntos',{
+    method:'POST',headers:getJsonAuthHeaders(),
+    body:JSON.stringify({producto_id:pid,cantidad:qty})
+  }).then(function(r){return r.json();})
+    .then(function(j){
+      if(j.ok){
+        if(_salaEditorData[qid]) _salaEditorData[qid].productosAdjuntos=salaResolverProductosAdjuntosLocal(j.productos_adjuntos);
+        sel.value='';
+        document.getElementById('editor-producto-qty').value='1';
+        salaRenderProductosAdjuntos();
+        toast('✓ Producto adjuntado al ticket');
+      } else {
+        toast('Error: '+(j.detalle||j.error||''));
+      }
+    }).catch(function(e){toast('Error de red: '+e.message);});
 }
-function salaQuitarProductoAdjunto(idx){
+function salaQuitarProductoAdjunto(productoId){
   if(!_editorQueueId)return;
-  var d=_salaEditorData[_editorQueueId];
-  if(!d||!d.productosAdjuntos)return;
-  d.productosAdjuntos.splice(idx,1);
-  salaRenderProductosAdjuntos();
+  var qid=_editorQueueId;
+  fetch(API_URL+'/queue/'+qid+'/productos-adjuntos/'+encodeURIComponent(productoId),{
+    method:'DELETE',headers:getAuthHeaders()
+  }).then(function(r){return r.json();})
+    .then(function(j){
+      if(j.ok){
+        if(_salaEditorData[qid]) _salaEditorData[qid].productosAdjuntos=salaResolverProductosAdjuntosLocal(j.productos_adjuntos);
+        salaRenderProductosAdjuntos();
+      } else {
+        toast('Error: '+(j.error||''));
+      }
+    }).catch(function(e){toast('Error de red: '+e.message);});
 }
 function salaRenderProductosAdjuntos(){
   var el=document.getElementById('salaProductosAdjuntosList');if(!el)return;
@@ -6597,7 +6627,7 @@ function salaRenderProductosAdjuntos(){
       +'<span>'+(p.cantidad>1?p.cantidad+'x ':'')+escAttr(p.nombre)+'</span>'
       +'<span style="display:flex;align-items:center;gap:8px">'
       +'<b>$'+fmt(p.precio*p.cantidad)+'</b>'
-      +'<button onclick="salaQuitarProductoAdjunto('+i+')" style="background:none;border:none;color:var(--err);cursor:pointer;font-size:13px;padding:0 2px">✕</button>'
+      +'<button onclick="salaQuitarProductoAdjunto(\''+p.producto_id+'\')" style="background:none;border:none;color:var(--err);cursor:pointer;font-size:13px;padding:0 2px">✕</button>'
       +'</span></div>';
   }
   el.innerHTML=h;
