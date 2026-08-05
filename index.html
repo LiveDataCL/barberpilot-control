@@ -345,13 +345,19 @@
   .silla-nombre{font-weight:700;font-size:15px;letter-spacing:.01em}
   .silla-status-lbl{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-top:2px}
   .silla-body{padding:14px 16px}
-  .silla-timer{font-family:var(--mono);font-size:40px;font-weight:700;letter-spacing:.03em;margin:8px 0 4px;line-height:1}
+  .silla-timer{font-family:var(--mono);font-size:30px;font-weight:700;letter-spacing:.02em;margin:0;line-height:1}
   .silla-timer.warn{color:var(--warn)}
   .silla-timer.alert{color:var(--err)}
   .silla-client{font-size:15px;font-weight:600;margin-bottom:3px}
   .silla-svc{font-size:12px;color:var(--text2)}
   .silla-desde{font-size:11px;color:var(--text3);margin-top:8px}
-  .silla-remaining{font-size:11px;color:var(--text2);font-weight:600;margin-top:2px}
+  .silla-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}
+  .silla-stat{background:var(--soft);border-radius:var(--r);padding:10px 12px}
+  .silla-stat-label{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:4px}
+  .silla-restante{font-family:var(--mono);font-size:30px;font-weight:700;letter-spacing:.02em;line-height:1;color:var(--warn)}
+  .silla-stat-restante{background:rgba(201,168,76,.14)}
+  .silla-stat-restante.urgente{background:rgba(192,57,43,.10)}
+  .silla-stat-restante.urgente .silla-restante{color:var(--err)}
   .silla-next-banner{background:var(--text);color:#fff;border-radius:var(--rl);padding:18px 22px;margin-bottom:18px;display:flex;align-items:center;gap:18px}
   .silla-next-name{font-size:24px;font-weight:700;letter-spacing:.01em}
   .silla-next-label{font-size:10px;letter-spacing:.1em;text-transform:uppercase;opacity:.55;margin-bottom:3px}
@@ -6350,7 +6356,8 @@ function renderSillas(){
         var desde=sv.service_start
           ?new Date(sv.service_start).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'}):'—';
         var remainMin=bd.remaining_min;
-        var remainLbl=(remainMin==null)?'':(remainMin<=0?'Terminando':'Termina en ~'+remainMin+'min');
+        var restanteUrgente=(remainMin!=null && remainMin<=0);
+        var restanteTxt=(remainMin==null)?'—':(remainMin<=0?'Terminando':'~'+remainMin+'min');
         h+='<div class="silla-card ocupada">';
         h+='<div class="silla-head ocupada">';
         h+='<div><div class="silla-nombre">'+b.nombre+'</div>';
@@ -6360,8 +6367,16 @@ function renderSillas(){
         h+='<div class="silla-body">';
         h+='<div class="silla-client">'+sv.client_name+'</div>';
         h+='<div class="silla-svc">'+sv.service+'</div>';
+        h+='<div class="silla-stats">';
+        h+='<div class="silla-stat">';
+        h+='<div class="silla-stat-label">Transcurrido</div>';
         h+='<div class="silla-timer" id="stimer-'+b.id+'">—</div>';
-        if(remainLbl) h+='<div class="silla-remaining">'+remainLbl+'</div>';
+        h+='</div>';
+        h+='<div class="silla-stat silla-stat-restante'+(restanteUrgente?' urgente':'')+'">';
+        h+='<div class="silla-stat-label">Restante</div>';
+        h+='<div class="silla-restante">'+restanteTxt+'</div>';
+        h+='</div>';
+        h+='</div>';
         h+='<div class="silla-desde">En silla desde las '+desde+'</div>';
         if(sv.service_start) h+='<input type="hidden" id="sstart-'+b.id+'" value="'+sv.service_start+'">';
         h+='</div></div>';
