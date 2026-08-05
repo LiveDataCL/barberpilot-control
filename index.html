@@ -847,7 +847,7 @@
             <option value="Corte + Cejas">Corte + Cejas</option>
             <!-- s11 (Corte Express + Perfilado de barba) retired 2026-07-16 — removed, not just repriced. -->
           </select>
-          <input id="editor-precio" type="number" placeholder="Precio"
+          <input id="editor-precio" type="number" placeholder="Precio" oninput="salaEditorRecalcTotal()"
             style="padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--mono);background:var(--surface)"/>
         </div>
         <button onclick="salaActualizarServicio()"
@@ -855,12 +855,19 @@
 
         <div style="height:1px;background:var(--border);margin:16px 0"></div>
         <!-- Sección 3: productos adjuntos — additive, no reemplaza "Agregar
-             servicio extra" arriba. Staging local únicamente (sin llamada de
-             red); se envían junto con el checkout en salaCerrarServicio().
-             Comisión (10% plano) se calcula recién al registrar, en el
+             servicio extra" arriba. Persistido en el servidor de inmediato
+             (ver salaAdjuntarProducto/salaQuitarProductoAdjunto) — la comisión
+             (10% plano) se calcula recién al registrar, en el
              backend — ver docs/attach-product-to-ticket-design_2026-08-03.md. -->
         <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:10px">Adjuntar producto</div>
         <div id="salaProductosAdjuntosList" style="margin-bottom:8px"></div>
+        <!-- Total combinado: Precio (sección Servicio, arriba) + suma de
+             productos adjuntos (lista de arriba). Recalculado en vivo por
+             salaEditorRecalcTotal() — ver oninput en editor-precio y las
+             llamadas al final de salaRenderProductosAdjuntos(). -->
+        <div id="salaEditorTotalRow" style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--surface2);border:1.5px solid var(--border2);border-radius:var(--r);margin-bottom:12px;font-size:13px;font-weight:800;color:var(--text)">
+          <span>Total combinado (servicio + productos)</span><span id="salaEditorTotalValor">$0</span>
+        </div>
         <div style="display:flex;gap:8px;align-items:center">
           <select id="editor-producto" style="flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface);font-family:var(--sans)">
             <option value="">Elegir producto…</option>
@@ -5979,6 +5986,25 @@ function salaIniciarSiguiente(queue_id){
     }).catch(function(e){toast('Error: '+e.message);});
 }
 
+// Sum of attached-products lines (precio*cantidad each) — shared by the
+// card, the editor modal and the checkout confirm, so "total to collect"
+// is computed the same way everywhere instead of three separate copies.
+function salaSumaProductos(productos){
+  var t=0;
+  (productos||[]).forEach(function(p){t+=p.precio*p.cantidad;});
+  return t;
+}
+// Live-updates the "Total" line on a Sala de espera card as the Precio
+// input is edited — display-only, does not touch what gets submitted.
+function salaActualizarTotalCard(queue_id){
+  var precioEl=document.getElementById('prc-'+queue_id);
+  var totalEl=document.getElementById('total-'+queue_id);
+  if(!precioEl||!totalEl) return;
+  var precio=parseInt(precioEl.value)||0;
+  var d=_salaEditorData[queue_id]||{};
+  totalEl.textContent='Total: $'+fmt(precio+salaSumaProductos(d.productosAdjuntos));
+}
+
 function salaCerrarServicio(queue_id,bid,pago,propina,precio){
   if(!API_URL) return;
   // Resolve barber and editor data before showing the confirm
@@ -6000,16 +6026,19 @@ function salaCerrarServicio(queue_id,bid,pago,propina,precio){
     productosTotal+=_pTotal;productosTotalBB+=_pBB;
     productosLineas+='+ '+(_p.cantidad>1?_p.cantidad+'x ':'')+_p.nombre+': $'+fmt(_pTotal)+' (bb $'+fmt(_pBB)+')\n';
   }
-  var confirmMsg='─── RESUMEN DEL SERVICIO ───\n\n'
+  // Customer-facing charge = service Precio + attached-product prices.
+  // Deliberately excludes propina — that's an optional extra the customer
+  // adds on top, not part of the base amount to collect.
+  var totalCobrar=precioPreview+productosTotal;
+  var confirmMsg='★★★ TOTAL A COBRAR AL CLIENTE: $'+fmt(totalCobrar)+' ★★★\n\n'
     +'Cliente:   '+(ed.client_name||'—')+'\n'
     +'Barbero:   '+barber.nombre+'\n'
-    +'Servicio:  '+(ed.service||'—')+'\n'
-    +'Pago:      '+pago.charAt(0).toUpperCase()+pago.slice(1)+'\n'
-    +'Precio:    $'+fmt(precioPreview)+'\n'
-    +(propina>0?'Propina:   $'+fmt(propina)+'\n':'')
-    +(productosAdjuntos.length>0?'\nProductos adjuntos (10% comisión c/u):\n'+productosLineas:'')
-    +'\n'
-    +'→ Barbero recibe: $'+fmt(bbPreview)+(propina>0?' + propina $'+fmt(propina):'')+(productosAdjuntos.length>0?' + productos $'+fmt(productosTotalBB):'')+' = $'+fmt(bbPreview+propina+productosTotalBB)+'\n'
+    +'Pago:      '+pago.charAt(0).toUpperCase()+pago.slice(1)+'\n\n'
+    +'Servicio:  '+(ed.service||'—')+' — $'+fmt(precioPreview)+'\n'
+    +(productosAdjuntos.length>0?'Productos adjuntos (10% comisión c/u):\n'+productosLineas:'')
+    +(propina>0?'\nPropina (aparte, no incluida en el total a cobrar): $'+fmt(propina)+'\n':'')
+    +'\n--- Referencia interna (reparto de comisión, no es el monto a cobrar) ---\n'
+    +'Barbero recibe: $'+fmt(bbPreview)+(propina>0?' + propina $'+fmt(propina):'')+(productosAdjuntos.length>0?' + productos $'+fmt(productosTotalBB):'')+' = $'+fmt(bbPreview+propina+productosTotalBB)+'\n'
     +'Negocio retiene: $'+fmt(negPreview+(productosTotal-productosTotalBB))+'\n\n'
     +'¿Cerrar servicio y generar ticket?';
   if(!window.confirm(confirmMsg)) return;
@@ -6200,9 +6229,11 @@ function renderSala(){
             ?' + '+sv.productos_adjuntos.map(function(p){return (p.cantidad>1?p.cantidad+'x ':'')+p.nombre;}).join(' + ')
             :'');
           h+='<div style="font-size:12px;color:var(--text2)">'+_svcLabel+' · desde '+desde+'</div>';
+          var _svcTotal=(_salaEditorData[sv.queue_id].precio||0)+salaSumaProductos(sv.productos_adjuntos);
+          h+='<div id="total-'+sv.queue_id+'" style="font-size:13px;font-weight:800;color:var(--text);margin-top:2px">Total: $'+fmt(_svcTotal)+'</div>';
           h+='</div>';
           h+='<div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap">';
-          h+='<input id="prc-'+sv.queue_id+'" type="number" min="0" step="1000" ';
+          h+='<input id="prc-'+sv.queue_id+'" type="number" min="0" step="1000" oninput="salaActualizarTotalCard('+sv.queue_id+')" ';
           h+='value="'+(_salaEditorData[sv.queue_id]&&_salaEditorData[sv.queue_id].precio?_salaEditorData[sv.queue_id].precio:(SALA_PRECIOS[sv.service]||12000))+'" ';
           h+='style="width:84px;padding:6px 8px;border:1.5px solid var(--border2);border-radius:var(--r);font-size:12px;font-family:var(--mono);background:var(--surface)" title="Precio"/>';
           var _sp=_pagoSelections[sv.queue_id]||'efectivo';
@@ -6228,10 +6259,18 @@ function renderSala(){
             h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border)">';
             h+='<div style="font-size:13px"><span style="color:var(--text3);font-family:var(--mono);font-size:11px">'+(i+1)+'. </span>'+e.client_name+'</div>';
             h+='<div style="display:flex;align-items:center;gap:4px">';
-            var _esperaLabel=e.service+((e.productos_adjuntos&&e.productos_adjuntos.length)
+            var _esperaTieneProductos=e.productos_adjuntos&&e.productos_adjuntos.length>0;
+            var _esperaLabel=e.service+(_esperaTieneProductos
               ?' + '+e.productos_adjuntos.map(function(p){return (p.cantidad>1?p.cantidad+'x ':'')+p.nombre;}).join(' + ')
               :'');
-            h+='<div style="font-size:11px;color:var(--text2)">'+_esperaLabel+'</div>';
+            // Total shown only once a product is attached — with no product
+            // Precio and Total are identical, so skip the redundant line.
+            var _esperaTotalHtml='';
+            if(_esperaTieneProductos){
+              var _esperaTotal=(SALA_PRECIOS[e.service]||12000)+salaSumaProductos(e.productos_adjuntos);
+              _esperaTotalHtml=' — <span style="font-weight:800;color:var(--text)">Total: $'+fmt(_esperaTotal)+'</span>';
+            }
+            h+='<div style="font-size:11px;color:var(--text2)">'+_esperaLabel+_esperaTotalHtml+'</div>';
             h+='<button onclick="salaAbrirEditor('+e.queue_id+')" style="padding:2px 7px;font-size:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer">✏</button>';
             h+=salaWaHref(e.phone, e.client_name, b.nombre, false);
             h+='<button onclick="salaEliminarEntrada('+e.queue_id+')" style="padding:2px 6px;font-size:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;color:var(--err)">✕</button>';
@@ -6640,7 +6679,11 @@ function salaRenderProductosAdjuntos(){
   var el=document.getElementById('salaProductosAdjuntosList');if(!el)return;
   var d=_editorQueueId?_salaEditorData[_editorQueueId]:null;
   var list=(d&&d.productosAdjuntos)||[];
-  if(list.length===0){el.innerHTML='<div style="font-size:11px;color:var(--text3);font-style:italic;padding:2px 0">Sin productos adjuntos aún.</div>';return;}
+  if(list.length===0){
+    el.innerHTML='<div style="font-size:11px;color:var(--text3);font-style:italic;padding:2px 0">Sin productos adjuntos aún.</div>';
+    salaEditorRecalcTotal();
+    return;
+  }
   var h='';
   for(var i=0;i<list.length;i++){
     var p=list[i];
@@ -6652,11 +6695,25 @@ function salaRenderProductosAdjuntos(){
       +'</span></div>';
   }
   el.innerHTML=h;
+  salaEditorRecalcTotal();
+}
+
+// Total combinado shown in the editor: Precio (service, independently
+// editable — e.g. for a negotiated matizado de canas price) + sum of
+// attached-product lines. Recalculated on every product add/remove
+// (called from salaRenderProductosAdjuntos above) and on every Precio
+// edit (oninput on editor-precio) — never left stale.
+function salaEditorRecalcTotal(){
+  var el=document.getElementById('salaEditorTotalValor');if(!el)return;
+  var precio=parseInt(document.getElementById('editor-precio').value)||0;
+  var d=_editorQueueId?_salaEditorData[_editorQueueId]:null;
+  el.textContent='$'+fmt(precio+salaSumaProductos(d&&d.productosAdjuntos));
 }
 
 function salaEditorAutoPreio(){
   var svc=document.getElementById('editor-svc').value;
   if(svc) document.getElementById('editor-precio').value=SALA_PRECIOS[svc]||'';
+  salaEditorRecalcTotal();
 }
 
 function salaGuardarCliente(){
