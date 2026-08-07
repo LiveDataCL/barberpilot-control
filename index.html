@@ -1119,6 +1119,9 @@
     </div>
     <div class="pane" id="pClientes">
       <div style="padding-bottom:40px">
+        <div style="margin-bottom:10px">
+          <input id="clientesSearchInput" type="text" class="staff-input" placeholder="Buscar por nombre o teléfono…" oninput="clientesOnSearchInput(this.value)" style="max-width:320px">
+        </div>
         <div class="fbar" style="margin-bottom:6px;flex-wrap:wrap">
           <span style="font-size:11px;color:var(--text3);align-self:center;margin-right:2px">Barbero:</span>
           <div id="clientesBarberoFilters" style="display:contents"></div>
@@ -7448,6 +7451,33 @@ var _clientesColSort='dias_desde_ultima', _clientesColSortDir='asc';
 var _clientesSortedList=[];
 var _clientesPage=1;
 var CLIENTES_PAGE_SIZE=30;
+// Client-side search (nombre + telefono) — additional filter step applied
+// after the column sort, before the page slice (see renderClientesSorted).
+// Debounced so large lists don't re-filter on every keystroke.
+var _clientesSearchText='';
+var _clientesSearchDebounceTimer=null;
+function clientesOnSearchInput(val){
+  clearTimeout(_clientesSearchDebounceTimer);
+  _clientesSearchDebounceTimer=setTimeout(function(){
+    _clientesSearchText=(val||'').trim();
+    _clientesPage=1;
+    renderClientesSorted();
+  },250);
+}
+// Strips spaces, hyphens, and a leading +56 so "91234" matches a stored
+// "+56 9 1234 5678" — comparison-only, never changes the displayed value.
+function clientesNormalizePhone(s){
+  return (s||'').replace(/[\s-]/g,'').replace(/^\+56/,'');
+}
+function clientesMatchesSearch(c){
+  if(!_clientesSearchText)return true;
+  var q=_clientesSearchText.toLowerCase();
+  if((c.nombre||'').toLowerCase().indexOf(q)!==-1)return true;
+  var qPhone=clientesNormalizePhone(_clientesSearchText);
+  if(!qPhone)return false; // e.g. search text is just "+56" — normalizes to '', and
+                            // ''.indexOf('')===0 would otherwise false-match every client
+  return clientesNormalizePhone(c.telefono).indexOf(qPhone)!==-1;
+}
 var CLIENTES_SORT_COLUMNS={
   nombre:        function(c){return (c.nombre||'').toLowerCase();},
   telefono:      function(c){return c.telefono||'';},
@@ -7484,7 +7514,7 @@ function renderClientesSorted(){
       return 0;
     });
   }
-  _clientesSortedList=sorted;
+  _clientesSortedList=sorted.filter(clientesMatchesSearch);
   renderClientesPage();
 }
 function renderClientesPage(){
@@ -7635,7 +7665,10 @@ function clientesWaButtons(c){
 function renderClientesTable(list){
   var content=document.getElementById('clientesContent');if(!content)return;
   if(!list.length){
-    content.innerHTML='<div class="empty"><div class="empty-ico">👤</div><div>Sin clientes para este filtro.</div></div>';
+    var emptyMsg=_clientesSearchText
+      ? 'No se encontraron clientes con ese nombre o teléfono.'
+      : 'Sin clientes para este filtro.';
+    content.innerHTML='<div class="empty"><div class="empty-ico">👤</div><div>'+emptyMsg+'</div></div>';
     return;
   }
   var sortTh=function(col,label,alignRight){
