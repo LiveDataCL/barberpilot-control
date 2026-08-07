@@ -178,12 +178,24 @@
   .fb{padding:5px 11px;border:1px solid var(--border);border-radius:20px;background:var(--surface);font-size:12px;cursor:pointer;transition:all .12s;font-family:var(--sans)}
   .fb:hover{border-color:var(--text)}
   .fb.on{background:var(--text);color:#fff;border-color:var(--text)}
+  .fb:disabled{opacity:.4;cursor:not-allowed}
+  .fb:disabled:hover{border-color:var(--border)}
 
   .rt{width:100%;border-collapse:collapse}
   .rt th{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);padding:7px 9px;text-align:left;border-bottom:1px solid var(--border)}
   .rt td{padding:8px 9px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle}
   .rt tr:last-child td{border-bottom:none}
   .rt tr:hover td{background:var(--surface2)}
+
+  /* Clientes tab only — bounded-height scroll region with a sticky <thead>,
+     scoped via this wrapper rather than touching .rt globally (.rt is
+     shared with the registros/checkout-history table and others). Filters
+     above #clientesContent stay visible "for free": with pagination capping
+     rows at CLIENTES_PAGE_SIZE, the table's own scrollbar handles overflow
+     instead of the outer .pr-panel, so the page rarely needs to scroll past
+     the filter bars at all. */
+  .clientes-table-wrap{max-height:calc(100vh - 300px);min-height:240px;overflow:auto;border:1px solid var(--border);border-radius:var(--r)}
+  .clientes-table-wrap thead th{position:sticky;top:0;background:var(--surface);z-index:1}
 
   .badge{display:inline-block;padding:2px 7px;border-radius:20px;font-size:11px;font-weight:500}
   .be{background:#e6f4ea;color:#1a6b3a} .bd{background:#e8eef8;color:#1a4b8b} .btr{background:#fef9e7;color:#8b5e00}
@@ -1126,6 +1138,7 @@
         </div>
         <div id="clientesSummary" style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.6"></div>
         <div id="clientesContent"></div>
+        <div id="clientesPagination" style="display:flex;gap:8px;align-items:center;margin-top:10px"></div>
       </div>
     </div>
     <div class="pane" id="pAgenda" style="margin:-18px;overflow:hidden">
@@ -7428,6 +7441,13 @@ var _clientesBarberoSel='', _clientesConfianzaSel='', _clientesSortSel='dias_des
 // agree instead of only coincidentally matching via this client-side sort.
 var _clientesCurrentList=[];
 var _clientesColSort='dias_desde_ultima', _clientesColSortDir='asc';
+// Client-side pagination — applies after both the server-side filters
+// (barbero_id/confianza/sort_by, refetched in renderClientesPanel) and the
+// column-header sort above. _clientesSortedList always holds the full
+// filtered+sorted array so Prev/Next can re-slice without re-sorting.
+var _clientesSortedList=[];
+var _clientesPage=1;
+var CLIENTES_PAGE_SIZE=30;
 var CLIENTES_SORT_COLUMNS={
   nombre:        function(c){return (c.nombre||'').toLowerCase();},
   telefono:      function(c){return c.telefono||'';},
@@ -7446,6 +7466,7 @@ function clientesSortClick(col){
     _clientesColSort=col;
     _clientesColSortDir='asc';
   }
+  _clientesPage=1;
   renderClientesSorted();
 }
 function clientesSortIndicator(col){
@@ -7463,7 +7484,37 @@ function renderClientesSorted(){
       return 0;
     });
   }
-  renderClientesTable(sorted);
+  _clientesSortedList=sorted;
+  renderClientesPage();
+}
+function renderClientesPage(){
+  var total=_clientesSortedList.length;
+  var totalPages=Math.max(1,Math.ceil(total/CLIENTES_PAGE_SIZE));
+  if(_clientesPage>totalPages)_clientesPage=totalPages;
+  if(_clientesPage<1)_clientesPage=1;
+  var start=(_clientesPage-1)*CLIENTES_PAGE_SIZE;
+  renderClientesTable(_clientesSortedList.slice(start,start+CLIENTES_PAGE_SIZE));
+  renderClientesPagination(total,totalPages);
+}
+function clientesPrevPage(){
+  if(_clientesPage<=1)return;
+  _clientesPage--;
+  renderClientesPage();
+}
+function clientesNextPage(){
+  var totalPages=Math.max(1,Math.ceil(_clientesSortedList.length/CLIENTES_PAGE_SIZE));
+  if(_clientesPage>=totalPages)return;
+  _clientesPage++;
+  renderClientesPage();
+}
+function renderClientesPagination(total,totalPages){
+  var el=document.getElementById('clientesPagination');if(!el)return;
+  if(total<=CLIENTES_PAGE_SIZE){el.innerHTML='';return;}
+  var start=total===0?0:(_clientesPage-1)*CLIENTES_PAGE_SIZE+1;
+  var end=Math.min(_clientesPage*CLIENTES_PAGE_SIZE,total);
+  el.innerHTML='<button type="button" class="fb" onclick="clientesPrevPage()"'+(_clientesPage<=1?' disabled':'')+'>‹ Anterior</button>'
+    +'<span style="font-size:12px;color:var(--text2)">'+start+'–'+end+' de '+total+' &middot; Página '+_clientesPage+' de '+totalPages+'</span>'
+    +'<button type="button" class="fb" onclick="clientesNextPage()"'+(_clientesPage>=totalPages?' disabled':'')+'>Siguiente ›</button>';
 }
 
 function buildClientesBarberoFilters(){
@@ -7499,6 +7550,7 @@ function clientesSetSort(v,el){
 
 function renderClientesPanel(){
   buildClientesBarberoFilters();
+  _clientesPage=1; // any (re)fetch here means a filter/sort_by changed (or initial load) — always back to page 1
   var jwt=sessionStorage.getItem('panelJwt');
   var content=document.getElementById('clientesContent');
   var summaryEl=document.getElementById('clientesSummary');
@@ -7610,7 +7662,7 @@ function renderClientesTable(list){
       +'</tr>';
   }
   h+='</tbody></table>';
-  content.innerHTML=h;
+  content.innerHTML='<div class="clientes-table-wrap">'+h+'</div>';
 }
 
 // ═══ AGENDA: BADGE + NOTIFICACIONES PRÓXIMAS ═════════════
