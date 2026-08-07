@@ -1213,6 +1213,23 @@
   </div>
 </div>
 
+<!-- CLIENTE HISTORIAL MODAL — per-client service history, opened from a
+     clickable nombre in renderClientesTable() when cliente_real_id is
+     resolved. Reuses the hist-overlay/hist-modal classes, same modal
+     convention as Histórico/WhatsApp Plantilla above. -->
+<div class="hist-overlay" id="clienteHistorialOverlay">
+  <div class="hist-modal" style="width:600px">
+    <div class="hist-title">
+      <span id="clienteHistorialTitle">Historial de cliente</span>
+      <span style="cursor:pointer;color:var(--text3);font-size:20px" onclick="cerrarClienteHistorial()">✕</span>
+    </div>
+    <div id="clienteHistorialBody"></div>
+    <div style="margin-top:14px;text-align:right">
+      <button onclick="cerrarClienteHistorial()" style="padding:8px 18px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);font-family:var(--sans);font-size:13px;cursor:pointer">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <div id="printArea"></div>
 <div class="toastel" id="toastel"></div>
 <div class="alerta-stack" id="alertaStack"></div>
@@ -7681,8 +7698,11 @@ function renderClientesTable(list){
     +'</tr></thead><tbody>';
   for(var i=0;i<list.length;i++){
     var c=list[i];
+    var nombreCell=c.cliente_real_id
+      ? '<span style="cursor:pointer;text-decoration:underline;color:var(--info)" data-cid="'+escAttr(c.cliente_real_id)+'" data-nombre="'+escAttr(c.nombre)+'" data-intervalo="'+(c.intervalo_mediano_dias!=null?c.intervalo_mediano_dias:'')+'" onclick="abrirClienteHistorial(this)">'+escAttr(c.nombre)+'</span>'
+      : escAttr(c.nombre);
     h+='<tr>'
-      +'<td style="font-weight:500">'+escAttr(c.nombre)+'</td>'
+      +'<td style="font-weight:500">'+nombreCell+'</td>'
       +'<td style="font-family:var(--mono);color:var(--text2)">'+(c.telefono?escAttr(c.telefono):'<span style="color:var(--text3)">sin teléfono</span>')+'</td>'
       +'<td>'+clientesConfianzaBadge(c.confianza_identidad)+'</td>'
       +'<td>'+escAttr(clientesBarberoNombre(c.ultimo_barbero))+'</td>'
@@ -7696,6 +7716,67 @@ function renderClientesTable(list){
   }
   h+='</tbody></table>';
   content.innerHTML='<div class="clientes-table-wrap">'+h+'</div>';
+}
+
+// ── Cliente historial modal ──────────────────────────────────────────────
+// intervalo_mediano_dias comes from the already-fetched /clientes/recurrencia
+// row (computeClienteRecurrencia in barberpilot-api only computes it once a
+// client has 3+ visits; otherwise it's null) — passed in via data-intervalo
+// rather than recomputed, per the task's instruction not to duplicate that
+// logic client-side.
+var _clienteHistorialIntervalo=null;
+function abrirClienteHistorial(el){
+  var cid=el.dataset.cid;
+  var nombre=el.dataset.nombre;
+  _clienteHistorialIntervalo=el.dataset.intervalo?Number(el.dataset.intervalo):null;
+  document.getElementById('clienteHistorialTitle').textContent=nombre;
+  document.getElementById('clienteHistorialBody').innerHTML='<div class="empty"><div class="empty-ico">⟳</div><div>Cargando…</div></div>';
+  document.getElementById('clienteHistorialOverlay').classList.add('on');
+  var jwt=sessionStorage.getItem('panelJwt');
+  if(!jwt){
+    document.getElementById('clienteHistorialBody').innerHTML='<div class="empty"><div class="empty-ico">🔒</div><div>Sesión de panel requerida para ver el historial.</div></div>';
+    return;
+  }
+  fetch(API_URL+'/clientes/'+encodeURIComponent(cid),{headers:{'Authorization':'Bearer '+jwt}})
+    .then(function(r){
+      if(!r.ok)throw new Error('http_'+r.status);
+      return r.json();
+    })
+    .then(function(j){
+      if(!j.ok)throw new Error(j.error||'error');
+      renderClienteHistorial(j.registros||[]);
+    })
+    .catch(function(){
+      document.getElementById('clienteHistorialBody').innerHTML='<div class="empty"><div class="empty-ico">⚠</div><div>Error al cargar el historial. Cierra e intenta de nuevo.</div></div>';
+    });
+}
+function cerrarClienteHistorial(){
+  document.getElementById('clienteHistorialOverlay').classList.remove('on');
+}
+function renderClienteHistorial(registros){
+  var h='';
+  if(_clienteHistorialIntervalo!=null){
+    h+='<div style="font-size:12px;color:var(--text2);margin-bottom:12px">Frecuencia promedio: cada '+_clienteHistorialIntervalo+' días</div>';
+  }
+  if(!registros.length){
+    h+='<div class="empty"><div class="empty-ico">👤</div><div>Sin servicios registrados.</div></div>';
+    document.getElementById('clienteHistorialBody').innerHTML=h;
+    return;
+  }
+  h+='<table class="rt"><thead><tr><th>Fecha</th><th>Servicio</th><th style="text-align:right">Precio</th><th>Barbero</th><th>Pago</th></tr></thead><tbody>';
+  for(var i=0;i<registros.length;i++){
+    var r=registros[i];
+    var bc=r.pago==='efectivo'?'be':r.pago==='debito'?'bd':'btr';
+    h+='<tr>'
+      +'<td style="font-family:var(--mono);color:var(--text2)">'+escAttr(r.fecha_display)+'</td>'
+      +'<td>'+escAttr(r.snom)+'</td>'
+      +'<td style="text-align:right;font-family:var(--mono);font-weight:600">$'+fmt(r.precio)+'</td>'
+      +'<td>'+escAttr(r.bnom)+'</td>'
+      +'<td><span class="badge '+bc+'">'+escAttr(r.pago)+'</span></td>'
+      +'</tr>';
+  }
+  h+='</tbody></table>';
+  document.getElementById('clienteHistorialBody').innerHTML=h;
 }
 
 // ═══ AGENDA: BADGE + NOTIFICACIONES PRÓXIMAS ═════════════
