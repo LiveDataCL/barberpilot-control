@@ -228,6 +228,7 @@
   .alerta-card{background:#1a3a1a;border:1px solid #2d6e2d;border-left:4px solid #4caf50;border-radius:var(--rl);padding:12px 14px;color:#fff;box-shadow:0 4px 16px rgba(0,0,0,.35);animation:alerta-in .25s ease;display:flex;flex-direction:column;gap:4px}
   .alerta-card.agenda{background:#1a2b3a;border-color:#2d5e8e;border-left-color:#4a9fd4}
   .alerta-card.whatsapp{background:#0f2b1f;border-color:#1d6b45;border-left-color:#25d366}
+  .alerta-card.llegada{background:#3a2408;border-color:#8a5a1d;border-left-color:#f5a623}
   .alerta-card-top{display:flex;align-items:center;gap:8px}
   .alerta-ico{font-size:18px;flex-shrink:0}
   .alerta-bnom{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.75}
@@ -7779,59 +7780,93 @@ function renderClienteHistorial(registros){
   document.getElementById('clienteHistorialBody').innerHTML=h;
 }
 
-// ═══ AGENDA: BADGE + NOTIFICACIONES PRÓXIMAS ═════════════
-function actualizarBadgeAgenda(){
+// ═══ AGENDA: BADGE + BANNER DE LLEGADA ═══════════════════════════════════
+// Reemplaza a actualizarBadgeAgenda()/mostrarAlertaAgenda(): esas funciones
+// esperaban un array crudo de GET /appointments (`Array.isArray(list)`), pero
+// la API real siempre devolvió {ok,appointments,total} — un objeto, nunca un
+// array — así que esa función jamás ejecutó su cuerpo contra producción
+// (badge y toast quedaron muertos desde siempre, no es una regresión de esta
+// tarea). Este reemplazo usa GET /appointments/proximity (forma de respuesta
+// confirmada en vivo) y calcula localmente, a partir de hora_inicio, si una
+// cita ya "llegó" (hora pasada, dentro de los últimos 30 min) —
+// notified_15min/alerta_llegada_enviada_en no se usan como señal en vivo,
+// solo llegan en la respuesta como referencia.
+// El caso "próxima" (≤15 min antes) queda EXCLUSIVAMENTE a cargo del sistema
+// SSE existente (iniciarSSE/mostrarAlerta15, tarjeta azul .alerta-card.agenda)
+// — decisión de César para no mostrar dos tarjetas casi idénticas para la
+// misma cita. Este poller solo cubre "llegada", que no existía antes.
+var _llegadaActivas = {}; // appointment id → nodo DOM mostrado
+
+function _llegadaDismissKey(id){ return 'agenda_llegada_dismissed_'+id; }
+
+function checkProximidadCitas(){
   if(!API_URL) return;
-  fetch(API_URL+'/appointments?fecha='+fechaHoy)
+  fetch(API_URL+'/appointments/proximity?fecha='+fechaStr(new Date()))
     .then(function(r){ return r.json(); })
-    .then(function(list){
-      if(!Array.isArray(list)) return;
+    .then(function(j){
+      if(!j || !j.ok || !Array.isArray(j.appointments)) return;
       var now=new Date(), nowM=now.getHours()*60+now.getMinutes();
-      var prox=list.filter(function(a){
-        if(a.estado==='cancelado'||a.estado==='completado'||a.estado==='en_curso') return false;
-        var hi=(a.hora_inicio||a.hora||'').slice(0,5);
-        if(!hi) return false;
+      var vigentes={}; // ids cuya condición "llegada" todavía se cumple en este poll
+
+      j.appointments.forEach(function(a){
+        var hi=(a.hora_inicio||'').slice(0,5);
+        if(!hi) return;
         var p=hi.split(':'); var aptM=parseInt(p[0])*60+parseInt(p[1]);
-        return aptM>=nowM && aptM<=nowM+60;
+        var diff=aptM-nowM; // negativo = ya pasó la hora de inicio
+        if(!(diff<0 && diff>=-30)) return; // fuera de la ventana de "llegada"
+
+        vigentes[a.id]=true;
+        if(localStorage.getItem(_llegadaDismissKey(a.id))) return; // ya reconocida por el usuario
+        if(_llegadaActivas[a.id]) return; // ya visible
+        _llegadaActivas[a.id]=mostrarAlertaProximidad(a, hi);
       });
+
+      // Retirar tarjetas cuya condición ya no se cumple (la cita salió de la
+      // ventana, cambió de estado, o ya no aparece en la respuesta)
+      Object.keys(_llegadaActivas).forEach(function(id){
+        if(!vigentes[id]){
+          var node=_llegadaActivas[id];
+          if(node && node.parentNode) node.remove();
+          delete _llegadaActivas[id];
+        }
+      });
+
       var badge=document.getElementById('badgeAgenda');
       if(badge){
-        badge.textContent=prox.length;
-        badge.style.display=prox.length>0?'inline-block':'none';
+        var n=Object.keys(vigentes).length;
+        badge.textContent=n;
+        badge.style.display=n>0?'inline-block':'none';
       }
-      // Toast de alerta para citas en ≤ 15 min (una vez por sesión por cita)
-      prox.forEach(function(a){
-        var hi=(a.hora_inicio||a.hora||'').slice(0,5);
-        var p=hi.split(':'); var aptM=parseInt(p[0])*60+parseInt(p[1]);
-        if(aptM-nowM>15) return;
-        var key='agenda_notif_'+a.id;
-        if(sessionStorage.getItem(key)) return;
-        sessionStorage.setItem(key,'1');
-        mostrarAlertaAgenda(a.client_name||'Cliente', hi, a.svc_nom||a.service||'Cita');
-      });
     })
     .catch(function(){});
 }
 
-function mostrarAlertaAgenda(nombre, hora, servicio){
+function mostrarAlertaProximidad(a, hi){
   var stack=document.getElementById('alertaStack');
-  if(!stack) return;
+  if(!stack) return null;
   var div=document.createElement('div');
-  div.className='alerta-card agenda';
+  div.className='alerta-card llegada';
   div.innerHTML='<div class="alerta-card-top">'
-    +'<span class="alerta-ico">📅</span>'
+    +'<span class="alerta-ico">🔔</span>'
     +'<div style="flex:1">'
-    +'<div class="alerta-bnom">Agenda · '+hora+'</div>'
-    +'<div class="alerta-main">'+nombre+' — '+servicio+'</div>'
-    +'<div class="alerta-meta">Cita próxima — revisa agenda</div>'
+    +'<div class="alerta-bnom">🔔 Hora de llegada</div>'
+    +'<div class="alerta-main">'+escHtml(a.client_name||'Cliente')+' — '+escHtml(a.svc_nom||'')+'</div>'
+    +'<div class="alerta-meta">'+hi+(a.bnom?' · '+escHtml(a.bnom):'')+'</div>'
     +'</div>'
-    +'<button class="alerta-close" onclick="this.closest(\'.alerta-card\').remove()">✕</button>'
+    +'<button class="alerta-close" onclick="proximidadDismiss(\''+a.id+'\')">✕</button>'
     +'</div>'
-    +'<button onclick="showTabById(\'pAgenda\');this.closest(\'.alerta-card\').remove()" '
-    +'style="margin-top:8px;width:100%;padding:7px;background:#4a9fd4;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.04em;font-family:var(--sans)">'
+    +'<button onclick="showTabById(\'pAgenda\');proximidadDismiss(\''+a.id+'\')" '
+    +'style="margin-top:8px;width:100%;padding:7px;background:#f5a623;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.04em;font-family:var(--sans)">'
     +'📅 VER EN AGENDA</button>';
   stack.appendChild(div);
-  setTimeout(function(){ if(div.parentNode) div.remove(); }, 30000);
+  return div;
+}
+
+function proximidadDismiss(id){
+  localStorage.setItem(_llegadaDismissKey(id),'1');
+  var node=_llegadaActivas[id];
+  if(node && node.parentNode) node.remove();
+  delete _llegadaActivas[id];
 }
 
 // ── Escucha mensajes del iframe de Agenda ────────────────
@@ -8277,8 +8312,8 @@ function mostrarAlertaWhatsapp(label){
 
 // ═══ ARRANCAR ════════════════════════════════════════════
 init();
-actualizarBadgeAgenda();
-setInterval(actualizarBadgeAgenda, 120000);
+checkProximidadCitas();
+setInterval(checkProximidadCitas, 25000);
 waPoll();
 setInterval(waPoll, 25000);
 ;(function(){
