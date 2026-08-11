@@ -3322,14 +3322,21 @@ function renderCaja(){
   var totalBB = 0;
   for(var i=0;i<regs.length;i++) totalBB += regs[i].bb;
 
-  if(regs.length===0){
-    c.innerHTML='<div class="empty"><div class="empty-ico">💰</div>'
-      +'<div style="font-size:15px;font-weight:600;color:var(--text2);margin-bottom:6px">Sin registros</div>'
-      +'<div style="font-size:13px;color:var(--text3)">Registra servicios para ver el cierre de caja.</div></div>';
-    return;
-  }
-
   var h='';
+
+  // La pestaña ya NO se bloquea cuando regs.length===0 (antes: un
+  // return temprano reemplazaba todo el contenido, incluido el
+  // formulario de gastos, con un mensaje "Sin registros" — impedía
+  // registrar un gasto antes del primer servicio del día, ej. comprar
+  // insumos temprano en la mañana). El resto de esta función ya maneja
+  // regs=[] con seguridad (todo son .filter()/loops sobre el array, sin
+  // divisiones por regs.length ni acceso directo a regs[0]), así que
+  // basta con avisar — no bloquear — cuando todavía no hay servicios.
+  if(regs.length===0){
+    h+='<div style="background:var(--info-soft);border:1px solid rgba(26,75,139,.25);color:var(--info);border-radius:var(--r);padding:10px 14px;font-size:12px;margin-bottom:14px">'
+      +'ℹ Aún no hay servicios registrados hoy — las cifras de facturación y liquidación de barberos parten en $0 y se actualizan solas apenas se registre el primer servicio. Puedes agregar gastos desde ahora.'
+      +'</div>';
+  }
 
   // ── BASE ──
   h+='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">'
