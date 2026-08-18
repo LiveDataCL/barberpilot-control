@@ -3518,7 +3518,6 @@ function renderCaja(){
     +'<button onclick="printCaja()" style="padding:11px 20px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer">🖨 Ticket 58mm (barberos)</button>'
     +'<button onclick="printCajaA4()" style="padding:11px 20px;background:var(--surface);color:var(--text);border:1.5px solid var(--text);border-radius:var(--r);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer">📄 Resumen A4 (socios)</button>'
     +'<button id="btnCopiarCierre" onclick="copiarTextoCierre()" style="padding:11px 20px;background:var(--surface);color:var(--text);border:1.5px solid var(--text);border-radius:var(--r);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer">📋 Copiar texto</button>'
-    +'<button onclick="enviarCierrePorWhatsapp()" style="padding:11px 20px;background:#25D366;color:#fff;border:none;border-radius:var(--r);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer">📲 Enviar por WhatsApp</button>'
     +'</div>';
 
   c.innerHTML=h;
@@ -3671,13 +3670,6 @@ function copiarTextoCierre(){
   } else {
     copiarTextoFallback(texto,marcarCopiado);
   }
-}
-
-function enviarCierrePorWhatsapp(){
-  var texto=textoCierreWhatsapp();
-  // La API de WhatsApp Cloud no puede enviar a grupos, y wa.me tampoco permite
-  // preseleccionar un grupo — el usuario elige el destinatario manualmente.
-  window.open('https://wa.me/?text='+encodeURIComponent(texto),'_blank');
 }
 
 function cambiarBase(val){
