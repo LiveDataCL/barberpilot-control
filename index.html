@@ -3181,6 +3181,7 @@ function exportCSV(){
 // ═══ CIERRE DE CAJA ═══════════════════════════════════════
 var BASE_CAJA = 50000;       // actual cash in drawer at start of day (user-editable)
 var BASE_MINIMA = 50000;     // theoretical fixed minimum — always leave this in the drawer
+var AJUSTE_CAJA = 0;         // signed manual adjustment vs. BASE_MINIMA — resets to 0 every new date, never carried over
 var gastos = [];
 var liquidaciones = {}; // {barberoId: {efectivo, transferencia, pendiente}}
 
@@ -3225,6 +3226,16 @@ function cargarGastos(){
     var b = localStorage.getItem('sfsf_base_caja_'+fechaHoy);
     if(b) BASE_CAJA = parseInt(b)||50000;
   }catch(e){}
+  try{
+    var a = localStorage.getItem('sfsf_ajuste_caja_'+fechaHoy);
+    AJUSTE_CAJA = a?(parseInt(a)||0):0;
+  }catch(e){ AJUSTE_CAJA=0; }
+}
+
+function cambiarAjuste(val){
+  AJUSTE_CAJA = parseInt(val)||0;
+  try{ localStorage.setItem('sfsf_ajuste_caja_'+fechaHoy, AJUSTE_CAJA); }catch(e){}
+  cambiarBase(BASE_MINIMA + AJUSTE_CAJA); // reuses existing cambiarBase() flow — keeps baseInput and all downstream calcs in sync
 }
 
 function guardarLiquidaciones(){
@@ -3344,6 +3355,11 @@ function renderCaja(){
     +'<label>Base inicial efectivo:</label>'
     +'<input type="number" id="baseInput" value="'+BASE_CAJA+'" step="1000" onchange="cambiarBase(this.value)" />'
     +'<span style="font-size:12px;color:var(--text3)">$'+fmt(BASE_CAJA)+' al inicio del día</span>'
+    +'</div>'
+    +'<div class="caja-base-input" style="margin-bottom:0;flex:1;min-width:280px">'
+    +'<label>Ajuste vs. base estándar ($'+fmt(BASE_MINIMA)+'):</label>'
+    +'<input type="number" id="ajusteInput" value="'+(AJUSTE_CAJA||'')+'" step="1000" placeholder="0" onchange="cambiarAjuste(this.value)" />'
+    +'<span style="font-size:12px;color:var(--text3)">'+(AJUSTE_CAJA<0?'$'+fmt(Math.abs(AJUSTE_CAJA))+' pendiente de cierre anterior':AJUSTE_CAJA>0?'$'+fmt(AJUSTE_CAJA)+' de excedente de cierre anterior':'sin ajuste — parte en $'+fmt(BASE_MINIMA))+'</span>'
     +'</div>'
     +'</div>';
 
@@ -3501,6 +3517,8 @@ function renderCaja(){
   h+='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px">'
     +'<button onclick="printCaja()" style="padding:11px 20px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer">🖨 Ticket 58mm (barberos)</button>'
     +'<button onclick="printCajaA4()" style="padding:11px 20px;background:var(--surface);color:var(--text);border:1.5px solid var(--text);border-radius:var(--r);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer">📄 Resumen A4 (socios)</button>'
+    +'<button id="btnCopiarCierre" onclick="copiarTextoCierre()" style="padding:11px 20px;background:var(--surface);color:var(--text);border:1.5px solid var(--text);border-radius:var(--r);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer">📋 Copiar texto</button>'
+    +'<button onclick="enviarCierrePorWhatsapp()" style="padding:11px 20px;background:#25D366;color:#fff;border:none;border-radius:var(--r);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer">📲 Enviar por WhatsApp</button>'
     +'</div>';
 
   c.innerHTML=h;
@@ -3580,9 +3598,93 @@ function renderResumenFinal(){
   el.innerHTML=h;
 }
 
+// ── TEXTO WHATSAPP / COPIAR ──────────────────────────────
+function textoCierreWhatsapp(){
+  var totE=0,totD=0,totT=0,cntE=0,cntD=0,cntT=0;
+  for(var i=0;i<regs.length;i++){
+    if(regs[i].pago==='efectivo'){totE+=regs[i].precio;cntE++;}
+    else if(regs[i].pago==='debito'){totD+=regs[i].precio;cntD++;}
+    else if(regs[i].pago==='transferencia'){totT+=regs[i].precio;cntT++;}
+  }
+  var totalGastosW=0;
+  for(var i=0;i<gastos.length;i++) totalGastosW+=gastos[i].monto;
+
+  var totalPagoEfectivoW=0;
+  var activeBBW=BB.filter(function(b){return b.active!==false;});
+  for(var i=0;i<activeBBW.length;i++){
+    var liq=liquidaciones[activeBBW[i].id]||{efectivo:0,transferencia:0};
+    totalPagoEfectivoW+=liq.efectivo;
+  }
+
+  var cajaFinalW = BASE_CAJA + totE - totalPagoEfectivoW - totalGastosW;
+  var aDepositarW = cajaFinalW - BASE_MINIMA;
+
+  var lineas=[];
+  var lineaBase='Base inicial en caja\t$'+fmt(BASE_CAJA);
+  if(AJUSTE_CAJA<0) lineaBase+=' (Incluye $'+fmt(Math.abs(AJUSTE_CAJA))+' de ajuste pendiente de cierre anterior)';
+  else if(AJUSTE_CAJA>0) lineaBase+=' (Incluye $'+fmt(AJUSTE_CAJA)+' de excedente de cierre anterior)';
+  lineas.push(lineaBase);
+  lineas.push('');
+  lineas.push('*Cobros del día*');
+  lineas.push('💵 Efectivo\t'+cntE+' servicios\t$'+fmt(totE));
+  lineas.push('💳 POS Mercado Pago (débito)\t'+cntD+' servicios\t$'+fmt(totD));
+  lineas.push('📲 Transferencia\t'+cntT+' servicios\t$'+fmt(totT));
+  lineas.push('*TOTAL FACTURADO*\t*$'+fmt(totE+totD+totT)+'*');
+  lineas.push('');
+  lineas.push('*Gastos del día*');
+  for(var i=0;i<gastos.length;i++) lineas.push(gastos[i].desc+'\t−$'+fmt(gastos[i].monto));
+  lineas.push('*Total gastos*\t−$'+fmt(totalGastosW));
+  if(aDepositarW>0){
+    lineas.push('');
+    lineas.push('✓ *Retirar $'+fmt(aDepositarW)+' del cajón y depositar*');
+  } else if(aDepositarW<0){
+    lineas.push('');
+    lineas.push('⚠️ *Reponer $'+fmt(Math.abs(aDepositarW))+' en caja*');
+  }
+  return lineas.join('\n');
+}
+
+function copiarTextoFallback(texto, cb){
+  var ta=document.createElement('textarea');
+  ta.value=texto;
+  ta.style.position='fixed';
+  ta.style.opacity='0';
+  document.body.appendChild(ta);
+  ta.focus();ta.select();
+  try{ document.execCommand('copy'); }catch(e){}
+  document.body.removeChild(ta);
+  if(cb) cb();
+}
+
+function copiarTextoCierre(){
+  var texto=textoCierreWhatsapp();
+  var btn=document.getElementById('btnCopiarCierre');
+  function marcarCopiado(){
+    if(!btn) return;
+    var original=btn.dataset.original||btn.textContent;
+    btn.dataset.original=original;
+    btn.textContent='✓ Copiado';
+    setTimeout(function(){ btn.textContent=original; },2000);
+  }
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(texto).then(marcarCopiado).catch(function(){ copiarTextoFallback(texto,marcarCopiado); });
+  } else {
+    copiarTextoFallback(texto,marcarCopiado);
+  }
+}
+
+function enviarCierrePorWhatsapp(){
+  var texto=textoCierreWhatsapp();
+  // La API de WhatsApp Cloud no puede enviar a grupos, y wa.me tampoco permite
+  // preseleccionar un grupo — el usuario elige el destinatario manualmente.
+  window.open('https://wa.me/?text='+encodeURIComponent(texto),'_blank');
+}
+
 function cambiarBase(val){
   BASE_CAJA = parseInt(val)||30000;
   try{ localStorage.setItem('sfsf_base_caja_'+fechaHoy, BASE_CAJA); }catch(e){}
+  AJUSTE_CAJA = BASE_CAJA - BASE_MINIMA;
+  try{ localStorage.setItem('sfsf_ajuste_caja_'+fechaHoy, AJUSTE_CAJA); }catch(e){}
   renderCaja();
 }
 
@@ -3650,6 +3752,7 @@ function printCaja(){
     +'<hr style="border-top:1px dashed #000;margin:4px 0">'
     +'<b>CIERRE</b><br>'
     +'<div style="display:flex;justify-content:space-between"><span>Base inicial:</span><span>$'+fmt(BASE_CAJA)+'</span></div>'
+    +(AJUSTE_CAJA!==0?'<div style="font-size:9px">'+(AJUSTE_CAJA<0?'(Incluye $'+fmt(Math.abs(AJUSTE_CAJA))+' ajuste pend. cierre anterior)':'(Incluye $'+fmt(AJUSTE_CAJA)+' excedente cierre anterior)')+'</div>':'')
     +'<div style="display:flex;justify-content:space-between"><span>+ Cobros efectivo:</span><span>$'+fmt(totE)+'</span></div>'
     +'<div style="display:flex;justify-content:space-between"><span>- Pagos efectivo BB:</span><span>$'+fmt(totalPagoEfectivo)+'</span></div>'
     +(totalGastosPrint>0?'<div style="display:flex;justify-content:space-between"><span>- Gastos:</span><span>$'+fmt(totalGastosPrint)+'</span></div>':'')
@@ -3889,6 +3992,7 @@ function printCajaA4(){
     +'<div class="stitle">Flujo de caja efectivo</div>'
     +'<table><tbody>'
     +'<tr><td style="color:#5c5a54">Base inicial en caja</td><td style="text-align:right;font-family:monospace;color:#5c5a54">$'+fmt(BASE_CAJA)+'</td></tr>'
+    +(AJUSTE_CAJA!==0?'<tr><td colspan="2" style="font-size:8pt;color:#9c9a93;padding-top:0">'+(AJUSTE_CAJA<0?'(Incluye $'+fmt(Math.abs(AJUSTE_CAJA))+' de ajuste pendiente de cierre anterior)':'(Incluye $'+fmt(AJUSTE_CAJA)+' de excedente de cierre anterior)')+'</td></tr>':'')
     +(totE>0?'<tr><td><strong style="color:#1a6b3a">💰 Cobros efectivo ('+cntE+' svc)</strong></td><td style="text-align:right;font-family:monospace;color:#1a6b3a;font-weight:700">+ $'+fmt(totE)+'</td></tr>':'')
     +'<tr><td><strong style="color:#c0392b">💸 Pago barberos en efectivo</strong></td><td style="text-align:right;font-family:monospace;color:#c0392b;font-weight:700">− $'+fmt(totalPagoEf)+'</td></tr>'
     +(totalGastosPrint>0?gastos.map(function(g){return '<tr><td><strong style="color:#c0392b">💸 '+g.desc+'</strong></td><td style="text-align:right;font-family:monospace;color:#c0392b;font-weight:700">− $'+fmt(g.monto)+'</td></tr>';}).join(''):'')
