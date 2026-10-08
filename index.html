@@ -1239,12 +1239,12 @@
 <script>
 // ═══ DATOS ═══════════════════════════════════════════════
 // Populated from GET /barberos — adding a barber to DB propagates here automatically
-var BB=[
-  {id:'b1',nombre:'Didian',  active:true},
-  {id:'b2',nombre:'Emerson', active:true},
-  {id:'b5',nombre:'Steven',  active:true},
-  {id:'b6',nombre:'Winder',  active:true}
-];
+// Never hardcoded — populated from localStorage cache (loadStaffConfig, the
+// last-known-good roster) and then kept current by cargarBarberosDesdeAPI's
+// live GET /barberos call. See TECH_DEBT.md, "barberpilot-control BB list"
+// entry — this used to be a 4-name hardcoded seed that silently dropped any
+// hire not already in it.
+var BB=[];
 // Populated from GET /config/negocio/publico's bebidas_disponibles — never
 // hardcoded here, tenant-configurable via the Amenities section (Administración).
 var BEBIDAS_DISPONIBLES=[];
@@ -1992,6 +1992,7 @@ function init(){
   tick();setInterval(tick,30000);
   loadStaffConfig();
   buildBarbers();buildServices();buildProductos();buildProdBarbers();buildBarberFilters();buildSalaBidOptions();
+  cargarBarberosDesdeAPI(); // unauthenticated — always runs, no panel login required
   cargarSheetsUrl();cargar();cargarGastos();cargarLiquidaciones();cargarHorarios();cargarKpiEvals();renderAll();
   cargarRegistrosDia(); // explicit call — bypasses any API_URL guard inside cargar()
   // Auto-refresh cada 60 segundos si la página está activa
@@ -6881,12 +6882,12 @@ function loadStaffConfig(){
     var s=localStorage.getItem(STAFF_KEY);
     if(!s)return;
     var cfg=JSON.parse(s);
-    if(cfg.BB){
-      // Only restore active status — canonical bid→name comes from BB_CANONICAL_NAMES
-      cfg.BB.forEach(function(saved){
-        var match=BB.find(function(b){return b.id===saved.id;});
-        if(match) match.active=saved.active!==false;
-      });
+    if(Array.isArray(cfg.BB)){
+      // Full restore (id + nombre + active) from the last-known-good cache —
+      // not a toggle onto a hardcoded seed. This is only the instant-render
+      // state before cargarBarberosDesdeAPI's live GET /barberos resolves
+      // moments later and corrects it.
+      BB=cfg.BB.map(function(b){return {id:b.id,nombre:b.nombre,active:b.active!==false};});
     }
     if(cfg.SS)SS=cfg.SS;
     // PRODUCTOS deliberately NOT restored from localStorage — it's backend-
@@ -7043,17 +7044,62 @@ function staffRefreshFromAPI(){
   .then(function(r){return r.json();})
   .then(function(j){
     if(!j.ok){toast('Error al cargar staff: '+(j.error||'?'));renderStaffBB();return;}
-    // Only sync active status from API — canonical names come from BB_CANONICAL_NAMES
+    // Sync active status AND name from the API for every bid it knows about,
+    // and add any bid not yet in BB (e.g. a hire made since this tab was
+    // last open). Includes inactive staff too — this is the authenticated
+    // endpoint, used by the Staff tab's own activate/deactivate toggle list,
+    // unlike cargarBarberosDesdeAPI's public, active-only GET /barberos.
     j.staff.forEach(function(s){
       var existing=BB.find(function(b){return b.id===s.bid;});
       if(existing){
         existing.active=s.active;
+        existing.nombre=s.name;
+      } else {
+        BB.push({id:s.bid,nombre:s.name,active:s.active});
       }
     });
     saveStaffConfig(); // triggers buildBarbers, buildSalaBidOptions, buildBarberFilters
     renderStaffBB();
   })
   .catch(function(){renderStaffBB();});
+}
+
+// ── Public, unauthenticated barbero roster — single source of truth ──────────
+// Unlike staffRefreshFromAPI() above (gated on having a panel/dashboard
+// token — see init()), this always runs on page load with no login
+// required, so a station that's never been used to log into the admin
+// panel still shows a current barbero list in every selector (service
+// entry, cierre de caja, reports). Only ever ADDS or UPDATES a name; never
+// removes an entry BB already knows about, and never falls back to a
+// hardcoded name list.
+function _mergeBarberosLive(list){
+  list.forEach(function(b){
+    var existing=BB.find(function(x){return x.id===b.bid;});
+    if(existing){ existing.nombre=b.nombre; existing.active=true; }
+    else BB.push({id:b.bid,nombre:b.nombre,active:true});
+  });
+}
+function cargarBarberosDesdeAPI(){
+  if(!API_URL){ if(BB.length===0) _barberosLoadFailed(); return; }
+  fetch(API_URL+'/barberos')
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(function(list){
+      if(!Array.isArray(list)) throw new Error('respuesta inesperada');
+      _mergeBarberosLive(list);
+      saveStaffConfig(); // persists + rebuilds buildBarbers/buildBarberFilters/buildSalaBidOptions/renderStaffBB
+    })
+    .catch(function(){
+      // If we have no roster at all (first-ever load, no cache, fetch
+      // failed) say so clearly instead of rendering empty selectors with no
+      // explanation. If BB already has cached data, leave it showing
+      // (stale-while-revalidate) rather than overwrite it with an error.
+      if(BB.length===0) _barberosLoadFailed();
+    });
+}
+function _barberosLoadFailed(){
+  var msg='<div class="staff-note" style="padding:10px;color:var(--text3)">No se pudo cargar la lista de barberos. Revisa tu conexión y recarga la página.</div>';
+  var grid=document.getElementById('bgrid'); if(grid) grid.innerHTML=msg;
+  var filt=document.getElementById('barberFilterBtns'); if(filt) filt.innerHTML=msg;
 }
 
 // ── Live catalog price loader ─────────────────────────────────────────────────
