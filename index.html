@@ -7209,15 +7209,25 @@ function staffSubmitNewBarber(){
   var bid=(document.getElementById('newBarberBid').value||'').trim().toLowerCase();
   var pin=(document.getElementById('newBarberPin').value||'').trim();
   var role=document.getElementById('newBarberRole').value;
-  if(!name||!bid||!pin){toast('Completa todos los campos');return;}
-  if(!/^\d{4,6}$/.test(pin)){toast('PIN debe ser 4-6 dígitos numéricos');return;}
+  if(!name||!bid){toast('Completa nombre y bid');return;}
+  // PIN is optional — an empty PIN leaves pin_hash NULL server-side, routing
+  // the new hire to the existing "create your own PIN" flow on first login
+  // (same mechanism already in production for Steven). Only validate the
+  // format if one was actually typed.
+  if(pin&&!/^\d{4,6}$/.test(pin)){toast('PIN debe ser 4-6 dígitos numéricos');return;}
   if(!/^[a-z0-9_-]+$/.test(bid)){toast('bid: solo letras, números, guiones');return;}
   var authH=getAuthHeaders();
   if(!staffGetToken()&&!sessionStorage.getItem('panelJwt')){toast('Token requerido');return;}
+  // Omit the pin key entirely when blank, rather than sending pin:"" — the
+  // backend already treats "" as no-PIN safely (pin ? hash : null), but an
+  // omitted key is the unambiguous signal and doesn't depend on that falsy
+  // check holding for every future caller.
+  var payload={tenant_id:'saulfino',bid:bid,name:name,role:role};
+  if(pin)payload.pin=pin;
   fetch(API_URL+'/api/v2/staff',{
     method:'POST',
     headers:Object.assign({'Content-Type':'application/json'},authH),
-    body:JSON.stringify({tenant_id:'saulfino',bid:bid,name:name,pin:pin,role:role})
+    body:JSON.stringify(payload)
   })
   .then(function(r){return r.json();})
   .then(function(j){
