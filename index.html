@@ -1267,7 +1267,13 @@ function cargarConfigDesdeServidor(){
         SALA_PRECIOS=_np;
       }
       if(Array.isArray(json.barberos)&&json.barberos.length){
-        BB=json.barberos.map(function(b){return{id:b.bid,nombre:b.nombre,active:true};});
+        // Merge, never replace — this response is active-only (same shape
+        // as GET /barberos), and a wholesale BB=... assignment here would
+        // wipe out any inactive entries staffRefreshFromAPI() already added
+        // (a real race: this call and that one are both in flight from
+        // page load, and whichever resolves second used to win outright).
+        _mergeBarberosLive(json.barberos);
+        saveStaffConfig(); // persists + rebuilds buildBarbers/buildBarberFilters/buildSalaBidOptions/renderStaffBB
         var sel=document.getElementById('editor-bid');
         if(sel){
           var cur=sel.value;
@@ -2920,6 +2926,33 @@ function fmtJornada(mins){
   return h+'h'+(m>0?' '+m+'m':'');
 }
 
+// Active roster ∪ every distinct bid actually present in recs — used for the
+// per-barber breakdown sections of a printed A4 (Resumen por barbero,
+// Horarios, Firmas). Plain active-only would be correct for TODAY's print
+// (imprimirA4 — an active barber with zero services today still gets an
+// empty card, which is the existing, intentional behavior) but silently
+// drops a departed barber's entire card from a HISTORICAL reprint
+// (imprimirA4Hist, called from the "Imprimir A4" button inside a past
+// jornada in Histórico) — even though the grand TOTALES row at the bottom
+// of the same document correctly sums every record regardless of bid,
+// producing a document whose totals don't reconcile against its own
+// per-barber breakdown. Name resolution: BB if known, else the record's own
+// snapshotted bnom (never undefined, even if BB somehow lacks the entry).
+function _barberosParaImpresion(recs){
+  var activos=BB.filter(function(b){return b.active!==false;});
+  var vistos={};
+  activos.forEach(function(b){vistos[b.id]=true;});
+  var lista=activos.slice();
+  recs.forEach(function(r){
+    if(!vistos[r.bid]){
+      vistos[r.bid]=true;
+      var known=BB.find(function(b){return b.id===r.bid;});
+      lista.push({id:r.bid, nombre:known?known.nombre:(r.bnom||r.bid), active:false});
+    }
+  });
+  return lista;
+}
+
 function generarHTMLA4(fecha, recs, gastosParam){
   var tot=0,tBB=0,tNeg=0,cnt=recs.length;
   var totalGastosPrint=0;
@@ -2996,7 +3029,7 @@ function generarHTMLA4(fecha, recs, gastosParam){
   for(var ii=0;ii<horHoyA4.length;ii++) regMap[horHoyA4[ii].bid]=horHoyA4[ii];
 
   h+='<div class="section-title">Resumen por barbero</div><div class="bb-grid">';
-  var activeBBA4=BB.filter(function(b){return b.active!==false;});
+  var activeBBA4=_barberosParaImpresion(recs);
   for(var i=0;i<activeBBA4.length;i++){
     var b=activeBBA4[i],br=[],bt=0,bBB=0,bNeg=0;
     for(var j=0;j<recs.length;j++)if(recs[j].bid===b.id)br.push(recs[j]);
@@ -7092,8 +7125,10 @@ function cargarBarberosDesdeAPI(){
       // If we have no roster at all (first-ever load, no cache, fetch
       // failed) say so clearly instead of rendering empty selectors with no
       // explanation. If BB already has cached data, leave it showing
-      // (stale-while-revalidate) rather than overwrite it with an error.
+      // (stale-while-revalidate) rather than overwrite it with an error —
+      // but say so visibly, so staff know the list might not be current.
       if(BB.length===0) _barberosLoadFailed();
+      else toast('Lista guardada — puede estar desactualizada');
     });
 }
 function _barberosLoadFailed(){
@@ -7716,15 +7751,22 @@ function renderClientesPagination(total,totalPages){
 
 function buildClientesBarberoFilters(){
   var el=document.getElementById('clientesBarberoFilters');if(!el)return;
-  if(el.getAttribute('data-built')==='1')return; // BB loads async; only build once populated
-  if(!BB||!BB.length)return;
-  var h='<button class="fb on" onclick="clientesSetBarbero(\'\',this)">Todos</button>';
-  var activeBB=BB.filter(function(b){return b.active!==false;});
-  for(var i=0;i<activeBB.length;i++){
-    h+='<button class="fb" onclick="clientesSetBarbero(\''+escAttr(activeBB[i].id)+'\',this)">'+escAttr(activeBB[i].nombre)+'</button>';
-  }
+  if(!BB||!BB.length)return; // BB loads async; nothing to show yet
+  // ALL staff, not active-only — this filters client HISTORY (último
+  // barbero), and a client's last visit may have been with someone now
+  // inactive (e.g. Emerson). Safe to rely on BB holding the full roster
+  // here: the Clientes tab already requires a panel login to show anything
+  // (see the jwt check in renderClientesPanel below), and that login is
+  // exactly what triggers staffRefreshFromAPI() to populate BB with
+  // inactive staff too. Rebuilds every call (renderClientesPanel calls this
+  // every time) instead of once-and-locked, so a late-arriving roster sync
+  // still gets reflected; _clientesBarberoSel is preserved across rebuilds
+  // since it's a separate variable, not DOM state.
+  var h='<button class="fb'+(_clientesBarberoSel===''?' on':'')+'" onclick="clientesSetBarbero(\'\',this)">Todos</button>';
+  BB.forEach(function(b){
+    h+='<button class="fb'+(_clientesBarberoSel===b.id?' on':'')+'" onclick="clientesSetBarbero(\''+escAttr(b.id)+'\',this)">'+escAttr(b.nombre)+(b.active===false?' <span style="opacity:.5">(inactivo)</span>':'')+'</button>';
+  });
   el.innerHTML=h;
-  el.setAttribute('data-built','1');
 }
 function clientesSetBarbero(v,el){
   _clientesBarberoSel=v;
@@ -7803,7 +7845,11 @@ function clientesBarberoNombre(bid){
   if(!bid)return '—';
   if(typeof BB_CANONICAL_NAMES!=='undefined'&&BB_CANONICAL_NAMES[bid])return BB_CANONICAL_NAMES[bid];
   var match=(BB||[]).find(function(b){return b.id===bid;});
-  return match?match.nombre:bid;
+  if(match)return match.nombre;
+  // Visible marker, never a blank and never presented as if it were a real
+  // resolved name — happens only if this bid hasn't synced into BB yet
+  // (e.g. no panel login on this device, so staffRefreshFromAPI() never ran).
+  return '['+bid+']';
 }
 
 // Placeholder phone staff use when booking without a real number on hand.
