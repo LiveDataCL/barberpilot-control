@@ -2491,7 +2491,7 @@ function renderSum(){
     +'<div class="sc"><div class="scl">Pago barberos</div><div class="scv g">$'+fmt(tBB)+'</div></div>'
     +'<div class="sc"><div class="scl">Para negocio</div><div class="scv b">$'+fmt(tNeg)+'</div></div>';
   var g='';
-  var activeBB=BB.filter(function(b){return b.active!==false;});
+  var activeBB=_barberosParaImpresion(regs);
   for(var i=0;i<activeBB.length;i++){
     var b=activeBB[i],br=[],bt=0,bBB=0,bNeg=0;
     for(var j=0;j<regs.length;j++)if(regs[j].bid===b.id)br.push(regs[j]);
@@ -2517,7 +2517,7 @@ function renderSum(){
 function renderCierre(){
   var fecha=new Date().toLocaleDateString('es-CL');
   var h='';
-  var activeBB=BB.filter(function(b){return b.active!==false;});
+  var activeBB=_barberosParaImpresion(regs);
   for(var i=0;i<activeBB.length;i++){
     var b=activeBB[i],br=[],tot=0,tBB=0,tNeg=0;
     for(var j=0;j<regs.length;j++)if(regs[j].bid===b.id)br.push(regs[j]);
@@ -2861,7 +2861,7 @@ function printCierre58mm(){
   if(regs.length===0){toast('Sin registros para imprimir');return;}
   var fecha=new Date().toLocaleDateString('es-CL');
   var partes=[];
-  var activeBB=BB.filter(function(b){return b.active!==false;});
+  var activeBB=_barberosParaImpresion(regs);
 
   for(var i=0;i<activeBB.length;i++){
     var b=activeBB[i],br=[],tot=0,tBB=0,tNeg=0;
@@ -3329,7 +3329,7 @@ function actualizarFilaPendiente(bid){
   }
   // Actualizar totales
   var totalPend=0, totalEf=0, totalTr=0;
-  var _aBB=BB.filter(function(b){return b.active!==false;});
+  var _aBB=_barberosParaImpresion(regs);
   for(var i=0;i<_aBB.length;i++){
     var br=regs.filter(function(r){return r.bid===_aBB[i].id;});
     var cor=0; for(var j=0;j<br.length;j++) cor+=br[j].bb+(br[j].propina||0);
@@ -3445,7 +3445,7 @@ function renderCaja(){
     +'</tr></thead><tbody>';
 
   var totalPagoEfectivo=0, totalPagoTransf=0, totalPendiente=0, totalCorresponde=0, totalPropinas=0;
-  var activeBB=BB.filter(function(b){return b.active!==false;});
+  var activeBB=_barberosParaImpresion(regs);
 
   for(var i=0;i<activeBB.length;i++){
     var b=activeBB[i];
@@ -3572,7 +3572,7 @@ function renderResumenFinal(){
   for(var i=0;i<gastos.length;i++) totalGastos+=gastos[i].monto;
 
   var totalPagoEfectivo=0,totalPagoTransf=0,totalPendiente=0,totalCorresponde=0;
-  var activeBBRes=BB.filter(function(b){return b.active!==false;});
+  var activeBBRes=_barberosParaImpresion(regs);
   for(var i=0;i<activeBBRes.length;i++){
     var b=activeBBRes[i];
     var bbRegs=regs.filter(function(r){return r.bid===b.id;});
@@ -3643,7 +3643,7 @@ function textoCierreWhatsapp(){
   for(var i=0;i<gastos.length;i++) totalGastosW+=gastos[i].monto;
 
   var totalPagoEfectivoW=0;
-  var activeBBW=BB.filter(function(b){return b.active!==false;});
+  var activeBBW=_barberosParaImpresion(regs);
   for(var i=0;i<activeBBW.length;i++){
     var liq=liquidaciones[activeBBW[i].id]||{efectivo:0,transferencia:0};
     totalPagoEfectivoW+=liq.efectivo;
@@ -3728,7 +3728,7 @@ function printCaja(){
 
   var totalPagoEfectivo=0,totalPagoTransf=0,totalPendiente=0,totalCorresponde=0;
   var lineasLiq='';
-  var activeBBPrint=BB.filter(function(b){return b.active!==false;});
+  var activeBBPrint=_barberosParaImpresion(regs);
   for(var i=0;i<activeBBPrint.length;i++){
     var b=activeBBPrint[i];
     var bbRegs=regs.filter(function(r){return r.bid===b.id;});
@@ -3926,7 +3926,7 @@ function printCajaA4(){
 
   var totalCorresponde=0,totalPagoEf=0,totalPagoTr=0,totalPend=0;
   var bbRows='';
-  var activeBBCajaA4=BB.filter(function(b){return b.active!==false;});
+  var activeBBCajaA4=_barberosParaImpresion(regs);
   for(var i=0;i<activeBBCajaA4.length;i++){
     var b=activeBBCajaA4[i];
     var br=regs.filter(function(r){return r.bid===b.id;});
