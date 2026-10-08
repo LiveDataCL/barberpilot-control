@@ -1239,12 +1239,12 @@
 <script>
 // ═══ DATOS ═══════════════════════════════════════════════
 // Populated from GET /barberos — adding a barber to DB propagates here automatically
-var BB=[
-  {id:'b1',nombre:'Didian',  active:true},
-  {id:'b2',nombre:'Emerson', active:true},
-  {id:'b5',nombre:'Steven',  active:true},
-  {id:'b6',nombre:'Winder',  active:true}
-];
+// Never hardcoded — populated from localStorage cache (loadStaffConfig, the
+// last-known-good roster) and then kept current by cargarBarberosDesdeAPI's
+// live GET /barberos call. See TECH_DEBT.md, "barberpilot-control BB list"
+// entry — this used to be a 4-name hardcoded seed that silently dropped any
+// hire not already in it.
+var BB=[];
 // Populated from GET /config/negocio/publico's bebidas_disponibles — never
 // hardcoded here, tenant-configurable via the Amenities section (Administración).
 var BEBIDAS_DISPONIBLES=[];
@@ -1267,7 +1267,13 @@ function cargarConfigDesdeServidor(){
         SALA_PRECIOS=_np;
       }
       if(Array.isArray(json.barberos)&&json.barberos.length){
-        BB=json.barberos.map(function(b){return{id:b.bid,nombre:b.nombre,active:true};});
+        // Merge, never replace — this response is active-only (same shape
+        // as GET /barberos), and a wholesale BB=... assignment here would
+        // wipe out any inactive entries staffRefreshFromAPI() already added
+        // (a real race: this call and that one are both in flight from
+        // page load, and whichever resolves second used to win outright).
+        _mergeBarberosLive(json.barberos);
+        saveStaffConfig(); // persists + rebuilds buildBarbers/buildBarberFilters/buildSalaBidOptions/renderStaffBB
         var sel=document.getElementById('editor-bid');
         if(sel){
           var cur=sel.value;
@@ -1992,6 +1998,7 @@ function init(){
   tick();setInterval(tick,30000);
   loadStaffConfig();
   buildBarbers();buildServices();buildProductos();buildProdBarbers();buildBarberFilters();buildSalaBidOptions();
+  cargarBarberosDesdeAPI(); // unauthenticated — always runs, no panel login required
   cargarSheetsUrl();cargar();cargarGastos();cargarLiquidaciones();cargarHorarios();cargarKpiEvals();renderAll();
   cargarRegistrosDia(); // explicit call — bypasses any API_URL guard inside cargar()
   // Auto-refresh cada 60 segundos si la página está activa
@@ -2484,7 +2491,7 @@ function renderSum(){
     +'<div class="sc"><div class="scl">Pago barberos</div><div class="scv g">$'+fmt(tBB)+'</div></div>'
     +'<div class="sc"><div class="scl">Para negocio</div><div class="scv b">$'+fmt(tNeg)+'</div></div>';
   var g='';
-  var activeBB=BB.filter(function(b){return b.active!==false;});
+  var activeBB=_barberosParaImpresion(regs);
   for(var i=0;i<activeBB.length;i++){
     var b=activeBB[i],br=[],bt=0,bBB=0,bNeg=0;
     for(var j=0;j<regs.length;j++)if(regs[j].bid===b.id)br.push(regs[j]);
@@ -2510,7 +2517,7 @@ function renderSum(){
 function renderCierre(){
   var fecha=new Date().toLocaleDateString('es-CL');
   var h='';
-  var activeBB=BB.filter(function(b){return b.active!==false;});
+  var activeBB=_barberosParaImpresion(regs);
   for(var i=0;i<activeBB.length;i++){
     var b=activeBB[i],br=[],tot=0,tBB=0,tNeg=0;
     for(var j=0;j<regs.length;j++)if(regs[j].bid===b.id)br.push(regs[j]);
@@ -2854,7 +2861,7 @@ function printCierre58mm(){
   if(regs.length===0){toast('Sin registros para imprimir');return;}
   var fecha=new Date().toLocaleDateString('es-CL');
   var partes=[];
-  var activeBB=BB.filter(function(b){return b.active!==false;});
+  var activeBB=_barberosParaImpresion(regs);
 
   for(var i=0;i<activeBB.length;i++){
     var b=activeBB[i],br=[],tot=0,tBB=0,tNeg=0;
@@ -2917,6 +2924,33 @@ function fmtJornada(mins){
   if(!mins) return '—';
   var h=Math.floor(mins/60), m=mins%60;
   return h+'h'+(m>0?' '+m+'m':'');
+}
+
+// Active roster ∪ every distinct bid actually present in recs — used for the
+// per-barber breakdown sections of a printed A4 (Resumen por barbero,
+// Horarios, Firmas). Plain active-only would be correct for TODAY's print
+// (imprimirA4 — an active barber with zero services today still gets an
+// empty card, which is the existing, intentional behavior) but silently
+// drops a departed barber's entire card from a HISTORICAL reprint
+// (imprimirA4Hist, called from the "Imprimir A4" button inside a past
+// jornada in Histórico) — even though the grand TOTALES row at the bottom
+// of the same document correctly sums every record regardless of bid,
+// producing a document whose totals don't reconcile against its own
+// per-barber breakdown. Name resolution: BB if known, else the record's own
+// snapshotted bnom (never undefined, even if BB somehow lacks the entry).
+function _barberosParaImpresion(recs){
+  var activos=BB.filter(function(b){return b.active!==false;});
+  var vistos={};
+  activos.forEach(function(b){vistos[b.id]=true;});
+  var lista=activos.slice();
+  recs.forEach(function(r){
+    if(!vistos[r.bid]){
+      vistos[r.bid]=true;
+      var known=BB.find(function(b){return b.id===r.bid;});
+      lista.push({id:r.bid, nombre:known?known.nombre:(r.bnom||r.bid), active:false});
+    }
+  });
+  return lista;
 }
 
 function generarHTMLA4(fecha, recs, gastosParam){
@@ -2995,7 +3029,7 @@ function generarHTMLA4(fecha, recs, gastosParam){
   for(var ii=0;ii<horHoyA4.length;ii++) regMap[horHoyA4[ii].bid]=horHoyA4[ii];
 
   h+='<div class="section-title">Resumen por barbero</div><div class="bb-grid">';
-  var activeBBA4=BB.filter(function(b){return b.active!==false;});
+  var activeBBA4=_barberosParaImpresion(recs);
   for(var i=0;i<activeBBA4.length;i++){
     var b=activeBBA4[i],br=[],bt=0,bBB=0,bNeg=0;
     for(var j=0;j<recs.length;j++)if(recs[j].bid===b.id)br.push(recs[j]);
@@ -3295,7 +3329,7 @@ function actualizarFilaPendiente(bid){
   }
   // Actualizar totales
   var totalPend=0, totalEf=0, totalTr=0;
-  var _aBB=BB.filter(function(b){return b.active!==false;});
+  var _aBB=_barberosParaImpresion(regs);
   for(var i=0;i<_aBB.length;i++){
     var br=regs.filter(function(r){return r.bid===_aBB[i].id;});
     var cor=0; for(var j=0;j<br.length;j++) cor+=br[j].bb+(br[j].propina||0);
@@ -3411,7 +3445,7 @@ function renderCaja(){
     +'</tr></thead><tbody>';
 
   var totalPagoEfectivo=0, totalPagoTransf=0, totalPendiente=0, totalCorresponde=0, totalPropinas=0;
-  var activeBB=BB.filter(function(b){return b.active!==false;});
+  var activeBB=_barberosParaImpresion(regs);
 
   for(var i=0;i<activeBB.length;i++){
     var b=activeBB[i];
@@ -3538,7 +3572,7 @@ function renderResumenFinal(){
   for(var i=0;i<gastos.length;i++) totalGastos+=gastos[i].monto;
 
   var totalPagoEfectivo=0,totalPagoTransf=0,totalPendiente=0,totalCorresponde=0;
-  var activeBBRes=BB.filter(function(b){return b.active!==false;});
+  var activeBBRes=_barberosParaImpresion(regs);
   for(var i=0;i<activeBBRes.length;i++){
     var b=activeBBRes[i];
     var bbRegs=regs.filter(function(r){return r.bid===b.id;});
@@ -3609,7 +3643,7 @@ function textoCierreWhatsapp(){
   for(var i=0;i<gastos.length;i++) totalGastosW+=gastos[i].monto;
 
   var totalPagoEfectivoW=0;
-  var activeBBW=BB.filter(function(b){return b.active!==false;});
+  var activeBBW=_barberosParaImpresion(regs);
   for(var i=0;i<activeBBW.length;i++){
     var liq=liquidaciones[activeBBW[i].id]||{efectivo:0,transferencia:0};
     totalPagoEfectivoW+=liq.efectivo;
@@ -3694,7 +3728,7 @@ function printCaja(){
 
   var totalPagoEfectivo=0,totalPagoTransf=0,totalPendiente=0,totalCorresponde=0;
   var lineasLiq='';
-  var activeBBPrint=BB.filter(function(b){return b.active!==false;});
+  var activeBBPrint=_barberosParaImpresion(regs);
   for(var i=0;i<activeBBPrint.length;i++){
     var b=activeBBPrint[i];
     var bbRegs=regs.filter(function(r){return r.bid===b.id;});
@@ -3892,7 +3926,7 @@ function printCajaA4(){
 
   var totalCorresponde=0,totalPagoEf=0,totalPagoTr=0,totalPend=0;
   var bbRows='';
-  var activeBBCajaA4=BB.filter(function(b){return b.active!==false;});
+  var activeBBCajaA4=_barberosParaImpresion(regs);
   for(var i=0;i<activeBBCajaA4.length;i++){
     var b=activeBBCajaA4[i];
     var br=regs.filter(function(r){return r.bid===b.id;});
@@ -6881,12 +6915,12 @@ function loadStaffConfig(){
     var s=localStorage.getItem(STAFF_KEY);
     if(!s)return;
     var cfg=JSON.parse(s);
-    if(cfg.BB){
-      // Only restore active status — canonical bid→name comes from BB_CANONICAL_NAMES
-      cfg.BB.forEach(function(saved){
-        var match=BB.find(function(b){return b.id===saved.id;});
-        if(match) match.active=saved.active!==false;
-      });
+    if(Array.isArray(cfg.BB)){
+      // Full restore (id + nombre + active) from the last-known-good cache —
+      // not a toggle onto a hardcoded seed. This is only the instant-render
+      // state before cargarBarberosDesdeAPI's live GET /barberos resolves
+      // moments later and corrects it.
+      BB=cfg.BB.map(function(b){return {id:b.id,nombre:b.nombre,active:b.active!==false};});
     }
     if(cfg.SS)SS=cfg.SS;
     // PRODUCTOS deliberately NOT restored from localStorage — it's backend-
@@ -7043,17 +7077,64 @@ function staffRefreshFromAPI(){
   .then(function(r){return r.json();})
   .then(function(j){
     if(!j.ok){toast('Error al cargar staff: '+(j.error||'?'));renderStaffBB();return;}
-    // Only sync active status from API — canonical names come from BB_CANONICAL_NAMES
+    // Sync active status AND name from the API for every bid it knows about,
+    // and add any bid not yet in BB (e.g. a hire made since this tab was
+    // last open). Includes inactive staff too — this is the authenticated
+    // endpoint, used by the Staff tab's own activate/deactivate toggle list,
+    // unlike cargarBarberosDesdeAPI's public, active-only GET /barberos.
     j.staff.forEach(function(s){
       var existing=BB.find(function(b){return b.id===s.bid;});
       if(existing){
         existing.active=s.active;
+        existing.nombre=s.name;
+      } else {
+        BB.push({id:s.bid,nombre:s.name,active:s.active});
       }
     });
     saveStaffConfig(); // triggers buildBarbers, buildSalaBidOptions, buildBarberFilters
     renderStaffBB();
   })
   .catch(function(){renderStaffBB();});
+}
+
+// ── Public, unauthenticated barbero roster — single source of truth ──────────
+// Unlike staffRefreshFromAPI() above (gated on having a panel/dashboard
+// token — see init()), this always runs on page load with no login
+// required, so a station that's never been used to log into the admin
+// panel still shows a current barbero list in every selector (service
+// entry, cierre de caja, reports). Only ever ADDS or UPDATES a name; never
+// removes an entry BB already knows about, and never falls back to a
+// hardcoded name list.
+function _mergeBarberosLive(list){
+  list.forEach(function(b){
+    var existing=BB.find(function(x){return x.id===b.bid;});
+    if(existing){ existing.nombre=b.nombre; existing.active=true; }
+    else BB.push({id:b.bid,nombre:b.nombre,active:true});
+  });
+}
+function cargarBarberosDesdeAPI(){
+  if(!API_URL){ if(BB.length===0) _barberosLoadFailed(); return; }
+  fetch(API_URL+'/barberos')
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(function(list){
+      if(!Array.isArray(list)) throw new Error('respuesta inesperada');
+      _mergeBarberosLive(list);
+      saveStaffConfig(); // persists + rebuilds buildBarbers/buildBarberFilters/buildSalaBidOptions/renderStaffBB
+    })
+    .catch(function(){
+      // If we have no roster at all (first-ever load, no cache, fetch
+      // failed) say so clearly instead of rendering empty selectors with no
+      // explanation. If BB already has cached data, leave it showing
+      // (stale-while-revalidate) rather than overwrite it with an error —
+      // but say so visibly, so staff know the list might not be current.
+      if(BB.length===0) _barberosLoadFailed();
+      else toast('Lista guardada — puede estar desactualizada');
+    });
+}
+function _barberosLoadFailed(){
+  var msg='<div class="staff-note" style="padding:10px;color:var(--text3)">No se pudo cargar la lista de barberos. Revisa tu conexión y recarga la página.</div>';
+  var grid=document.getElementById('bgrid'); if(grid) grid.innerHTML=msg;
+  var filt=document.getElementById('barberFilterBtns'); if(filt) filt.innerHTML=msg;
 }
 
 // ── Live catalog price loader ─────────────────────────────────────────────────
@@ -7670,15 +7751,22 @@ function renderClientesPagination(total,totalPages){
 
 function buildClientesBarberoFilters(){
   var el=document.getElementById('clientesBarberoFilters');if(!el)return;
-  if(el.getAttribute('data-built')==='1')return; // BB loads async; only build once populated
-  if(!BB||!BB.length)return;
-  var h='<button class="fb on" onclick="clientesSetBarbero(\'\',this)">Todos</button>';
-  var activeBB=BB.filter(function(b){return b.active!==false;});
-  for(var i=0;i<activeBB.length;i++){
-    h+='<button class="fb" onclick="clientesSetBarbero(\''+escAttr(activeBB[i].id)+'\',this)">'+escAttr(activeBB[i].nombre)+'</button>';
-  }
+  if(!BB||!BB.length)return; // BB loads async; nothing to show yet
+  // ALL staff, not active-only — this filters client HISTORY (último
+  // barbero), and a client's last visit may have been with someone now
+  // inactive (e.g. Emerson). Safe to rely on BB holding the full roster
+  // here: the Clientes tab already requires a panel login to show anything
+  // (see the jwt check in renderClientesPanel below), and that login is
+  // exactly what triggers staffRefreshFromAPI() to populate BB with
+  // inactive staff too. Rebuilds every call (renderClientesPanel calls this
+  // every time) instead of once-and-locked, so a late-arriving roster sync
+  // still gets reflected; _clientesBarberoSel is preserved across rebuilds
+  // since it's a separate variable, not DOM state.
+  var h='<button class="fb'+(_clientesBarberoSel===''?' on':'')+'" onclick="clientesSetBarbero(\'\',this)">Todos</button>';
+  BB.forEach(function(b){
+    h+='<button class="fb'+(_clientesBarberoSel===b.id?' on':'')+'" onclick="clientesSetBarbero(\''+escAttr(b.id)+'\',this)">'+escAttr(b.nombre)+(b.active===false?' <span style="opacity:.5">(inactivo)</span>':'')+'</button>';
+  });
   el.innerHTML=h;
-  el.setAttribute('data-built','1');
 }
 function clientesSetBarbero(v,el){
   _clientesBarberoSel=v;
@@ -7757,7 +7845,11 @@ function clientesBarberoNombre(bid){
   if(!bid)return '—';
   if(typeof BB_CANONICAL_NAMES!=='undefined'&&BB_CANONICAL_NAMES[bid])return BB_CANONICAL_NAMES[bid];
   var match=(BB||[]).find(function(b){return b.id===bid;});
-  return match?match.nombre:bid;
+  if(match)return match.nombre;
+  // Visible marker, never a blank and never presented as if it were a real
+  // resolved name — happens only if this bid hasn't synced into BB yet
+  // (e.g. no panel login on this device, so staffRefreshFromAPI() never ran).
+  return '['+bid+']';
 }
 
 // Placeholder phone staff use when booking without a real number on hand.
