@@ -418,6 +418,15 @@
   .staff-reset-btn:hover{color:var(--text)}
   .staff-add-btn:disabled,.staff-del-btn:disabled,.staff-input:disabled{opacity:.4;cursor:not-allowed;pointer-events:none}
   .staff-freeze-note{font-size:12px;color:var(--warn);background:#fff8e6;border:1px solid #f0d9a0;border-radius:var(--r);padding:8px 10px;margin-bottom:8px}
+  .catalogo-aviso{font-size:12px;border-radius:var(--r);padding:8px 10px;margin-bottom:8px;border:1px solid var(--border);color:var(--text2);background:var(--surface2)}
+  .catalogo-aviso.warn{color:var(--warn);background:#fff8e6;border-color:#f0d9a0}
+  .catalogo-aviso.err{color:var(--err);background:#fdecea;border-color:#f5b7b1}
+  .svc-form{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px;margin-bottom:8px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface2)}
+  .staff-row.svc-inactiva .svc-nombre,.staff-row.svc-inactiva .svc-precio-fijo,.staff-row.svc-inactiva .svc-duracion{opacity:.55}
+  .svc-precio-fijo{min-width:100px;font-family:var(--mono);font-size:13px;color:var(--text2)}
+  .svc-duracion{min-width:52px;font-size:11px;color:var(--text3)}
+  .svc-badge{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);border:1px solid var(--border);border-radius:20px;padding:2px 8px}
+  .staff-action-btn:disabled{opacity:.4;cursor:not-allowed}
   .staff-saved{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:#1a6b3a;background:#e8f5ed;border-radius:20px;padding:3px 10px;margin-left:8px;opacity:0;transition:opacity .3s}
   .staff-saved.show{opacity:1}
   .staff-barber-card{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--border);border-radius:var(--rl);background:var(--surface);margin-bottom:8px;transition:opacity .2s}
@@ -1083,7 +1092,7 @@
         <div style="margin-bottom:26px">
           <div class="staff-section-hdr">
             <span>Servicios</span>
-            <button class="staff-add-btn" id="staffAddSvcBtn" onclick="staffAddSvc()">+ Agregar</button>
+            <button class="staff-add-btn" id="staffAddSvcBtn" onclick="staffMostrarFormSvc()">+ Agregar</button>
           </div>
           <div id="staffSS"></div>
         </div>
@@ -1257,9 +1266,10 @@ function cargarConfigDesdeServidor(){
     .then(function(json){
       if(!json.ok) return;
       if(Array.isArray(json.servicios)){
-        var _pById={};
-        json.servicios.forEach(function(s){_pById[s.servicio_id]=s.precio_activo;});
-        SS.forEach(function(s){if(_pById[s.id]!=null) s.precio=_pById[s.id];});
+        // Cobro/Administración no longer read prices from here — they use
+        // the service catalog module below (GET /api/v2/config/servicios).
+        // This response still feeds Sala de Espera's SALA_PRECIOS (Sala de
+        // Espera stage, on hold).
         var _np={};
         json.servicios.forEach(function(s){
           if(s.precio_activo==null) return;
@@ -1294,19 +1304,114 @@ function cargarConfigDesdeServidor(){
     }).catch(function(){});
 }
 cargarConfigDesdeServidor();
-var SS=[
-  {id:'s01',nombre:'Corte',                       precio:13000,tiempo:'30 min'},
-  {id:'s02',nombre:'Barba',                        precio:10000,tiempo:'20 min'},
-  {id:'s03',nombre:'Corte + Barba',               precio:22000,tiempo:'50 min'},
-  {id:'s04',nombre:'Corte + Perfilado de barba',  precio:16000,tiempo:'45 min'},
-  {id:'s05',nombre:'Perfilado de corte',          precio:6000, tiempo:'15 min'},
-  {id:'s06',nombre:'Perfilado de cejas',          precio:4000, tiempo:'10 min'},
-  {id:'s07',nombre:'Barba + Cejas',               precio:13000,tiempo:'30 min'},
-  {id:'s08',nombre:'Perfilado de barba',          precio:6000, tiempo:'15 min'},
-  {id:'s09',nombre:'Matizado canas cabello',      precio:8000, tiempo:'20 min'},
-  {id:'s10',nombre:'Matizado canas barba',        precio:5000, tiempo:'15 min'}
-  // s11 (Corte Express + Perfilado de barba) retired 2026-07-16 — removed, not just repriced.
-];
+
+// ═══ CATÁLOGO DE SERVICIOS (Stage 2a) ════════════════════
+// Single source for every service shown or charged in this page:
+// GET /api/v2/config/servicios (panel session). Nothing in this page
+// creates, edits or stores services locally any more — every change goes
+// through the API and the screen is rebuilt from the server's answer.
+//
+// Fallback: the last successful response is kept read-only in
+// localStorage (CATALOGO_CACHE_KEY, with its timestamp) and used ONLY when
+// the API can't be reached; while on that copy, catalog changes are
+// blocked and a warning is shown. With no API and no copy, the page says
+// so instead of inventing services.
+//
+// Stage C (propagation) extends this module rather than replacing it:
+// call catalogoCargar() when a change event or a newer catalogo_version
+// arrives; screens subscribe with catalogoSuscribir().
+var CATALOGO={servicios:[],version:null,origen:'cargando',guardadoEn:null,error:null}; // origen: 'cargando' | 'api' | 'copia' | 'sin_datos'
+var CATALOGO_CACHE_KEY='bp_catalogo_servicios_v1';
+var _catalogoOyentes=[];
+var _catalogoEnCurso=null;
+
+// SS: active, priced services in display order — a view DERIVED from
+// CATALOGO on every update, kept so cobro, the tip/preview math, the
+// payment-edit list and the receipt keep their existing shape. Never
+// written anywhere else.
+var SS=[];
+
+function catalogoSuscribir(fn){_catalogoOyentes.push(fn);}
+function catalogoEditable(){return CATALOGO.origen==='api';}
+function _catalogoDerivarSS(){
+  SS=CATALOGO.servicios
+    .filter(function(s){return s.activo===true&&s.precio_activo!=null;})
+    .map(function(s){return{id:s.servicio_id,nombre:s.nombre,precio:s.precio_activo,
+      duracion_min:s.duracion_min,tiempo:s.duracion_min?s.duracion_min+' min':''};});
+}
+function _catalogoNotificar(){
+  _catalogoDerivarSS();
+  if(sel&&sel.s&&!find(SS,sel.s)) sel.s=null; // a deactivated/removed service can't stay selected
+  buildServices();
+  if(document.getElementById('staffSS')) renderStaffSS();
+  for(var i=0;i<_catalogoOyentes.length;i++){try{_catalogoOyentes[i](CATALOGO);}catch(e){console.error('[catálogo] oyente:',e);}}
+  if(typeof updPrev==='function'){updPrev();chkBtn();}
+}
+function _catalogoLeerCopia(){
+  try{
+    var c=JSON.parse(localStorage.getItem(CATALOGO_CACHE_KEY)||'null');
+    if(c&&Array.isArray(c.servicios)&&c.guardadoEn) return c;
+  }catch(e){}
+  return null;
+}
+function _catalogoGuardarCopia(){
+  try{
+    localStorage.setItem(CATALOGO_CACHE_KEY,JSON.stringify({version:CATALOGO.version,guardadoEn:CATALOGO.guardadoEn,servicios:CATALOGO.servicios}));
+  }catch(e){}
+}
+// Loads the catalog from the API. Returns a promise; concurrent calls share
+// one request. Uses the read-only copy only when the API can't be reached
+// (network failure or 5xx). A 401/403 is a session problem, not an outage:
+// no copy is used and the error is shown.
+function catalogoCargar(){
+  if(_catalogoEnCurso) return _catalogoEnCurso;
+  if(!API_URL||!sessionStorage.getItem('panelJwt')){
+    return Promise.resolve(CATALOGO);
+  }
+  _catalogoEnCurso=fetch(API_URL+'/api/v2/config/servicios',{headers:getJsonAuthHeaders()})
+    .then(function(r){
+      return r.json().catch(function(){return null;}).then(function(j){return{status:r.status,body:j};});
+    })
+    .then(function(res){
+      if(res.status===200&&res.body&&res.body.ok&&Array.isArray(res.body.servicios)){
+        CATALOGO={servicios:res.body.servicios,version:res.body.catalogo_version,origen:'api',guardadoEn:new Date().toISOString(),error:null};
+        _catalogoGuardarCopia();
+        return;
+      }
+      if(res.status===401||res.status===403){
+        CATALOGO={servicios:[],version:null,origen:'sin_datos',guardadoEn:null,
+          error:'Tu sesión no tiene acceso al catálogo de servicios. Vuelve a ingresar.'};
+        return;
+      }
+      throw new Error('HTTP '+res.status);
+    })
+    .catch(function(){
+      var c=_catalogoLeerCopia();
+      CATALOGO=c
+        ?{servicios:c.servicios,version:c.version,origen:'copia',guardadoEn:c.guardadoEn,error:null}
+        :{servicios:[],version:null,origen:'sin_datos',guardadoEn:null,
+          error:'No se pudo cargar el catálogo de servicios y no hay una copia guardada en este equipo. Revisa la conexión y recarga la página.'};
+    })
+    .then(function(){
+      _catalogoEnCurso=null;
+      _catalogoNotificar();
+      return CATALOGO;
+    });
+  return _catalogoEnCurso;
+}
+// One line describing where the catalog on screen comes from, or null when
+// it's live from the API.
+function catalogoAviso(){
+  if(CATALOGO.origen==='copia'){
+    var d=new Date(CATALOGO.guardadoEn);
+    var p=function(n){return(n<10?'0':'')+n;};
+    var cuando=isNaN(d)?'(fecha desconocida)':p(d.getDate())+'/'+p(d.getMonth()+1)+' a las '+p(d.getHours())+':'+p(d.getMinutes());
+    return{tipo:'warn',texto:'Datos sin conexión: catálogo guardado el '+cuando+'. No se pueden hacer cambios hasta recuperar la conexión.'};
+  }
+  if(CATALOGO.origen==='sin_datos') return{tipo:'err',texto:CATALOGO.error};
+  if(CATALOGO.origen==='cargando') return{tipo:'info',texto:'Cargando catálogo de servicios…'};
+  return null;
+}
 var COM={efectivo:.5,debito:.43,transferencia:.5};
 var PRODUCTOS=[
   {id:'p01',nombre:'Cera Modeladora Media', precio:8500},
@@ -2100,15 +2205,20 @@ function buildBarbers(){
   document.getElementById('bgrid').innerHTML=h;
 }
 function buildServices(){
-  var h='';
+  var el=document.getElementById('slist');if(!el)return;
+  var aviso=catalogoAviso();
+  var h=aviso?'<div class="catalogo-aviso '+aviso.tipo+'" id="cobroCatalogoAviso">'+_escHtml(aviso.texto)+'</div>':'';
+  if(CATALOGO.origen!=='cargando'&&CATALOGO.origen!=='sin_datos'&&SS.length===0){
+    h+='<div class="catalogo-aviso info">No hay servicios activos en el catálogo.</div>';
+  }
   for(var i=0;i<SS.length;i++){
     var s=SS[i];
-    h+='<div class="sitem" data-id="'+s.id+'" onclick="selS(this)">'
-      +'<div><div class="sn">'+s.nombre+'</div><div class="st">'+s.tiempo+'</div></div>'
+    h+='<div class="sitem'+(sel&&sel.s===s.id?' on':'')+'" data-id="'+escAttr(s.id)+'" onclick="selS(this)">'
+      +'<div><div class="sn">'+_escHtml(s.nombre)+'</div><div class="st">'+_escHtml(s.tiempo)+'</div></div>'
       +'<div class="sp">$'+fmt(s.precio)+'</div>'
       +'</div>';
   }
-  document.getElementById('slist').innerHTML=h;
+  el.innerHTML=h;
 }
 // Productos vive enteramente en el backend (Migration 034, barberpilot-api)
 // — a diferencia de SS/BB arriba, este array nunca se restaura desde
@@ -2332,6 +2442,7 @@ function registrar(){
   if(!sel.b||!sel.s||!sel.p)return;
   var b=find(BB,sel.b),p=sel.p;
   var s=find(SS,sel.s);
+  if(!s){toast('Ese servicio ya no está disponible. Elige otro.');resetForm();return;}
   var com=COM[p],bb=Math.round(s.precio*com),neg=s.precio-bb;
 
   var propina = sel.propina||0;
@@ -4291,19 +4402,9 @@ function renderIngresarHistorico(){
   var c=document.getElementById('historicoContent');
   if(!c) return;
 
-  // s11 (Corte Express + Perfilado de barba) removed 2026-07-16 — this also
-  // removes the ability to pick it when backfilling a PRE-July-16 paper
-  // record via this tool. Use "✏ Servicio personalizado…" (custom entry,
-  // already supported below) to backfill an old Corte Express record instead.
-  var SERVICIOS_MAP={
-    's01':'Corte','s02':'Barba','s03':'Corte + Barba',
-    's04':'Corte + Perfilado de barba','s05':'Perfilado de corte',
-    's06':'Perfilado de cejas','s07':'Barba + Cejas',
-    's08':'Perfilado de barba','s09':'Matizado canas cabello','s10':'Matizado canas barba'
-  };
-  var PRECIOS={'s01':13000,'s02':10000,'s03':22000,'s04':16000,'s05':6000,
-               's06':4000,'s07':13000,'s08':6000,'s09':8000,'s10':5000};
-
+  // Service options come from the active catalog (SS, derived from the API
+  // catalog) — no hardcoded list. Retired services can be backfilled with
+  // "✏ Servicio personalizado…" below.
   var h='<p style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6">'
     +'Ingresa aquí servicios de jornadas anteriores que registraste en papel. '
     +'Se descargan como un archivo JSON que puedes cargar en el Dashboard sin afectar los registros de hoy.</p>';
@@ -4331,8 +4432,8 @@ function renderIngresarHistorico(){
     +'<select id="hServicio" onchange="actualizarPrecioHist()" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--sans)">'
     +'<option value="">Seleccionar</option>';
 
-  for(var k in SERVICIOS_MAP){
-    h+='<option value="'+k+'">'+SERVICIOS_MAP[k]+' ($'+PRECIOS[k].toLocaleString('es-CL')+')</option>';
+  for(var k=0;k<SS.length;k++){
+    h+='<option value="'+escAttr(SS[k].id)+'">'+_escHtml(SS[k].nombre)+' ($'+SS[k].precio.toLocaleString('es-CL')+')</option>';
   }
   h+='<option value="custom">✏ Servicio personalizado…</option>';
 
@@ -6886,21 +6987,15 @@ function salaActualizarServicio(){
 
 // ═══ STAFF MANAGEMENT ════════════════════════════════════
 var STAFF_KEY='bp_staff_v1';
-var _liveCatalogPrecios={}; // servicio_id → precio_activo from /config/negocio/publico
 
-// Stage 0 containment (2026-10-13), see sf-docs/TECH_DEBT.md 2026-10-12
-// entries "Administración's service catalog is browser-local only" and
-// "Commission rates are editable per-browser". Adding, renaming, deleting
-// and reordering services, and editing commission rates, only ever changed
-// this browser's localStorage: a new service could never be priced or
-// charged, a rename would make its sales fail (alias_no_mapeado), and a rate
-// edit changed real payouts with no trace. While this flag is true those
-// actions are blocked in the UI and in the handlers themselves. Price edits
-// of existing services are unaffected (they go to the API). Setting it to
-// false restores the previous behavior; the flag goes away when Stage 2
-// (catalog from the API) and Stage 3 (rates from the API) replace this code.
-var EDICION_LOCAL_CATALOGO_CONGELADA=true;
-var AVISO_SERVICIOS_CONGELADOS='Edición de servicios en mantención — los precios sí se pueden editar';
+// Stage 0 containment (2026-10-13) for commission rates, see sf-docs
+// TECH_DEBT.md 2026-10-12 "Commission rates are editable per-browser": a
+// rate edit only changed this browser's localStorage and changed real
+// payouts with no trace. While this flag is true the rate inputs are
+// disabled and staffSaveCOM refuses to run. Stage 3 (rates from the API)
+// replaces this. (The service part of Stage 0 was replaced in Stage 2a by
+// the API-backed catalog — see "CATÁLOGO DE SERVICIOS".)
+var EDICION_LOCAL_COMISIONES_CONGELADA=true;
 var AVISO_COMISIONES_CONGELADAS='Edición de comisiones en mantención — los porcentajes se muestran solo como referencia';
 var BB_DEFAULT=[
   {id:'b1',nombre:'Didian',  active:true},
@@ -6908,19 +7003,6 @@ var BB_DEFAULT=[
   {id:'b4',nombre:'David',   active:false},
   {id:'b5',nombre:'Steven',  active:true},
   {id:'b6',nombre:'Winder',  active:true}
-];
-var SS_DEFAULT=[
-  {id:'s01',nombre:'Corte',                              precio:13000,tiempo:'30 min'},
-  {id:'s02',nombre:'Barba',                              precio:10000,tiempo:'20 min'},
-  {id:'s03',nombre:'Corte + Barba',                      precio:22000,tiempo:'50 min'},
-  {id:'s04',nombre:'Corte + Perfilado de barba',         precio:16000,tiempo:'45 min'},
-  {id:'s05',nombre:'Perfilado de corte',                 precio:6000, tiempo:'15 min'},
-  {id:'s06',nombre:'Perfilado de cejas',                 precio:4000, tiempo:'10 min'},
-  {id:'s07',nombre:'Barba + Cejas',                      precio:13000,tiempo:'30 min'},
-  {id:'s08',nombre:'Perfilado de barba',                 precio:6000, tiempo:'15 min'},
-  {id:'s09',nombre:'Matizado canas cabello',             precio:8000, tiempo:'20 min'},
-  {id:'s10',nombre:'Matizado canas barba',               precio:5000, tiempo:'15 min'}
-  // s11 (Corte Express + Perfilado de barba) retired 2026-07-16 — removed, not just repriced.
 ];
 var COM_DEFAULT={efectivo:.5,debito:.43,transferencia:.5};
 
@@ -6939,19 +7021,26 @@ function loadStaffConfig(){
       // moments later and corrects it.
       BB=cfg.BB.map(function(b){return {id:b.id,nombre:b.nombre,active:b.active!==false};});
     }
-    if(cfg.SS)SS=cfg.SS;
+    // One-time cleanup (Stage 2a): the service list used to live here as
+    // cfg.SS. Services now come only from the API catalog, so the stale
+    // copy is deleted — and ONLY that field: every other field in this key
+    // is written back untouched. Once removed, this branch never runs again.
+    if(Object.prototype.hasOwnProperty.call(cfg,'SS')){
+      delete cfg.SS;
+      localStorage.setItem(STAFF_KEY,JSON.stringify(cfg));
+    }
     // PRODUCTOS deliberately NOT restored from localStorage — it's backend-
-    // driven now (loadProductosCatalogo(), Migration 034), unlike SS/BB
-    // above. Any pre-existing bp_staff_v1.PRODUCTOS from before this fix is
-    // ignored on purpose, not migrated (real backend catalog is the only
-    // source of truth going forward).
+    // driven now (loadProductosCatalogo(), Migration 034), like services
+    // since Stage 2a. Any pre-existing bp_staff_v1.PRODUCTOS from before
+    // that fix is ignored on purpose, not migrated (real backend catalog is
+    // the only source of truth going forward).
     if(cfg.COM)COM=cfg.COM;
   }catch(e){}
 }
 
 function saveStaffConfig(){
   try{
-    localStorage.setItem(STAFF_KEY,JSON.stringify({BB:BB,SS:SS,COM:COM}));
+    localStorage.setItem(STAFF_KEY,JSON.stringify({BB:BB,COM:COM}));
     buildBarbers();buildServices();buildProdBarbers();buildBarberFilters();buildSalaBidOptions();buildProductos();
     var el=document.getElementById('staffSaved');
     if(el){el.classList.add('show');setTimeout(function(){el.classList.remove('show');},2000);}
@@ -7031,6 +7120,7 @@ function panelApplySession(){
   renderReg(); // re-render with role-aware delete button
   if(API_URL) staffRefreshFromAPI();
   if(API_URL) loadProductosCatalogo(); // real catalog now that a panelJwt exists
+  catalogoCargar(); // service catalog: cobro, Administración, payment edit
   drainOutbox(); // flush any services queued before login
   waPoll(); // immediate refresh on login rather than waiting up to 25s for the first tick
 }
@@ -7154,22 +7244,6 @@ function _barberosLoadFailed(){
   var filt=document.getElementById('barberFilterBtns'); if(filt) filt.innerHTML=msg;
 }
 
-// ── Live catalog price loader ─────────────────────────────────────────────────
-function staffLoadLiveCatalog(){
-  if(!API_URL)return;
-  fetch(API_URL+'/config/negocio/publico')
-  .then(function(r){return r.json();})
-  .then(function(j){
-    if(!j.ok||!Array.isArray(j.servicios))return;
-    j.servicios.forEach(function(s){
-      if(s.servicio_id!==undefined&&s.precio_activo!==undefined)
-        _liveCatalogPrecios[s.servicio_id]=s.precio_activo;
-    });
-    renderStaffSS();
-  })
-  .catch(function(){/* silently fall back to SS[i].precio */});
-}
-
 // ── Deactivate / Reactivate ───────────────────────────────────────────────────
 function staffDeactivate(bid,name){
   if(!confirm('¿Desactivar a '+name+'? Ya no podrá acceder a la app. Sus registros históricos se conservan.'))return;
@@ -7266,7 +7340,7 @@ function staffSubmitNewBarber(){
 function renderStaffPanel(){
   staffUpdateTokenStatus();
   staffRefreshFromAPI();
-  staffLoadLiveCatalog();
+  catalogoCargar(); // fresh catalog every time Administración opens
   loadProductosCatalogo();
   renderStaffCOM();renderStaffSS();renderStaffProds();
 }
@@ -7309,7 +7383,7 @@ function staffSaveBB(id,val){
 function renderStaffCOM(){
   var el=document.getElementById('staffCOM');if(!el)return;
   var keys=[['efectivo','Efectivo'],['debito','Débito'],['transferencia','Transferencia']];
-  var congelado=EDICION_LOCAL_CATALOGO_CONGELADA;
+  var congelado=EDICION_LOCAL_COMISIONES_CONGELADA;
   var h=congelado?'<div class="staff-freeze-note" id="staffCOMAviso">'+AVISO_COMISIONES_CONGELADAS+'</div>':'';
   for(var i=0;i<keys.length;i++){
     var k=keys[i][0];var label=keys[i][1];
@@ -7322,69 +7396,171 @@ function renderStaffCOM(){
   el.innerHTML=h;
 }
 function staffSaveCOM(key,val){
-  if(EDICION_LOCAL_CATALOGO_CONGELADA){toast(AVISO_COMISIONES_CONGELADAS);renderStaffCOM();return;}
+  if(EDICION_LOCAL_COMISIONES_CONGELADA){toast(AVISO_COMISIONES_CONGELADAS);renderStaffCOM();return;}
   var n=parseFloat(val);if(isNaN(n)||n<0||n>100)return;
   COM[key]=n/100;saveStaffConfig();
 }
 
+// ── Servicios (API-backed, Stage 2a) ─────────────────────────────────────────
+// Every row comes from CATALOGO (GET /api/v2/config/servicios); every change
+// is a request to the API followed by a reload of the catalog, so the screen
+// only ever shows what the server confirmed. A row the API didn't return
+// can't exist here, so it can't send a price change.
+var _svcForm={abierto:false,nombre:'',precio:'',duracion:''};
+function _svcPorId(id){
+  for(var i=0;i<CATALOGO.servicios.length;i++) if(CATALOGO.servicios[i].servicio_id===id) return CATALOGO.servicios[i];
+  return null;
+}
+function _svcMotivoBloqueo(){
+  if(CATALOGO.origen==='copia') return 'Sin conexión con el servidor: no se pueden hacer cambios en los servicios.';
+  if(CATALOGO.origen==='cargando') return 'Espera a que cargue el catálogo.';
+  if(CATALOGO.origen!=='api') return 'El catálogo de servicios no está disponible.';
+  if(_panelRole!=='admin') return 'Solo un administrador puede modificar los servicios.';
+  return '';
+}
+function _svcPuedeEditar(){return _svcMotivoBloqueo()==='';}
+function _fmtCLP(n){return '$'+Number(n).toLocaleString('es-CL');}
+function _svcLimpiarNombre(s){return String(s||'').trim().replace(/\s+/g,' ');}
+function _svcEsEnteroPositivo(txt){return /^\d+$/.test(txt)&&parseInt(txt,10)>0;}
+var _MSG_PRECIO_INVALIDO='El precio debe ser un número entero mayor que 0, sin puntos ni decimales (ej: 22000).';
+
+// Sends one catalog change, shows the server's message (its "detalle" is
+// already in Spanish), then reloads the catalog from the server.
+// Resolves to {status, body} or null on a network error.
+function _svcEnviar(method,path,body,mensajeOk){
+  if(!_svcPuedeEditar()){toast(_svcMotivoBloqueo());renderStaffSS();return Promise.resolve(null);}
+  return fetch(API_URL+path,{method:method,headers:getJsonAuthHeaders(),body:body===undefined?undefined:JSON.stringify(body)})
+    .then(function(r){return r.json().catch(function(){return null;}).then(function(j){return{status:r.status,body:j};});})
+    .then(function(res){
+      if(res.body&&res.body.ok) toast(mensajeOk(res.body));
+      else toast((res.body&&res.body.detalle)||'No se pudo guardar el cambio. Intenta de nuevo.');
+      return catalogoCargar().then(function(){return res;});
+    })
+    .catch(function(){
+      toast('Error de red: el cambio no se guardó.');
+      return catalogoCargar().then(function(){return null;});
+    });
+}
+
 function renderStaffSS(){
   var el=document.getElementById('staffSS');if(!el)return;
-  var congelado=EDICION_LOCAL_CATALOGO_CONGELADA;
+  var puede=_svcPuedeEditar(), motivo=_svcMotivoBloqueo();
   var addBtn=document.getElementById('staffAddSvcBtn');
-  if(addBtn){addBtn.disabled=congelado;addBtn.title=congelado?AVISO_SERVICIOS_CONGELADOS:'';}
-  var h=congelado?'<div class="staff-freeze-note" id="staffSSAviso">'+AVISO_SERVICIOS_CONGELADOS+'</div>':'';
+  if(addBtn){addBtn.disabled=!puede||_svcForm.abierto;addBtn.title=motivo;}
+  var h='';
+  var aviso=catalogoAviso();
+  if(aviso) h+='<div class="catalogo-aviso '+aviso.tipo+'" id="staffSSAviso">'+_escHtml(aviso.texto)+'</div>';
+  else if(!puede) h+='<div class="catalogo-aviso info" id="staffSSAviso">'+_escHtml(motivo)+'</div>';
+
+  if(_svcForm.abierto&&puede){
+    h+='<div class="svc-form" id="svcForm">'
+      +'<input class="staff-input" id="svcNuevoNombre" type="text" placeholder="Nombre del servicio" value="'+escAttr(_svcForm.nombre)+'" oninput="_svcForm.nombre=this.value" style="flex:2">'
+      +'<input class="staff-input" id="svcNuevoPrecio" type="text" inputmode="numeric" placeholder="Precio (ej: 22000)" value="'+escAttr(_svcForm.precio)+'" oninput="_svcForm.precio=this.value" style="max-width:140px">'
+      +'<input class="staff-input" id="svcNuevoDuracion" type="text" inputmode="numeric" placeholder="Duración (min)" value="'+escAttr(_svcForm.duracion)+'" oninput="_svcForm.duracion=this.value" style="max-width:120px">'
+      +'<button class="staff-add-btn" id="svcCrearBtn" onclick="staffCrearSvc()">Crear</button>'
+      +'<button class="staff-add-btn" onclick="staffCancelarFormSvc()">Cancelar</button>'
+      +'</div>'
+      +'<div class="staff-note" style="margin:-4px 0 10px">Si dejas la duración vacía se usa la duración por defecto configurada.</div>';
+  }
+
   var btnBase='padding:2px 6px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;line-height:1;font-family:var(--sans)';
   var btnDis=btnBase+';opacity:.3;cursor:default';
-  for(var i=0;i<SS.length;i++){
-    var s=SS[i];
-    var isFirst=i===0, isLast=i===SS.length-1;
-    h+='<div class="staff-row">'
+  var lista=CATALOGO.servicios;
+  for(var i=0;i<lista.length;i++){
+    var s=lista[i], id=escAttr(s.servicio_id);
+    var arriba=puede&&i>0, abajo=puede&&i<lista.length-1;
+    var precioEditable=s.activo&&s.precio_activo!=null;
+    h+='<div class="staff-row'+(s.activo?'':' svc-inactiva')+'" data-servicio-id="'+id+'">'
       +'<div style="display:flex;flex-direction:column;gap:2px;margin-right:4px">'
-      +'<button '+(isFirst||congelado?'disabled style="'+btnDis+'"':'style="'+btnBase+'"')+' onclick="staffMoveSvc(\''+s.id+'\',-1)" title="Subir">▲</button>'
-      +'<button '+(isLast||congelado?'disabled style="'+btnDis+'"':'style="'+btnBase+'"')+' onclick="staffMoveSvc(\''+s.id+'\',1)" title="Bajar">▼</button>'
+      +'<button '+(arriba?'style="'+btnBase+'"':'disabled style="'+btnDis+'"')+' onclick="staffMoverSvc(\''+id+'\',-1)" title="Subir">▲</button>'
+      +'<button '+(abajo?'style="'+btnBase+'"':'disabled style="'+btnDis+'"')+' onclick="staffMoverSvc(\''+id+'\',1)" title="Bajar">▼</button>'
       +'</div>'
-      +'<input class="staff-input" type="text" value="'+escAttr(s.nombre)+'" placeholder="Nombre"'+(congelado?' disabled':'')+' onblur="staffSaveSvcName(\''+s.id+'\',this.value)" style="flex:2">'
-      +'<input class="staff-input" type="number" min="0" value="'+(_liveCatalogPrecios[s.id]!==undefined?_liveCatalogPrecios[s.id]:s.precio)+'" placeholder="Precio" onblur="staffSaveSvcPrecio(\''+s.id+'\',this.value)" style="max-width:100px">'
-      +'<button class="staff-del-btn"'+(congelado?' disabled':'')+' onclick="staffDelSvc(\''+s.id+'\')" title="Eliminar">&times;</button>'
+      +'<input class="staff-input svc-nombre" type="text" value="'+escAttr(s.nombre)+'" placeholder="Nombre"'+(puede?'':' disabled')+' onchange="staffRenombrarSvc(\''+id+'\',this.value)" style="flex:2">'
+      +(precioEditable
+        ?'<input class="staff-input svc-precio" type="text" inputmode="numeric" value="'+s.precio_activo+'" placeholder="Precio"'+(puede?'':' disabled')+' onchange="staffSaveSvcPrecio(\''+id+'\',this.value)" style="max-width:100px">'
+        :'<span class="svc-precio-fijo">'+(s.precio_activo!=null?_fmtCLP(s.precio_activo):'sin precio')+'</span>')
+      +'<span class="svc-duracion">'+(s.duracion_min?s.duracion_min+' min':'')+'</span>'
+      +(s.activo?'':'<span class="svc-badge">Inactivo</span>')
+      +'<button class="staff-action-btn '+(s.activo?'deactivate':'reactivate')+' svc-toggle"'+(puede?'':' disabled')+' onclick="staffCambiarEstadoSvc(\''+id+'\')">'+(s.activo?'Desactivar':'Reactivar')+'</button>'
       +'</div>';
   }
   el.innerHTML=h;
 }
-function staffMoveSvc(id, dir){
-  if(EDICION_LOCAL_CATALOGO_CONGELADA){toast(AVISO_SERVICIOS_CONGELADOS);renderStaffSS();return;}
-  var idx=-1;
-  for(var i=0;i<SS.length;i++) if(SS[i].id===id){idx=i;break;}
-  if(idx<0) return;
-  var nxt=idx+dir;
-  if(nxt<0||nxt>=SS.length) return;
-  var tmp=SS[idx]; SS[idx]=SS[nxt]; SS[nxt]=tmp;
-  renderStaffSS(); saveStaffConfig();
+
+function staffMostrarFormSvc(){
+  if(!_svcPuedeEditar()){toast(_svcMotivoBloqueo());return;}
+  _svcForm={abierto:true,nombre:'',precio:'',duracion:''};
+  renderStaffSS();
+  var n=document.getElementById('svcNuevoNombre');if(n)n.focus();
 }
-function staffSaveSvcName(id,val){
-  if(EDICION_LOCAL_CATALOGO_CONGELADA){toast(AVISO_SERVICIOS_CONGELADOS);renderStaffSS();return;}
-  val=(val||'').trim();if(!val)return;
-  for(var i=0;i<SS.length;i++)if(SS[i].id===id){SS[i].nombre=val;break;}
-  saveStaffConfig();
+function staffCancelarFormSvc(){
+  _svcForm={abierto:false,nombre:'',precio:'',duracion:''};
+  renderStaffSS();
+}
+function staffCrearSvc(){
+  var nombre=_svcLimpiarNombre(_svcForm.nombre);
+  var precioTxt=String(_svcForm.precio).trim(), durTxt=String(_svcForm.duracion).trim();
+  if(!nombre){toast('Escribe el nombre del servicio.');return;}
+  if(!_svcEsEnteroPositivo(precioTxt)){toast(_MSG_PRECIO_INVALIDO);return;}
+  if(durTxt!==''&&!_svcEsEnteroPositivo(durTxt)){toast('La duración debe ser un número entero de minutos mayor que 0 (o déjala vacía).');return;}
+  var precio=parseInt(precioTxt,10);
+  if(!confirm('¿Crear '+nombre+' a '+_fmtCLP(precio)+'?')) return;
+  var body={nombre:nombre,precio:precio};
+  if(durTxt!=='') body.duracion_min=parseInt(durTxt,10);
+  var btn=document.getElementById('svcCrearBtn');if(btn)btn.disabled=true;
+  _svcEnviar('POST','/api/v2/config/servicios',body,function(j){
+    return 'Servicio creado: '+j.servicio.nombre+' a '+_fmtCLP(j.servicio.precio_activo);
+  }).then(function(res){
+    if(res&&res.body&&res.body.ok){_svcForm={abierto:false,nombre:'',precio:'',duracion:''};}
+    renderStaffSS();
+  });
+}
+function staffRenombrarSvc(id,val){
+  var s=_svcPorId(id);
+  if(!s){renderStaffSS();return;}
+  var nuevo=_svcLimpiarNombre(val);
+  if(!nuevo){toast('El nombre no puede quedar vacío.');renderStaffSS();return;}
+  if(nuevo===s.nombre){renderStaffSS();return;}
+  if(!confirm('¿Renombrar "'+s.nombre+'" a "'+nuevo+'"?\nLas ventas con el nombre anterior se siguen reconociendo.')){renderStaffSS();return;}
+  _svcEnviar('PATCH','/api/v2/config/servicios/'+encodeURIComponent(id),{nombre:nuevo},function(j){
+    return 'Servicio renombrado: '+j.nombre;
+  });
+}
+function staffCambiarEstadoSvc(id){
+  var s=_svcPorId(id);
+  if(!s){renderStaffSS();return;}
+  if(s.activo){
+    if(!confirm('¿Desactivar '+s.nombre+'?\nDejará de aparecer en cobro. Las ventas ya registradas no cambian.')) return;
+    _svcEnviar('PATCH','/api/v2/config/servicios/'+encodeURIComponent(id)+'/deactivate',{},function(){return s.nombre+' desactivado';});
+  } else {
+    var precio=s.precio_activo!=null?' a '+_fmtCLP(s.precio_activo):'';
+    if(!confirm('¿Reactivar '+s.nombre+precio+'?')) return;
+    _svcEnviar('PATCH','/api/v2/config/servicios/'+encodeURIComponent(id)+'/reactivate',{},function(){return s.nombre+' reactivado';});
+  }
+}
+function staffMoverSvc(id,dir){
+  var orden=CATALOGO.servicios.map(function(s){return s.servicio_id;});
+  var i=orden.indexOf(id), j=i+dir;
+  if(i<0||j<0||j>=orden.length) return;
+  var t=orden[i];orden[i]=orden[j];orden[j]=t;
+  _svcEnviar('PATCH','/api/v2/config/servicios/orden',{orden:orden},function(){return 'Orden actualizado';});
 }
 function staffSaveSvcPrecio(id,val){
-  var nuevoPrecio=parseInt(val);
-  if(isNaN(nuevoPrecio)||nuevoPrecio<0){renderStaffSS();return;}
-  var svc=null;
-  for(var i=0;i<SS.length;i++)if(SS[i].id===id){svc=SS[i];break;}
-  if(!svc){return;}
-  var precioActual=_liveCatalogPrecios[id]!==undefined?_liveCatalogPrecios[id]:svc.precio;
-  if(nuevoPrecio===precioActual){return;}
-  var fmtCLP=function(n){return '$'+n.toLocaleString('es-CL');};
-  if(!confirm('¿Cambiar '+svc.nombre+' de '+fmtCLP(precioActual)+' a '+fmtCLP(nuevoPrecio)+'?')){
-    renderStaffSS();return;
-  }
-  if(!sessionStorage.getItem('panelJwt')){toast('Sesión de panel requerida para cambiar precios');renderStaffSS();return;}
+  if(!_svcPuedeEditar()){toast(_svcMotivoBloqueo());renderStaffSS();return;}
+  var s=_svcPorId(id);
+  // Only an active, priced service the API returned can have its price changed.
+  if(!s||!s.activo||s.precio_activo==null){renderStaffSS();return;}
+  var txt=String(val).trim();
+  if(!_svcEsEnteroPositivo(txt)){toast(_MSG_PRECIO_INVALIDO);renderStaffSS();return;}
+  var nuevoPrecio=parseInt(txt,10), precioActual=s.precio_activo;
+  if(nuevoPrecio===precioActual){renderStaffSS();return;}
+  if(!confirm('¿Cambiar '+s.nombre+' de '+_fmtCLP(precioActual)+' a '+_fmtCLP(nuevoPrecio)+'?')){renderStaffSS();return;}
   staffPatchPrecio(id,nuevoPrecio,precioActual,false);
 }
 
 function staffPatchPrecio(id,nuevoPrecio,precioActual,confirmMagnitud){
-  var svc=null;
-  for(var i=0;i<SS.length;i++)if(SS[i].id===id){svc=SS[i];break;}
+  var svc=_svcPorId(id);
+  if(!svc){renderStaffSS();return;} // never PATCH an id the API didn't return
   var body={nuevo_precio:nuevoPrecio,precio_actual_esperado:precioActual};
   if(confirmMagnitud)body.confirmacion_magnitud=true;
   fetch(API_URL+'/api/v2/config/servicios/'+id+'/precio',{
@@ -7404,40 +7580,18 @@ function staffPatchPrecio(id,nuevoPrecio,precioActual,confirmMagnitud){
       return;
     }
     if(res.status===409&&j.error==='precio_desactualizado'){
-      if(confirm('El precio fue modificado en otra sesión. ¿Recargar el catálogo para ver el valor actual?')){
-        staffLoadLiveCatalog();
-      } else {
-        renderStaffSS();
-      }
+      toast('El precio fue modificado en otra sesión. Se recargó el catálogo con el valor actual.');
+      catalogoCargar();
       return;
     }
-    if(res.status===400&&j.error==='servicio_inactivo'){
-      toast('Este servicio está desactivado y no puede actualizarse');
-      renderStaffSS();return;
+    if(!j||!j.ok){
+      toast('No se guardó el precio: '+((j&&j.detalle)||'error inesperado del servidor.'));
+      catalogoCargar();return;
     }
-    if(!j.ok){
-      toast('Error al guardar precio: '+(j.error||'?'));
-      renderStaffSS();return;
-    }
-    _liveCatalogPrecios[id]=nuevoPrecio;
-    if(svc)svc.precio=nuevoPrecio;
-    saveStaffConfig();
-    renderStaffSS();
-    toast((svc?svc.nombre:id)+' actualizado a '+('$'+nuevoPrecio.toLocaleString('es-CL')));
+    toast(svc.nombre+' actualizado a '+_fmtCLP(nuevoPrecio));
+    catalogoCargar();
   })
-  .catch(function(){toast('Error de red al guardar precio');renderStaffSS();});
-}
-function staffDelSvc(id){
-  if(EDICION_LOCAL_CATALOGO_CONGELADA){toast(AVISO_SERVICIOS_CONGELADOS);renderStaffSS();return;}
-  if(!confirm('¿Eliminar este servicio?'))return;
-  SS=SS.filter(function(s){return s.id!==id;});
-  renderStaffSS();saveStaffConfig();
-}
-function staffAddSvc(){
-  if(EDICION_LOCAL_CATALOGO_CONGELADA){toast(AVISO_SERVICIOS_CONGELADOS);renderStaffSS();return;}
-  var newId='s'+Date.now().toString().slice(-7);
-  SS.push({id:newId,nombre:'Nuevo servicio',precio:0,tiempo:'30 min'});
-  renderStaffSS();saveStaffConfig();
+  .catch(function(){toast('Error de red: el precio no se guardó.');catalogoCargar();});
 }
 
 // ── Productos (backend-wired, Migration 034 / barberpilot-api) ──────────────
@@ -7654,13 +7808,11 @@ function staffDelBebida(i){
 }
 
 function staffReset(){
-  // PRODUCTOS is untouched here on purpose — it's backend-driven (Migration
-  // 034), not a local default to restore. Resetting it locally would just
-  // get overwritten by the next loadProductosCatalogo() anyway, and would
-  // misleadingly suggest this button affects the real catalog.
+  // PRODUCTOS and services are untouched here on purpose — both are
+  // backend-driven (Migration 034 / Stage 2a), not local defaults to
+  // restore; this button can't affect the real catalogs.
   if(!confirm('¿Restaurar los valores por defecto? Se perderán los cambios guardados.'))return;
   BB=JSON.parse(JSON.stringify(BB_DEFAULT));
-  SS=JSON.parse(JSON.stringify(SS_DEFAULT));
   COM=Object.assign({},COM_DEFAULT);
   localStorage.removeItem(STAFF_KEY);
   renderStaffPanel();buildBarbers();buildServices();buildProdBarbers();
