@@ -1,2 +1,3 @@
-# Local config with secrets — copy from dashboard-config.example.js and fill in token
+# Legacy dashboard config (unused since Stage L2a). Kept ignored so a local
+# copy that still holds a token can never be committed.
 dashboard-config.js
