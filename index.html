@@ -416,6 +416,8 @@
   .staff-add-btn:hover{background:var(--surface2,#f7f7f7)}
   .staff-reset-btn{font-size:12px;padding:7px 14px;border:1px solid var(--border);border-radius:var(--r);background:transparent;cursor:pointer;font-family:var(--sans);color:var(--text3)}
   .staff-reset-btn:hover{color:var(--text)}
+  .staff-add-btn:disabled,.staff-del-btn:disabled,.staff-input:disabled{opacity:.4;cursor:not-allowed;pointer-events:none}
+  .staff-freeze-note{font-size:12px;color:var(--warn);background:#fff8e6;border:1px solid #f0d9a0;border-radius:var(--r);padding:8px 10px;margin-bottom:8px}
   .staff-saved{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:#1a6b3a;background:#e8f5ed;border-radius:20px;padding:3px 10px;margin-left:8px;opacity:0;transition:opacity .3s}
   .staff-saved.show{opacity:1}
   .staff-barber-card{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--border);border-radius:var(--rl);background:var(--surface);margin-bottom:8px;transition:opacity .2s}
@@ -1081,7 +1083,7 @@
         <div style="margin-bottom:26px">
           <div class="staff-section-hdr">
             <span>Servicios</span>
-            <button class="staff-add-btn" onclick="staffAddSvc()">+ Agregar</button>
+            <button class="staff-add-btn" id="staffAddSvcBtn" onclick="staffAddSvc()">+ Agregar</button>
           </div>
           <div id="staffSS"></div>
         </div>
@@ -6885,6 +6887,21 @@ function salaActualizarServicio(){
 // ═══ STAFF MANAGEMENT ════════════════════════════════════
 var STAFF_KEY='bp_staff_v1';
 var _liveCatalogPrecios={}; // servicio_id → precio_activo from /config/negocio/publico
+
+// Stage 0 containment (2026-10-13), see sf-docs/TECH_DEBT.md 2026-10-12
+// entries "Administración's service catalog is browser-local only" and
+// "Commission rates are editable per-browser". Adding, renaming, deleting
+// and reordering services, and editing commission rates, only ever changed
+// this browser's localStorage: a new service could never be priced or
+// charged, a rename would make its sales fail (alias_no_mapeado), and a rate
+// edit changed real payouts with no trace. While this flag is true those
+// actions are blocked in the UI and in the handlers themselves. Price edits
+// of existing services are unaffected (they go to the API). Setting it to
+// false restores the previous behavior; the flag goes away when Stage 2
+// (catalog from the API) and Stage 3 (rates from the API) replace this code.
+var EDICION_LOCAL_CATALOGO_CONGELADA=true;
+var AVISO_SERVICIOS_CONGELADOS='Edición de servicios en mantención — los precios sí se pueden editar';
+var AVISO_COMISIONES_CONGELADAS='Edición de comisiones en mantención — los porcentajes se muestran solo como referencia';
 var BB_DEFAULT=[
   {id:'b1',nombre:'Didian',  active:true},
   {id:'b2',nombre:'Emerson', active:true},
@@ -7292,25 +7309,30 @@ function staffSaveBB(id,val){
 function renderStaffCOM(){
   var el=document.getElementById('staffCOM');if(!el)return;
   var keys=[['efectivo','Efectivo'],['debito','Débito'],['transferencia','Transferencia']];
-  var h='';
+  var congelado=EDICION_LOCAL_CATALOGO_CONGELADA;
+  var h=congelado?'<div class="staff-freeze-note" id="staffCOMAviso">'+AVISO_COMISIONES_CONGELADAS+'</div>':'';
   for(var i=0;i<keys.length;i++){
     var k=keys[i][0];var label=keys[i][1];
     var pct=Math.round((COM[k]||0)*100);
     h+='<div class="staff-row">'
       +'<span class="staff-label">'+label+'</span>'
-      +'<input class="staff-input" type="number" min="0" max="100" value="'+pct+'" onblur="staffSaveCOM(\''+k+'\',this.value)" style="max-width:80px"> %'
+      +'<input class="staff-input" type="number" min="0" max="100" value="'+pct+'"'+(congelado?' disabled':'')+' onblur="staffSaveCOM(\''+k+'\',this.value)" style="max-width:80px"> %'
       +'</div>';
   }
   el.innerHTML=h;
 }
 function staffSaveCOM(key,val){
+  if(EDICION_LOCAL_CATALOGO_CONGELADA){toast(AVISO_COMISIONES_CONGELADAS);renderStaffCOM();return;}
   var n=parseFloat(val);if(isNaN(n)||n<0||n>100)return;
   COM[key]=n/100;saveStaffConfig();
 }
 
 function renderStaffSS(){
   var el=document.getElementById('staffSS');if(!el)return;
-  var h='';
+  var congelado=EDICION_LOCAL_CATALOGO_CONGELADA;
+  var addBtn=document.getElementById('staffAddSvcBtn');
+  if(addBtn){addBtn.disabled=congelado;addBtn.title=congelado?AVISO_SERVICIOS_CONGELADOS:'';}
+  var h=congelado?'<div class="staff-freeze-note" id="staffSSAviso">'+AVISO_SERVICIOS_CONGELADOS+'</div>':'';
   var btnBase='padding:2px 6px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;line-height:1;font-family:var(--sans)';
   var btnDis=btnBase+';opacity:.3;cursor:default';
   for(var i=0;i<SS.length;i++){
@@ -7318,17 +7340,18 @@ function renderStaffSS(){
     var isFirst=i===0, isLast=i===SS.length-1;
     h+='<div class="staff-row">'
       +'<div style="display:flex;flex-direction:column;gap:2px;margin-right:4px">'
-      +'<button '+(isFirst?'disabled style="'+btnDis+'"':'style="'+btnBase+'"')+' onclick="staffMoveSvc(\''+s.id+'\',-1)" title="Subir">▲</button>'
-      +'<button '+(isLast?'disabled style="'+btnDis+'"':'style="'+btnBase+'"')+' onclick="staffMoveSvc(\''+s.id+'\',1)" title="Bajar">▼</button>'
+      +'<button '+(isFirst||congelado?'disabled style="'+btnDis+'"':'style="'+btnBase+'"')+' onclick="staffMoveSvc(\''+s.id+'\',-1)" title="Subir">▲</button>'
+      +'<button '+(isLast||congelado?'disabled style="'+btnDis+'"':'style="'+btnBase+'"')+' onclick="staffMoveSvc(\''+s.id+'\',1)" title="Bajar">▼</button>'
       +'</div>'
-      +'<input class="staff-input" type="text" value="'+escAttr(s.nombre)+'" placeholder="Nombre" onblur="staffSaveSvcName(\''+s.id+'\',this.value)" style="flex:2">'
+      +'<input class="staff-input" type="text" value="'+escAttr(s.nombre)+'" placeholder="Nombre"'+(congelado?' disabled':'')+' onblur="staffSaveSvcName(\''+s.id+'\',this.value)" style="flex:2">'
       +'<input class="staff-input" type="number" min="0" value="'+(_liveCatalogPrecios[s.id]!==undefined?_liveCatalogPrecios[s.id]:s.precio)+'" placeholder="Precio" onblur="staffSaveSvcPrecio(\''+s.id+'\',this.value)" style="max-width:100px">'
-      +'<button class="staff-del-btn" onclick="staffDelSvc(\''+s.id+'\')" title="Eliminar">&times;</button>'
+      +'<button class="staff-del-btn"'+(congelado?' disabled':'')+' onclick="staffDelSvc(\''+s.id+'\')" title="Eliminar">&times;</button>'
       +'</div>';
   }
   el.innerHTML=h;
 }
 function staffMoveSvc(id, dir){
+  if(EDICION_LOCAL_CATALOGO_CONGELADA){toast(AVISO_SERVICIOS_CONGELADOS);renderStaffSS();return;}
   var idx=-1;
   for(var i=0;i<SS.length;i++) if(SS[i].id===id){idx=i;break;}
   if(idx<0) return;
@@ -7338,6 +7361,7 @@ function staffMoveSvc(id, dir){
   renderStaffSS(); saveStaffConfig();
 }
 function staffSaveSvcName(id,val){
+  if(EDICION_LOCAL_CATALOGO_CONGELADA){toast(AVISO_SERVICIOS_CONGELADOS);renderStaffSS();return;}
   val=(val||'').trim();if(!val)return;
   for(var i=0;i<SS.length;i++)if(SS[i].id===id){SS[i].nombre=val;break;}
   saveStaffConfig();
@@ -7404,11 +7428,13 @@ function staffPatchPrecio(id,nuevoPrecio,precioActual,confirmMagnitud){
   .catch(function(){toast('Error de red al guardar precio');renderStaffSS();});
 }
 function staffDelSvc(id){
+  if(EDICION_LOCAL_CATALOGO_CONGELADA){toast(AVISO_SERVICIOS_CONGELADOS);renderStaffSS();return;}
   if(!confirm('¿Eliminar este servicio?'))return;
   SS=SS.filter(function(s){return s.id!==id;});
   renderStaffSS();saveStaffConfig();
 }
 function staffAddSvc(){
+  if(EDICION_LOCAL_CATALOGO_CONGELADA){toast(AVISO_SERVICIOS_CONGELADOS);renderStaffSS();return;}
   var newId='s'+Date.now().toString().slice(-7);
   SS.push({id:newId,nombre:'Nuevo servicio',precio:0,tiempo:'30 min'});
   renderStaffSS();saveStaffConfig();
