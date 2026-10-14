@@ -337,6 +337,9 @@
   .kpi-grade.B{background:#e8eef8;color:#1a4b8b}
   .kpi-grade.C{background:#f5f4f0;color:#5c5a54}
   .kpi-grade.X{background:#fcebeb;color:#791f1f}
+  .kpi-grade.D{background:#fdf0e6;color:#8a3b12}
+  .staff-periodo-row{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px}
+  .staff-periodo-fechas{color:var(--text2);text-align:right}
   .kpi-alert{background:#fcebeb;border:1px solid #f5c0c0;border-radius:var(--rl);padding:11px 14px;margin-bottom:14px;font-size:13px;color:#791f1f}
   .kpi-alert strong{display:block;margin-bottom:3px}
   .kpi-eval-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:18px}
@@ -1078,6 +1081,24 @@
             </div>
           </div>
           <button onclick="staffShowAddCard()" id="staffShowAddBtn" class="staff-add-btn" style="margin-top:10px;width:100%;padding:10px;font-size:12px;background:var(--surface2)">+ Agregar barbero</button>
+        </div>
+
+        <!-- Períodos de trabajo (solo lectura) -->
+        <div style="margin-bottom:26px">
+          <div class="staff-section-hdr">
+            <span>Períodos de trabajo</span>
+            <span class="staff-note">Activo desde / hasta · solo lectura</span>
+          </div>
+          <div id="staffPeriodos"></div>
+        </div>
+
+        <!-- Meta mensual del local -->
+        <div style="margin-bottom:26px">
+          <div class="staff-section-hdr">
+            <span>Meta mensual del local</span>
+            <span class="staff-note">Facturación de servicios · ajuste con motivo</span>
+          </div>
+          <div id="staffMeta"></div>
         </div>
 
         <!-- Comisiones -->
@@ -2082,7 +2103,7 @@ function init(){
   loadStaffConfig();
   buildBarbers();buildServices();buildProductos();buildProdBarbers();buildBarberFilters();buildSalaBidOptions();
   cargarBarberosDesdeAPI(); // unauthenticated — always runs, no panel login required
-  cargarSheetsUrl();cargar();cargarGastos();cargarLiquidaciones();cargarHorarios();cargarKpiEvals();renderAll();
+  cargarSheetsUrl();cargar();cargarGastos();cargarLiquidaciones();cargarHorarios();renderAll();
   // Today's sales are read from the server only with a panel session:
   // panelApplySession() starts the first read (after login, or on reload with
   // a saved session), and the 60 s refresh below is a no-op until then.
@@ -2111,14 +2132,14 @@ function init(){
       renderHorarios();
     });
   }
-  // Programar auto-envío a las 23:00 si no se hace manual
-  programarAutoEnvioKpi();
+  // Programar auto-envío de horarios a las 23:00 si no se hace manual
+  programarAutoEnvioHorarios();
   
   // Timer para reprogramar el auto-envío al día siguiente (a medianoche)
   setInterval(function(){
     var ahora = new Date();
     if(ahora.getHours() === 0 && ahora.getMinutes() === 0){
-      programarAutoEnvioKpi();
+      programarAutoEnvioHorarios();
     }
   }, 60000);
   // Auto-sync staff roster from API if token available
@@ -4223,7 +4244,7 @@ function marcarHora(bid, tipo){
   if(tipo==='salida')  reg.salida  = horaActual;
   guardarHorariosHoy();
   // Actualizar KPIs de horario automáticamente cada vez que se registra entrada/salida
-  BB.forEach(function(b){ syncEstrellaHorarioAuto(b.id, fechaHoy.substring(0,7)); });
+  kpiProgramarSyncEstrellasAuto(); // guarda en el servidor las estrellas automáticas del mes
   renderHorarios();
   // Enviar horario a Railway (con debounce 3s para no spamear)
   if(API_URL){
@@ -4676,50 +4697,78 @@ function calcEstrellaHorario(bid, periodo, tipo){
   };
 }
 
-// Sobreescribe el valor cuali de apertura/cierre con el calculado automáticamente
-// Se llama al renderizar los KPIs para que siempre esté actualizado
-function syncEstrellaHorarioAuto(bid, periodo){
-  var apt = calcEstrellaHorario(bid, periodo, 'apertura');
-  var cie = calcEstrellaHorario(bid, periodo, 'cierre');
-  var ev  = getEval(periodo, bid);
-  // Guardar como cuali pero marcado como 'auto' para no permitir edición manual
-  if(apt.diasContados > 0){
-    ev.cuali['apertura'] = apt.promedio;
-    ev.cuali['apertura_auto'] = true;
-    ev.cuali['apertura_detalle'] = apt.detalle;
-    ev.cuali['apertura_dias'] = apt.diasContados;
-  }
-  if(cie.diasContados > 0){
-    ev.cuali['cierre'] = cie.promedio;
-    ev.cuali['cierre_auto'] = true;
-    ev.cuali['cierre_detalle'] = cie.detalle;
-    ev.cuali['cierre_dias'] = cie.diasContados;
-  }
-  guardarKpiEvals();
+// Auto stars (October rules): the arrival/closing stars of the CURRENT month
+// are computed in this browser from its clock-ins (calcEstrellaHorario) and
+// saved to the server right away — a few seconds after each Entrada/Salida
+// and when the KPI tab opens — instead of waiting in the browser for a
+// 23:00 send. Opening a past month never rewrites its stars. Stage 9
+// replaces these stars with punctuality computed in the server.
+var KPI_ESTRELLAS_AUTO = ['apertura','cierre']; // indicator ids fed by the clock-ins
+function _bidsConHorario(periodo){
+  var bids={};
+  try{
+    for(var i=0;i<localStorage.length;i++){
+      var k=localStorage.key(i);
+      if(k && k.indexOf('sfsf_horarios_'+periodo)===0){
+        (JSON.parse(localStorage.getItem(k)||'[]')||[]).forEach(function(r){ if(r&&r.bid) bids[r.bid]=1; });
+      }
+    }
+  }catch(e){}
+  if(fechaHoy.substring(0,7)===periodo) (horarios[fechaHoy]||[]).forEach(function(r){ if(r&&r.bid) bids[r.bid]=1; });
+  delete bids.admin;
+  return Object.keys(bids);
+}
+// bid → {apertura:{promedio,diasContados,detalle}, cierre:{…}}, only where this browser has clock-ins
+function _estrellasAutoLocales(periodo){
+  var out={};
+  _bidsConHorario(periodo).forEach(function(bid){
+    KPI_ESTRELLAS_AUTO.forEach(function(id){
+      var r=calcEstrellaHorario(bid, periodo, id);
+      if(r.diasContados>0) (out[bid]=out[bid]||{})[id]=r;
+    });
+  });
+  return out;
+}
+function kpiSincronizarEstrellasAuto(periodo){
+  if(!API_URL || periodo!==fechaHoy.substring(0,7)) return Promise.resolve({ok:true,enviados:0});
+  var locales=_estrellasAutoLocales(periodo), mes=_kpiMes[periodo], ev={}, n=0;
+  var enMes=mes ? mes.barberos.reduce(function(a,b){ a[b.bid]=b; return a; },{}) : null;
+  Object.keys(locales).forEach(function(bid){
+    if(enMes && !enMes[bid]) return; // not a barber of this month
+    var cuali={};
+    Object.keys(locales[bid]).forEach(function(id){
+      var v=locales[bid][id].promedio;
+      if(!enMes || enMes[bid].estrellas[id]!==v) cuali[id]=v;
+    });
+    if(Object.keys(cuali).length){ ev[bid]={cuali:cuali}; n++; }
+  });
+  if(!n) return Promise.resolve({ok:true,enviados:0});
+  return kpiGuardarEvaluaciones(periodo, ev).then(function(r){
+    if(!r.ok) toast('⚠ No se guardaron las estrellas automáticas de horario: '+r.motivo);
+    r.enviados=n; return r;
+  });
+}
+var _kpiSyncAutoTimer=null;
+function kpiProgramarSyncEstrellasAuto(){
+  if(_kpiSyncAutoTimer) clearTimeout(_kpiSyncAutoTimer);
+  _kpiSyncAutoTimer=setTimeout(function(){ _kpiSyncAutoTimer=null; kpiSincronizarEstrellasAuto(fechaHoy.substring(0,7)); }, 5000);
 }
 
 // ═══ KPIs BARBEROS ═══════════════════════════════════════════
-
-// Estructura de evaluaciones guardadas: { 'YYYY-MM' : { bid: {evalData} } }
-var kpiEvals = {};
+// Scores, tiers, goal and bonuses come from ONE server calculation
+// (GET /api/v2/kpi/mes): the barbers who worked in the calendar month
+// (barbero_periodos), confirmed sales, the stars saved in the server, the
+// group goal (calculated, or adjusted in Administración with its reason) and
+// the rules in tenant_config. This tab only shows that result: it computes
+// no score, goal or bonus and keeps nothing in the browser. Each star or
+// disqualification is saved to the server when clicked; if the save fails
+// the tab says so and shows the server's values again.
 var kpiPeriodo = fechaStr(new Date()).substring(0,7); // YYYY-MM
-
-// Definición de KPIs cualitativos (1-5 estrellas)
-var KPI_CUALI = [
-  {id:'apertura',    label:'Cumplimiento apertura',       peso:2,   desc:'Llega a tiempo o antes de la hora de apertura'},
-  {id:'cierre',      label:'Cumplimiento cierre',         peso:2,   desc:'Permanece hasta el horario de cierre'},
-  {id:'estacion',    label:'Orden de estación',           peso:1.5, desc:'Mantiene su estación ordenada durante toda la jornada'},
-  {id:'aseo_entre',  label:'Aseo entre trabajos',         peso:1.5, desc:'Limpia su estación entre cada cliente'},
-  {id:'aseo_comun',  label:'Aseo áreas comunes',          peso:1,   desc:'Contribuye al aseo de las zonas compartidas'},
-  {id:'visajismo',   label:'Visajismo y asesoría',        peso:2,   desc:'Asesora al cliente sobre el look más adecuado'},
-  {id:'upselling',   label:'Upselling / venta detalle',   peso:2,   desc:'Impulsa servicios adicionales y productos'},
-  {id:'atencion',    label:'Atención al cliente',         peso:2,   desc:'Trato, amabilidad y experiencia del cliente'},
-  {id:'relacion',    label:'Relación con compañeros',     peso:1,   desc:'Trabajo en equipo y clima laboral'},
-  {id:'uniforme',    label:'Uniforme y presencia',        peso:1,   desc:'Usa el uniforme completo y proyecta buena imagen'},
-];
-
-// Peso total cualitativo máximo  
-var PESO_CUALI_TOTAL = KPI_CUALI.reduce(function(a,k){return a+k.peso;},0); // =16
+var _kpiMes = {};            // periodo → last server result (display only)
+var _kpiError = {};          // periodo → reason the last read failed
+var _kpiAvisoGuardado = null;
+var _kpiGuardando = false;
+var _kpiCargaN = 0;
 
 // Causales de descalificación
 var DISQ_CAUSALES = [
@@ -4729,403 +4778,35 @@ var DISQ_CAUSALES = [
   'Otra falta grave',
 ];
 
-function cargarKpiEvals(){
-  try{
-    var d = localStorage.getItem('sfsf_kpi_evals');
-    if(d) kpiEvals = JSON.parse(d);
-  }catch(e){ kpiEvals={}; }
+function _kpiNombreMes(periodo){
+  var meses=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  var p=String(periodo).split('-');
+  return meses[parseInt(p[1],10)-1]+' '+p[0];
 }
 
-function guardarKpiEvals(){
-  try{ localStorage.setItem('sfsf_kpi_evals', JSON.stringify(kpiEvals)); }catch(e){}
-  // Envío a Railway solo cuando se llama explícitamente a enviarKpiEvalsARailway()
-}
-
-// ─── SINCRONIZACIÓN KPIs ↔ RAILWAY ───────────────────────────────────────────
-var _kpiEnviando = false;
-var _kpiAutoTimer = null;
-
-function enviarKpiEvalsARailway(silencioso){
-  if(!API_URL || _kpiEnviando) return;
-  _kpiEnviando = true;
-  var payload = { periodo: kpiPeriodo, evaluaciones: kpiEvals[kpiPeriodo]||{} };
-  fetch(API_URL + '/kpi-evaluaciones/' + kpiPeriodo, {
-    method: 'POST',
-    headers: getJsonAuthHeaders(),
-    body: JSON.stringify(payload)
-  })
-  .then(function(r){ return r.json(); })
-  .then(function(json){
-    _kpiEnviando = false;
-    if(!silencioso) toast(json.ok ? '\u2705 Evaluaci\u00f3n enviada a la nube' : '\u26a0 Error al guardar en Railway');
-    if(json.ok && _kpiAutoTimer){ clearTimeout(_kpiAutoTimer); _kpiAutoTimer = null; }
-  })
-  .catch(function(){
-    _kpiEnviando = false;
-    if(!silencioso) toast('\u26a0 Sin conexi\u00f3n a Railway — guardado solo en local');
+function kpiCargarMes(periodo){
+  return fetchConReintentos(API_URL+'/api/v2/kpi/mes?periodo='+encodeURIComponent(periodo)).then(function(r){
+    if(r.ok){ _kpiMes[periodo]=r.json; delete _kpiError[periodo]; }
+    else { delete _kpiMes[periodo]; _kpiError[periodo]=r.motivo; }
+    return r;
   });
 }
 
-function cargarKpiEvalsDesdeRailway(callback){
-  if(!API_URL){ cargarKpiEvals(); if(callback) callback(); return; }
-  fetch(API_URL + '/kpi-evaluaciones/' + kpiPeriodo)
-    .then(function(r){ return r.json(); })
-    .then(function(json){
-      cargarKpiEvals(); // cargar primero localStorage
-      if(json.ok && json.evaluaciones){
-        // Railway es la fuente de verdad — fusionar encima de lo local
-        if(!kpiEvals[kpiPeriodo]) kpiEvals[kpiPeriodo] = {};
-        var remoto = json.evaluaciones;
-        Object.keys(remoto).forEach(function(bid){
-          if(!kpiEvals[kpiPeriodo][bid]) kpiEvals[kpiPeriodo][bid] = {cuali:{},disq:false,disqMotivo:''};
-          var src = remoto[bid]; var dst = kpiEvals[kpiPeriodo][bid];
-          if(src.cuali) Object.assign(dst.cuali, src.cuali);
-          if(src.disq !== undefined) dst.disq = src.disq;
-          if(src.disqMotivo !== undefined) dst.disqMotivo = src.disqMotivo;
-        });
-        guardarKpiEvals();
-      }
-      if(callback) callback();
-    })
-    .catch(function(){ cargarKpiEvals(); if(callback) callback(); });
-}
-
-function programarAutoEnvioKpi(){
-  if(_kpiAutoTimer){ clearTimeout(_kpiAutoTimer); _kpiAutoTimer = null; }
-  var ahora = new Date();
-  var cierre = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate(), 23, 0, 0);
-  if(ahora >= cierre) return;
-  var msHasta23 = cierre - ahora;
-  _kpiAutoTimer = setTimeout(function(){
-    _kpiAutoTimer = null;
-    enviarKpiEvalsARailway(true); // silencioso
-    enviarHorariosARailway(true);
-  }, msHasta23);
-}
-
-function getEval(periodo, bid){
-  if(!kpiEvals[periodo]) kpiEvals[periodo]={};
-  if(!kpiEvals[periodo][bid]) kpiEvals[periodo][bid]={cuali:{},disq:false,disqMotivo:''};
-  return kpiEvals[periodo][bid];
-}
-
-// ─── Calcula KPIs cuantitativos para un barbero en un período ────
-function calcKpiCuanti(bid, periodo){
-  // Recoger TODOS los registros del período desde localStorage + memoria
-  var todosRegs = [];
-  var seen = {};
-
-  // 1. localStorage: clave sfsf_YYYY-MM-DD por cada día del mes
-  try{
-    for(var i=0; i<localStorage.length; i++){
-      var k = localStorage.key(i);
-      if(!k || k.indexOf('sfsf_')!==0 || k.length!==15) continue;
-      var fechaKey = k.replace('sfsf_',''); // YYYY-MM-DD
-      if(fechaKey.substring(0,7) !== periodo) continue;
-      var arr = JSON.parse(localStorage.getItem(k)||'[]');
-      arr.forEach(function(r){
-        if(r.bid===bid && !seen[r.id]){seen[r.id]=1; todosRegs.push(r);}
-      });
-    }
-  }catch(e){}
-
-  // 2. Registros en memoria del día actual (evitar duplicados)
-  if(fechaHoy.substring(0,7)===periodo){
-    regs.forEach(function(r){
-      if(r.bid===bid && !seen[r.id]){seen[r.id]=1; todosRegs.push(r);}
-    });
-  }
-
-  var nSvc = todosRegs.length;
-  var totalFacturado = 0, totalPropinas = 0, upselling = 0;
-  for(var i=0;i<todosRegs.length;i++){
-    totalFacturado += (todosRegs[i].precio||0);
-    totalPropinas  += (todosRegs[i].propina||0);
-    if((todosRegs[i].precio||0) > 12000) upselling++;
-  }
-  var tk         = nSvc>0 ? Math.round(totalFacturado/nSvc) : 0;
-  // Meta: 5 propinas/día × 26 días = 130 propinas
-  //       $5.000/día × 26 días = $130.000 en propinas
-  var DIAS_MES_REF     = 26;
-  var META_PROP_CNT    = 5  * DIAS_MES_REF;   // 130 propinas
-  var META_PROP_MONTO  = 5000 * DIAS_MES_REF; // $130.000
-
-  // Contar registros con propina > 0
-  var propCnt = 0;
-  for(var i=0;i<todosRegs.length;i++){
-    if((todosRegs[i].propina||0) > 0) propCnt++;
-  }
-
-  // 5 pts por cantidad de propinas (proporcional a meta)
-  var ptsCnt   = Math.min(5, Math.round(propCnt   / META_PROP_CNT   * 5));
-  // 5 pts por monto total de propinas (proporcional a meta)
-  var ptsMonto = Math.min(5, Math.round(totalPropinas / META_PROP_MONTO * 5));
-  var propScore = ptsCnt + ptsMonto;
-
-  var propPct = totalFacturado>0 ? totalPropinas/totalFacturado : 0;
-
-  return {
-    nSvc:           nSvc,
-    tk:             tk,
-    ticketProm:     tk,       // alias para compatibilidad
-    totalFacturado: totalFacturado,
-    totalPropinas:  totalPropinas,
-    propPct:        propPct,
-    propScore:      propScore,
-    propCnt:        propCnt,
-    upselling:      upselling,
-    n:              nSvc,     // alias calcKpiCuantiLocal
-    tot:            totalFacturado,
-    upsCnt:         upselling,
-    propMonto:      totalPropinas,
-  };
-}
-
-// ─── Calcula puntuación total (0-100) ────────────────────────────
-function calcPuntaje(bid, periodo){
-  var ev = getEval(periodo, bid);
-  var cuanti = calcKpiCuanti(bid, periodo);
-
-  // BLOQUE 1 — Producción: 45 puntos
-  // Referencia: meta individual = meta mensual / nº barberos activos
-  var META_FACT_MES  = metaPlanParaPeriodo(periodo); // del plan
-  var BARBEROS_ACT   = BB.length; // barberos activos
-  var metaIndFact    = META_FACT_MES / BARBEROS_ACT;
-  var metaIndSvc     = Math.round(metaIndFact / 12300); // tk ref $12.300
-  var factEstimada   = cuanti.nSvc * (cuanti.tk || 12300);
-
-  // Servicios: aporte vs meta individual (20 pts)
-  var ptsSvc  = metaIndSvc > 0
-    ? Math.min(20, Math.round(cuanti.nSvc / metaIndSvc * 20))
-    : 0;
-
-  // Facturación estimada: aporte vs meta individual (15 pts)
-  var ptsFact = metaIndFact > 0
-    ? Math.min(15, Math.round(factEstimada / metaIndFact * 15))
-    : 0;
-
-  // Ticket promedio: vs $14.000 de referencia (10 pts)
-  var ptsTkt  = cuanti.tk > 0
-    ? Math.min(10, Math.round(cuanti.tk / 14000 * 10))
-    : 0;
-
-  // BLOQUE 2 — Conducta cualitativa: 50 puntos (peso proporcional)
-  var ptsQSum = 0;
-  var maxQSum = 0;
-  KPI_CUALI.forEach(function(k){
-    var val = ev.cuali[k.id]||0; // 0-5
-    ptsQSum += val * k.peso;
-    maxQSum  += 5  * k.peso;
-  });
-  var ptsCuali = maxQSum>0 ? Math.round(ptsQSum/maxQSum*50) : 0;
-
-  // BLOQUE 3 — Propinas: hasta 10 pts extra
-  var ptsProp = cuanti.propScore;
-
-  var total = ptsSvc + ptsFact + ptsTkt + ptsCuali + ptsProp;
-
-  return {
-    ptsSvc: ptsSvc, ptsFact: ptsFact, ptsTkt: ptsTkt,
-    ptsCuali: ptsCuali, ptsProp: ptsProp,
-    total: Math.min(100, total),
-    cuanti: cuanti,
-    disq: ev.disq, disqMotivo: ev.disqMotivo,
-  };
-}
-
-function gradeFromScore(score, disq){
-  if(disq) return 'X';
-  if(score>=90) return 'S';
-  if(score>=75) return 'A';
-  if(score>=55) return 'B';
-  if(score>=35) return 'C';
-  return 'X';
-}
-
-function gradeLabel(g){
-  if(g==='S') return '🥇 Sobresaliente';
-  if(g==='A') return '✅ Muy bueno';
-  if(g==='B') return '👍 Bueno';
-  if(g==='C') return '⚠ Regular';
-  return '🚫 Sin bono';
-}
-
-// ── PLAN DE FACTURACIÓN — anclado al dashboard_facturacion ──
-// PLAN_S: plan mensual servicios barbería. Índice 0 = Mayo 2026.
-var _historialMetas = {}; // YYYY-MM → meta del servidor (calcularMetaAnchorServicios)
-
-function cargarMetaDesdeServidor(callback){
-  if(!API_URL){ if(callback) callback(); return; }
-  fetch(API_URL+'/config/negocio', {headers:getJsonAuthHeaders()})
-  .then(function(r){ return r.json(); })
-  .then(function(json){
-    if(json.ok && json.meta){
-      if(json.meta.historial_metas) _historialMetas = json.meta.historial_metas;
-      if(json.meta.facturacion_meta_calculada != null) META_FACT = json.meta.facturacion_meta_calculada;
-    }
-    if(callback) callback();
-  })
-  .catch(function(){ if(callback) callback(); });
-}
-
-function metaPlanParaPeriodo(periodo){ // periodo = 'YYYY-MM'
-  if(_historialMetas[periodo] !== undefined) return _historialMetas[periodo];
-  return META_FACT || 0;
-}
-
-// ── MODOS DE BONO ─────────────────────────────────────────────
-// 'fijo'       → monto fijo en pesos
-// 'porcentaje' → % de la facturación real del mes
-var BONUS_MODO  = 'porcentaje';
-var BONUS_MONTO = {S:20000, A:10000, B:0, C:0, X:0, M:0};
-var BONUS_PCT   = {S:0.5,   A:0.25,  B:0, C:0, X:0, M:0}; // % de facturación real
-var META_FACT   = null; // populated from GET /config/negocio on first KPI render
-
-function cargarConfigKpi(){
-  try{
-    var raw = localStorage.getItem('sfsf_kpi_config');
-    if(!raw) return;
-    var cfg = JSON.parse(raw);
-    if(cfg.modo)   BONUS_MODO  = cfg.modo;
-    if(cfg.montos) Object.assign(BONUS_MONTO, cfg.montos);
-    if(cfg.pct)    Object.assign(BONUS_PCT,   cfg.pct);
-    if(cfg.metaOverride != null) META_FACT = cfg.metaOverride;
-  }catch(e){}
-}
-
-function guardarConfigKpi(){
-  try{
-    var cfg = {modo:BONUS_MODO, montos:BONUS_MONTO, pct:BONUS_PCT};
-    localStorage.setItem('sfsf_kpi_config', JSON.stringify(cfg));
-  }catch(e){}
-}
-
-// Facturación real acumulada del período (YYYY-MM)
-function calcFacturacionMes(periodo){
-  // Usar total cacheado desde Railway si está disponible (fuente de verdad)
-  if(window._factMesCache && window._factMesCache[periodo] !== undefined){
-    return window._factMesCache[periodo];
-  }
-  var total = 0;
-  // Fallback: recorrer registros diarios guardados en localStorage
-  try{
-    for(var i=0;i<localStorage.length;i++){
-      var k = localStorage.key(i);
-      if(!k || k.indexOf('sfsf_')!==0 || k.length!==15) continue; // sfsf_YYYY-MM-DD = 15 chars
-      var fechaKey = k.replace('sfsf_','');
-      if(fechaKey.substring(0,7)!==periodo) continue;
-      var arr = JSON.parse(localStorage.getItem(k)||'[]');
-      arr.forEach(function(r){ total+=(r.precio||0); });
-    }
-  }catch(e){}
-  // Registros del día actual en memoria (si no están en localStorage aún)
-  if(periodo===fechaHoy.substring(0,7)){
-    var hoyKey='sfsf_'+fechaHoy;
-    var enLS = false;
-    try{ enLS = localStorage.getItem(hoyKey)!==null; }catch(e){}
-    if(!enLS) regs.forEach(function(r){ total+=(r.precio||0); });
-  }
-  return total;
-}
-
-// Bono calculado según modo
-function calcBonoMonto(grade, facturacionMes){
-  if(!grade||grade==='X'||grade==='M'||grade==='C') return 0;
-  if(BONUS_MODO==='porcentaje'){
-    return Math.round(facturacionMes*(BONUS_PCT[grade]||0)/100);
-  }
-  return BONUS_MONTO[grade]||0;
-}
-
-function metaCumplida(periodo){
-  return calcFacturacionMes(periodo) >= metaPlanParaPeriodo(periodo);
-}
-
-// ─── Render principal ─────────────────────────────────────────────
-// Calcular cuantitativos directamente desde registros del localStorage/memoria
-function calcKpiCuantiLocal(bid, periodo){
-  var todosRegs = [];
-  // Recoger todos los registros del período del localStorage
-  try{
-    for(var i=0; i<localStorage.length; i++){
-      var k = localStorage.key(i);
-      if(!k || k.indexOf('sfsf_') !== 0 || k.length !== 15) continue;
-      var fechaKey = k.replace('sfsf_','');
-      if(fechaKey.substring(0,7) !== periodo) continue;
-      var arr = JSON.parse(localStorage.getItem(k)||'[]');
-      arr.forEach(function(r){ if(r.bid===bid) todosRegs.push(r); });
-    }
-  }catch(e){}
-  // También registros en memoria del día actual
-  if(fechaHoy.substring(0,7)===periodo){
-    regs.forEach(function(r){ if(r.bid===bid) todosRegs.push(r); });
-  }
-  // Deduplicar por id
-  var seen={}, uniq=[];
-  todosRegs.forEach(function(r){if(!seen[r.id]){seen[r.id]=true;uniq.push(r);}});
-  todosRegs = uniq;
-
-  var n   = todosRegs.length;
-  var tot = todosRegs.reduce(function(a,r){return a+r.precio;},0);
-  var bb  = todosRegs.reduce(function(a,r){return a+r.bb+(r.propina||0);},0);
-  var tk  = n>0?Math.round(tot/n):0;
-  var prop= todosRegs.filter(function(r){return (r.propina||0)>0;}).length;
-  var propMonto = todosRegs.reduce(function(a,r){return a+(r.propina||0);},0);
-  var ups = todosRegs.filter(function(r){return r.precio>12000;}).length;
-  return {n:n, tot:tot, bb:bb, tk:tk, propCnt:prop, propMonto:propMonto, upsCnt:ups};
-}
-
-// The KPI month — total billing (the goal and bonus base) and the sales
-// behind each barber's score — comes from ONE period read: the total from
-// /resumen/rango, the rows (cached per day in localStorage for the score
-// calculations) from /registros/rango. If the read fails the month is
-// marked as failed and renderKpisInner shows only the warning: no goal %,
-// bonus, score or per-barber figure, because partial data used to lower
-// all of them silently.
-function sincronizarMesDesdeApi(periodo, callback){
-  if(!API_URL){ if(callback) callback(); return; }
-  if(!window._factMesCache) window._factMesCache = {};
-  if(!window._kpiMesFallo) window._kpiMesFallo = {};
-  var p = periodo.split('-');
-  var desde = periodo + '-01';
-  var ultimo = fechaStr(new Date(parseInt(p[0],10), parseInt(p[1],10), 0)); // último día del mes
-  var hasta = ultimo < fechaHoy ? ultimo : fechaHoy;
-  if(desde > hasta){ // mes futuro: todavía sin ventas
-    delete window._kpiMesFallo[periodo];
-    window._factMesCache[periodo] = 0;
-    if(callback) callback();
-    return;
-  }
-  cargarPeriodoApi(desde, hasta, {registros:true, resumen:true}).then(function(res){
-    if(!res.ok){
-      delete window._factMesCache[periodo];
-      window._kpiMesFallo[periodo] = {desde:desde, hasta:hasta, motivo:res.motivo};
-      if(callback) callback();
-      return;
-    }
-    delete window._kpiMesFallo[periodo];
-    var porDia = {};
-    res.registros.forEach(function(r){
-      (porDia[r.fecha] = porDia[r.fecha] || []).push(registroDesdeApi(r, false));
-    });
-    Object.keys(porDia).forEach(function(fecha){
-      try{
-        var key = 'sfsf_'+fecha;
-        // Fusionar con lo que ya haya en localStorage
-        var existing = JSON.parse(localStorage.getItem(key)||'[]');
-        var seen = {}; existing.forEach(function(r){seen[r.id]=1;});
-        var nuevos = porDia[fecha].filter(function(r){return !seen[r.id];});
-        localStorage.setItem(key, JSON.stringify(existing.concat(nuevos)));
-      }catch(e){}
-    });
-    // Cachear total Railway — fuente de verdad para cálculo de bonos
-    window._factMesCache[periodo] = res.resumen.facturacion;
-    if(callback) callback();
-  });
+// POST the given changes ({bid:{cuali:{…}}} and/or {bid:{disq,disqMotivo}}).
+// Resolves {ok:true} or {ok:false, motivo}.
+function kpiGuardarEvaluaciones(periodo, evaluaciones){
+  return fetch(API_URL+'/kpi-evaluaciones/'+encodeURIComponent(periodo), {
+    method:'POST', headers:getJsonAuthHeaders(), body:JSON.stringify({evaluaciones:evaluaciones})
+  }).then(function(r){
+    return r.json().then(function(j){
+      if(r.ok && j && j.ok) return {ok:true};
+      return {ok:false, motivo:(j&&(j.detalle||j.error))||('el servidor respondió '+r.status)};
+    },function(){ return {ok:false, motivo:'respuesta ilegible del servidor ('+r.status+')'}; });
+  },function(){ return {ok:false, motivo:'sin conexión con el servidor'}; });
 }
 
 function reintentarKpiMes(){
-  window._kpiSynced = false;
+  delete _kpiMes[kpiPeriodo];
   renderKpis();
 }
 
@@ -5143,19 +4824,23 @@ function _kpiSelectorPeriodoHtml(){
 }
 
 function renderKpis(){
-  cargarKpiEvals();
-  if(API_URL && !window._kpiSynced){
-    window._kpiSynced = true;
-    cargarMetaDesdeServidor(function(){
-      cargarKpiEvalsDesdeRailway(function(){
-        sincronizarMesDesdeApi(kpiPeriodo, function(){
-          renderKpisInner();
-        });
-      });
-    });
+  var c=document.getElementById('kpisContent');
+  if(!c) return;
+  if(!API_URL){
+    c.innerHTML='<div class="kpi-page">'+avisoDatosHtml('No hay servidor configurado: los KPI se calculan en el servidor.')+'</div>';
     return;
   }
-  renderKpisInner();
+  var periodo=kpiPeriodo, n=++_kpiCargaN;
+  if(!_kpiMes[periodo]){
+    c.innerHTML='<div class="kpi-page">'+_kpiSelectorPeriodoHtml()
+      +'<div id="kpiCargando" style="font-size:13px;color:var(--text3);padding:14px 0">Cargando el KPI de '+_kpiNombreMes(periodo)+'…</div></div>';
+  }
+  kpiCargarMes(periodo).then(function(){
+    if(n!==_kpiCargaN || !_kpiMes[periodo]) return;
+    return kpiSincronizarEstrellasAuto(periodo).then(function(r){
+      if(r.ok && r.enviados) return kpiCargarMes(periodo);
+    });
+  }).then(function(){ if(n===_kpiCargaN) renderKpisInner(); });
 }
 
 // KPI tab render, guarded: a rendering error shows a visible message with a
@@ -5163,361 +4848,341 @@ function renderKpis(){
 function renderKpisInner(){
   renderSeguro('kpisContent', _renderKpisInnerSinGuarda, reintentarKpiMes);
 }
-function _renderKpisInnerSinGuarda(){
-  // Actualizar automáticamente apertura/cierre para todos los barberos
-  var periodoActual = kpiPeriodo;
-  BB.forEach(function(b){ syncEstrellaHorarioAuto(b.id, periodoActual); });
-  cargarConfigKpi();
-  var c = document.getElementById('kpisContent');
-  if(!c) return;
 
-  var fallo = window._kpiMesFallo && window._kpiMesFallo[kpiPeriodo];
-  if(fallo){
-    c.innerHTML = '<div class="kpi-page">' + _kpiSelectorPeriodoHtml()
-      + avisoDatosHtml('No se pudieron cargar las ventas '+textoPeriodo(fallo.desde, fallo.hasta)+' ('+fallo.motivo+'). '
-        + 'La meta, el % de avance, los bonos y los puntajes no se muestran porque estarían calculados con datos incompletos. '
-        + 'Las evaluaciones guardadas no se modificaron.')
+function _kpiTramos(r){ // tiers high → low, each with its max score
+  var t=r.estratos.slice().sort(function(a,b){ return b.min-a.min; });
+  return t.map(function(e,i){ return {id:e.id, nombre:e.nombre, min:e.min, max:i===0?r.puntaje_max:t[i-1].min-1, bono_pct:e.bono_pct}; });
+}
+function _kpiBonoTexto(pct){
+  if(pct===null || pct===undefined) return 'Sin bono';
+  if(pct===0) return '$0';
+  return String(pct).replace('.',',')+'%';
+}
+function _kpiGradeHtml(e){
+  return '<span class="kpi-grade '+_escHtml(e.id)+'">'+_escHtml(e.id)+' · '+_escHtml(e.nombre)+'</span>';
+}
+
+function _renderKpisInnerSinGuarda(){
+  var c=document.getElementById('kpisContent');
+  if(!c) return;
+  var periodo=kpiPeriodo, k=_kpiMes[periodo];
+  if(!k){
+    c.innerHTML='<div class="kpi-page">'+_kpiSelectorPeriodoHtml()
+      + avisoDatosHtml('No se pudo cargar el KPI de '+_kpiNombreMes(periodo)+' ('+(_kpiError[periodo]||'error desconocido')+'). '
+        + 'No se muestran puntajes, metas ni bonos calculados con datos incompletos. Las evaluaciones guardadas no se modificaron.')
       + '<button onclick="reintentarKpiMes()" id="kpiReintentarBtn" style="padding:8px 16px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-size:12px;font-weight:600;cursor:pointer">Reintentar</button>'
       + '</div>';
     return;
   }
+  var r=k.reglas, m=k.meta, prodMax=r.produccion.pts_servicios+r.produccion.pts_facturacion+r.produccion.pts_ticket;
+  var propMax=r.propinas.pts_cantidad+r.propinas.pts_monto;
+  var locales=_estrellasAutoLocales(periodo);
+  var h='<div class="kpi-page">';
+  if(_kpiAvisoGuardado) h+=avisoDatosHtml(_kpiAvisoGuardado);
 
-  // ── META Y BONOS ────────────────────────────────────────
-  var factMes   = calcFacturacionMes(kpiPeriodo);
-  var metaPlan  = metaPlanParaPeriodo(kpiPeriodo);
-  var pctMeta   = metaPlan>0 ? Math.min(100,Math.round(factMes/metaPlan*100)) : 0;
-  var metaOk    = metaCumplida(kpiPeriodo);
-  var metaColor = metaOk?'var(--ok)':'var(--err)';
-  var factBonoS = calcBonoMonto('S', factMes);
-  var factBonoA = calcBonoMonto('A', factMes);
+  // ── Meta del local ──
+  var okMeta=k.bonos.estado==='a_pagar', colorMeta=okMeta?'var(--ok)':'var(--err)';
+  var avance=m.avance_pct==null?0:Math.min(100,m.avance_pct);
+  h+='<div id="kpiMetaBox" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:14px 16px;margin-bottom:16px">';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">'
+    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3)">Meta del local · '+_kpiNombreMes(periodo)+'</div>'
+    +'<button onclick="showTabById(\'pStaff\')" style="font-size:11px;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer">Ajustar meta en Administración</button></div>';
+  if(m.vigente!=null){
+    h+='<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;gap:8px;flex-wrap:wrap">'
+      +'<span style="color:var(--text2)">Facturación de servicios vs meta</span>'
+      +'<span id="kpiMetaAvance" style="font-family:var(--mono);font-weight:700;color:'+colorMeta+'">$'+fmt(m.facturacion_servicios)+' / $'+fmt(m.vigente)+' · '+String(m.avance_pct).replace('.',',')+'%</span></div>';
+    h+='<div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden"><div style="height:100%;width:'+avance+'%;background:'+colorMeta+';border-radius:4px"></div></div>';
+  }
+  h+='<div id="kpiMetaValores" style="font-size:12px;color:var(--text2);margin-top:8px;line-height:1.6">';
+  if(m.override){
+    h+='Meta ajustada: <b style="font-family:var(--mono)">$'+fmt(m.override.valor)+'</b> · meta calculada: <b style="font-family:var(--mono)">'+(m.calculada==null?'—':'$'+fmt(m.calculada))+'</b><br>'
+      +'<span style="color:var(--text3)">Ajustada por '+_escHtml(m.override.por)+' el '+_escHtml(m.override.en)+' · motivo: '+_escHtml(m.override.motivo)+'</span>';
+  } else if(m.calculada!=null){
+    h+='Meta calculada: <b style="font-family:var(--mono)">$'+fmt(m.calculada)+'</b> (sin ajuste)';
+  }
+  h+='<br>Productos del mes: $'+fmt(m.facturacion_productos)+' <span style="color:var(--text3)">(no cuentan para la meta)</span>';
+  if(k.meta_individual!=null) h+='<br>Meta individual: <b style="font-family:var(--mono)">$'+fmt(k.meta_individual)+'</b> <span style="color:var(--text3)">= meta ÷ '+k.divisor+' barbero'+(k.divisor===1?'':'s')+' que trabajaron en el mes</span>';
+  if(k.mes_en_curso) h+='<br><span style="color:var(--text3)">Mes en curso: cifras hasta el '+_fechaLegible(k.hasta)+'.</span>';
+  h+='</div>';
+  var estadoTxt={
+    a_pagar:'✓ Meta cumplida: los bonos de este mes se pagan.',
+    meta_no_cumplida:k.mes_en_curso?'La meta todavía no se cumple: los bonos se muestran como potenciales y se pagan solo si el local cumple la meta del mes.'
+                                    :'Meta no cumplida: los bonos se muestran como potenciales y no se pagan este mes.',
+    retenido_revision:'Bonos retenidos: hay ventas fuera del período de trabajo de algún barbero. Revisa estos casos antes de pagar.',
+    meta_no_disponible:'Este mes no tiene meta: ningún bono se muestra como pagable.'
+  }[k.bonos.estado]||k.bonos.estado;
+  h+='<div id="kpiEstadoBonos" style="margin-top:8px;font-size:12px;font-weight:600;color:'+colorMeta+'">'+_escHtml(estadoTxt)+'</div>';
+  if(k.avisos.length){
+    h+='<ul style="margin:6px 0 0 18px;font-size:12px;color:var(--err)">';
+    k.avisos.forEach(function(a){ h+='<li>'+_escHtml(a.nombre||a.bid)+': '+a.ventas+' venta'+(a.ventas===1?'':'s')+' entre el '+_fechaLegible(a.primera)+' y el '+_fechaLegible(a.ultima)+'</li>'; });
+    h+='</ul>';
+  }
+  h+='</div>';
 
-  var configH = '';
-  configH += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:14px 16px;margin-bottom:16px">';
-  configH += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">';
-  configH += '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3)">⚙ Meta y bonos de incentivo</div>';
-  configH += '<button onclick="toggleConfigKpi()" id="btnToggleConfig" style="font-size:11px;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer">▼ Configurar</button>';
-  configH += '</div>';
-  // Barra de progreso
-  configH += '<div style="margin-bottom:8px">';
-  configH += '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">';
-  configH += '<span style="color:var(--text2)">📊 '+kpiPeriodo+' · Facturación vs plan</span>';
-  configH += '<span style="font-family:var(--mono);font-weight:700;color:'+metaColor+'">$'+fmt(factMes)+' / $'+fmt(metaPlan)+' · '+pctMeta+'%</span>';
-  configH += '</div>';
-  configH += '<div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden">';
-  configH += '<div style="height:100%;width:'+pctMeta+'%;background:'+metaColor+';border-radius:4px;transition:width .5s"></div>';
-  configH += '</div>';
-  configH += '<div style="display:flex;justify-content:space-between;font-size:11px;margin-top:4px">';
-  configH += '<span style="color:'+metaColor+';font-weight:600">'+(metaOk?'✓ Meta cumplida — bonos activos':'⚠ Meta incompleta — bonos bloqueados')+'</span>';
-  configH += '<span style="color:var(--text3)">Fuente: PLAN_S — dashboard_facturacion</span>';
-  configH += '</div></div>';
-  // Chips bono estimado
-  configH += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
-  configH += '<div style="background:var(--warn-soft);border:1px solid var(--gold);border-radius:var(--r);padding:5px 12px;font-size:12px">';
-  configH += '🥇 Bono S · <b style="font-family:var(--mono)">'+(BONUS_MODO==='porcentaje'?BONUS_PCT.S+'% = $'+fmt(factBonoS):'$'+fmt(BONUS_MONTO.S))+'</b></div>';
-  configH += '<div style="background:var(--ok-soft);border:1px solid var(--ok);border-radius:var(--r);padding:5px 12px;font-size:12px">';
-  configH += '✅ Bono A · <b style="font-family:var(--mono)">'+(BONUS_MODO==='porcentaje'?BONUS_PCT.A+'% = $'+fmt(factBonoA):'$'+fmt(BONUS_MONTO.A))+'</b></div>';
-  configH += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:5px 10px;font-size:11px;color:var(--text3)">';
-  configH += 'modo: '+BONUS_MODO+'</div>';
-  configH += '</div>';
-  // Panel editable
-  configH += '<div id="kpiConfigPanel" style="display:none;border-top:1px solid var(--border);padding-top:14px;margin-top:12px">';
-  configH += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">';
-  // Col izq: meta
-  configH += '<div><div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:6px">Meta del plan (automática)</div>';
-  configH += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;font-size:12px;margin-bottom:8px">';
-  configH += '<div style="font-size:10px;color:var(--text3);margin-bottom:2px">'+kpiPeriodo+' según dashboard_facturacion</div>';
-  configH += '<div style="font-family:var(--mono);font-weight:700">$'+fmt(metaPlan)+'</div></div>';
-  configH += '<div style="font-size:11px;color:var(--text2);margin-bottom:4px">Override manual (opcional)</div>';
-  configH += '<div style="display:flex;gap:6px">';
-  configH += '<input type="number" id="inputMeta" value="'+META_FACT+'" step="500000" min="0" style="flex:1;padding:6px 9px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--mono);font-size:12px">';
-  configH += '<button onclick="guardarMeta()" style="padding:6px 12px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-size:12px;font-weight:600;cursor:pointer">OK</button>';
-  configH += '<button onclick="resetMeta()" title="Volver al plan" style="padding:6px 9px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;font-size:13px">↺</button>';
-  configH += '</div></div>';
-  // Col der: modo y montos
-  configH += '<div><div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:6px">Modo de cálculo</div>';
-  configH += '<div style="display:flex;gap:6px;margin-bottom:10px">';
-  configH += '<button data-modo="fijo" onclick="setBonusModo(this.dataset.modo)" style="flex:1;padding:6px;border-radius:var(--r);font-size:11px;cursor:pointer;font-weight:600;'
-    +'border:1.5px solid '+(BONUS_MODO==='fijo'?'var(--text)':'var(--border)')+';background:'+(BONUS_MODO==='fijo'?'var(--text)':'var(--surface2)')+';color:'+(BONUS_MODO==='fijo'?'#fff':'var(--text2)')+'">Monto fijo</button>';
-  configH += '<button data-modo="porcentaje" onclick="setBonusModo(this.dataset.modo)" style="flex:1;padding:6px;border-radius:var(--r);font-size:11px;cursor:pointer;font-weight:600;'
-    +'border:1.5px solid '+(BONUS_MODO==='porcentaje'?'var(--text)':'var(--border)')+';background:'+(BONUS_MODO==='porcentaje'?'var(--text)':'var(--surface2)')+';color:'+(BONUS_MODO==='porcentaje'?'#fff':'var(--text2)')+'">% facturación</button>';
-  configH += '</div>';
-  // Fijo
-  configH += '<div id="panelFijo" style="display:'+(BONUS_MODO==='fijo'?'flex':'none')+';flex-direction:column;gap:5px">';
-  [{g:'S',lbl:'🥇 S',c:'var(--gold)'},{g:'A',lbl:'✅ A',c:'var(--ok)'},{g:'B',lbl:'👍 B',c:'var(--info)'}].forEach(function(it){
-    configH+='<div style="display:flex;align-items:center;gap:6px;font-size:12px">';
-    configH+='<span style="width:45px;color:'+it.c+';font-weight:600">'+it.lbl+'</span>';
-    configH+='<input type="number" id="inputF'+it.g+'" value="'+BONUS_MONTO[it.g]+'" step="5000" min="0" style="flex:1;padding:5px 7px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--mono);font-size:12px;text-align:right">';
-    configH+='</div>';
+  // ── Encabezado ──
+  h+='<div style="margin-bottom:18px"><div style="font-size:16px;font-weight:700;margin-bottom:4px">Evaluación de KPIs — Barberos</div>'
+    +'<div style="font-size:13px;color:var(--text2);line-height:1.6;max-width:680px">Puntajes, estratos y bonos calculados en el servidor con las ventas confirmadas del mes. '
+    +'Solo aparecen los barberos que trabajaron al menos un día en '+_kpiNombreMes(periodo)+'.</div></div>';
+  h+=_kpiSelectorPeriodoHtml();
+
+  // ── Tarjetas ──
+  var bs=k.barberos;
+  var prom=bs.length?Math.round(bs.reduce(function(a,b){return a+b.puntos.total;},0)/bs.length):0;
+  h+='<div class="kpi-cards-row">'
+    +'<div class="kpi-mini"><div class="kpi-mini-label">Puntaje promedio</div><div class="kpi-mini-val">'+prom+'<span style="font-size:13px;color:var(--text3)">/'+r.puntaje_max+'</span></div></div>'
+    +'<div class="kpi-mini"><div class="kpi-mini-label">Servicios del mes</div><div class="kpi-mini-val">'+bs.reduce(function(a,b){return a+b.ventas.servicios;},0)+'</div></div>'
+    +'<div class="kpi-mini"><div class="kpi-mini-label">Bonos potenciales</div><div class="kpi-mini-val" id="kpiPotencialTotal">$'+fmt(k.bonos.potencial_total)+'</div></div>'
+    +'<div class="kpi-mini"><div class="kpi-mini-label">Bonos a pagar</div><div class="kpi-mini-val" id="kpiAPagarTotal" style="color:'+(k.bonos.a_pagar_total>0?'var(--ok)':'var(--text3)')+'">$'+fmt(k.bonos.a_pagar_total)+'</div></div>'
+    +'</div>';
+
+  // ── Tabla resumen ──
+  h+='<div class="kpi-table-wrap"><div class="kpi-table-head"><span>Resumen del período</span><small>'+periodo+'</small></div>'
+    +'<table class="kpi-rt" id="kpiTabla"><thead><tr><th>Barbero</th><th class="r">Servicios</th><th class="r">Tkt prom.</th><th class="r">Propinas</th>'
+    +'<th class="r">Producción<br><small style="font-weight:400;text-transform:none;color:var(--text3)">'+prodMax+' pts</small></th>'
+    +'<th class="r">Conducta<br><small style="font-weight:400;text-transform:none;color:var(--text3)">'+r.conducta.pts+' pts</small></th>'
+    +'<th class="r">Propinas<br><small style="font-weight:400;text-transform:none;color:var(--text3)">'+propMax+' pts</small></th>'
+    +'<th class="r">Total</th><th class="r">Estrato</th><th class="r">Bono potencial</th><th class="r">Bono a pagar</th></tr></thead><tbody>';
+  if(!bs.length) h+='<tr><td colspan="11" style="color:var(--text3)">Ningún barbero trabajó en este mes.</td></tr>';
+  bs.forEach(function(b){
+    var p=b.puntos;
+    h+='<tr data-bid="'+_escHtml(b.bid)+'"'+(b.disq?' style="opacity:.6"':'')+'>'
+      +'<td><strong>'+_escHtml(b.nombre)+'</strong>'+(b.disq?'<span class="kpi-disq-badge">🚫 Descalif.</span>':'')+'</td>'
+      +'<td class="r"><span style="font-family:var(--mono);font-weight:600">'+b.ventas.servicios+'</span></td>'
+      +'<td class="r"><span style="font-family:var(--mono)">$'+fmt(b.ventas.ticket_promedio)+'</span></td>'
+      +'<td class="r">'+(b.ventas.propinas_monto>0?'<span style="font-family:var(--mono);color:#8b5e00">$'+fmt(b.ventas.propinas_monto)+'</span><br><span style="font-size:10px;color:var(--text3)">'+b.ventas.propinas_cantidad+' registros</span>':'<span style="color:var(--text3)">—</span>')+'</td>'
+      +'<td class="r"><span class="kpi-score-num">'+p.produccion+'</span></td>'
+      +'<td class="r"><span class="kpi-score-num">'+p.conducta+'</span></td>'
+      +'<td class="r"><span style="font-family:var(--mono);color:#8b5e00">'+p.propinas+'</span></td>'
+      +'<td class="r"><span class="kpi-total" style="font-family:var(--mono);font-weight:700;font-size:16px">'+p.total+'</span></td>'
+      +'<td class="r">'+_kpiGradeHtml(b.estrato)+'</td>'
+      +'<td class="r"><span class="kpi-potencial" style="font-family:var(--mono)">$'+fmt(b.bono_potencial)+'</span></td>'
+      +'<td class="r"><span class="kpi-apagar" style="font-family:var(--mono);font-weight:700;color:'+(b.bono_a_pagar>0?'var(--ok)':'var(--text3)')+'">$'+fmt(b.bono_a_pagar)+'</span></td>'
+      +'</tr>';
   });
-  configH += '</div>';
-  // Porcentaje
-  configH += '<div id="panelPct" style="display:'+(BONUS_MODO==='porcentaje'?'flex':'none')+';flex-direction:column;gap:5px">';
-  configH += '<div style="font-size:10px;color:var(--text3);margin-bottom:2px">% aplicado sobre $'+fmt(factMes)+' facturado</div>';
-  [{g:'S',lbl:'🥇 S',c:'var(--gold)'},{g:'A',lbl:'✅ A',c:'var(--ok)'}].forEach(function(it){
-    configH+='<div style="display:flex;align-items:center;gap:6px;font-size:12px">';
-    configH+='<span style="width:45px;color:'+it.c+';font-weight:600">'+it.lbl+'</span>';
-    configH+='<input type="number" id="inputP'+it.g+'" value="'+BONUS_PCT[it.g]+'" step="0.05" min="0" max="5" style="width:65px;padding:5px 7px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--mono);font-size:12px;text-align:right">';
-    configH+='<span style="color:var(--text3);font-family:var(--mono);font-size:11px">% = $'+fmt(calcBonoMonto(it.g,factMes))+'</span>';
-    configH+='</div>';
-  });
-  configH += '</div>';
-  configH += '<button onclick="guardarBonos()" style="margin-top:8px;width:100%;padding:7px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-size:12px;font-weight:600;cursor:pointer">Guardar configuración</button>';
-  configH += '</div></div></div>';
+  h+='</tbody></table></div>';
 
-  var h = '<div class="kpi-page">';
-  h += configH;
-  h += '<div style="margin-bottom:18px">';
-  h += '<div style="font-size:16px;font-weight:700;margin-bottom:4px">Evaluación de KPIs — Barberos</div>';
-  h += '<div style="font-size:13px;color:var(--text2);line-height:1.6;max-width:680px">'
-    + 'Registra el desempeño cualitativo de cada barbero. Los indicadores cuantitativos '
-    + '(servicios, ticket promedio y propinas) se calculan automáticamente de los registros del sistema.'
-    + '</div></div>';
-
-  // Selector período
-  h += _kpiSelectorPeriodoHtml();
-
-  // Resumen global (tarjetas)
-  var scores = BB.map(function(b){ return calcPuntaje(b.id, kpiPeriodo); });
-  var avgScore = scores.length>0 ? Math.round(scores.reduce(function(a,s){return a+s.total;},0)/scores.length) : 0;
-  var totalSvcPeriodo = scores.reduce(function(a,s){return a+s.cuanti.nSvc;},0);
-  var totalPropPeriodo = scores.reduce(function(a,s){return a+s.cuanti.totalPropinas;},0);
-  var bonusTotalPeriodo = scores.reduce(function(a,s){return a+BONUS_MONTO[gradeFromScore(s.total,s.disq)];},0);
-
-  h += '<div class="kpi-cards-row">'
-    + '<div class="kpi-mini"><div class="kpi-mini-label">Puntaje promedio equipo</div><div class="kpi-mini-val" style="color:'+(avgScore>=75?'var(--ok)':avgScore>=50?'var(--warn)':'var(--err)')+'">'+avgScore+'<span style="font-size:13px;color:var(--text3)">/100</span></div></div>'
-    + '<div class="kpi-mini"><div class="kpi-mini-label">Servicios período</div><div class="kpi-mini-val">'+totalSvcPeriodo+'</div></div>'
-    + '<div class="kpi-mini"><div class="kpi-mini-label">Propinas totales</div><div class="kpi-mini-val" style="color:#8b5e00">$'+fmt(totalPropPeriodo)+'</div></div>'
-    + '<div class="kpi-mini"><div class="kpi-mini-label">Bonos a pagar</div><div class="kpi-mini-val" style="color:var(--ok)">$'+fmt(bonusTotalPeriodo)+'</div></div>'
-    + '</div>';
-
-  // ── Tabla resumen comparativa ──
-  h += '<div class="kpi-table-wrap">'
-    + '<div class="kpi-table-head"><span>Resumen comparativo del período</span><small>'+kpiPeriodo+'</small></div>'
-    + '<table class="kpi-rt">'
-    + '<thead><tr>'
-    + '<th>Barbero</th>'
-    + '<th class="r">Servicios</th>'
-    + '<th class="r">Tkt prom.</th>'
-    + '<th class="r">Propinas</th>'
-    + '<th class="r">Producción<br><small style="font-weight:400;text-transform:none;color:var(--text3)">45 pts</small></th>'
-    + '<th class="r">Conducta<br><small style="font-weight:400;text-transform:none;color:var(--text3)">50 pts</small></th>'
-    + '<th class="r">Propina+<br><small style="font-weight:400;text-transform:none;color:var(--text3)">10 pts</small></th>'
-    + '<th class="r">Total</th>'
-    + '<th class="r">Nota</th>'
-    + '<th class="r">Bono</th>'
-    + '</tr></thead><tbody>';
-
-  BB.forEach(function(b){
-    var sc = calcPuntaje(b.id, kpiPeriodo);
-    var grade = gradeFromScore(sc.total, sc.disq);
-    var bono = BONUS_MONTO[grade];
-    var gradeColors = {S:'#8b5e00',A:'#1a6b3a',B:'#1a4b8b',C:'#5c5a54',X:'#791f1f'};
-    var disqClass = sc.disq ? 'style="opacity:.4;text-decoration:line-through"' : '';
-
-    h += '<tr '+(sc.disq?'style="opacity:.55"':'')+'>'
-      + '<td><strong>'+b.nombre+'</strong>'+(sc.disq?'<span class="kpi-disq-badge">🚫 Descalif.</span>':'')+'</td>'
-      + '<td class="r" '+disqClass+'><span style="font-family:var(--mono);font-weight:600">'+sc.cuanti.nSvc+'</span></td>'
-      + '<td class="r" '+disqClass+'><span style="font-family:var(--mono)">$'+fmt(sc.cuanti.tk)+'</span></td>'
-      + '<td class="r" '+disqClass+'>'+(sc.cuanti.totalPropinas>0?'<span style="font-family:var(--mono);color:#8b5e00">$'+fmt(sc.cuanti.totalPropinas)+'</span><br><span style="font-size:10px;color:var(--text3)">'+sc.cuanti.propCnt+' registros</span>':'<span style="color:var(--text3)">—</span>')+'</td>'
-      + '<td class="r"><div class="kpi-score-cell">'
-      +   '<span class="kpi-score-num">'+(sc.disq?'—':sc.ptsSvc+sc.ptsFact+sc.ptsTkt)+'</span>'
-      +   '<div class="kpi-score-bar"><div class="kpi-score-fill" style="width:'+(sc.disq?0:Math.round((sc.ptsSvc+sc.ptsFact+sc.ptsTkt)/45*100))+'%;background:#8b5e00"></div></div>'
-      + '</div></td>'
-      + '<td class="r"><div class="kpi-score-cell">'
-      +   '<span class="kpi-score-num">'+(sc.disq?'—':sc.ptsCuali)+'</span>'
-      +   '<div class="kpi-score-bar"><div class="kpi-score-fill" style="width:'+(sc.disq?0:Math.round(sc.ptsCuali/50*100))+'%;background:#1a4b8b"></div></div>'
-      + '</div></td>'
-      + '<td class="r"><span style="font-family:var(--mono);color:#8b5e00">'+(sc.disq?'—':sc.ptsProp)+'</span></td>'
-      + '<td class="r"><span style="font-family:var(--mono);font-weight:700;font-size:16px;color:'+(sc.disq?'var(--err)':gradeColors[grade])+'">'+(sc.disq?'NULO':sc.total)+'</span></td>'
-      + '<td class="r"><span class="kpi-grade '+grade+'">'+grade+' '+gradeLabel(grade).split(' ')[0]+'</span></td>'
-      + '<td class="r"><span style="font-family:var(--mono);font-weight:700;'+(bono>0?'color:var(--ok)':'color:var(--text3)')+'">'+(sc.disq?'$0':('$'+fmt(bono)))+'</span></td>'
-      + '</tr>';
-  });
-
-  h += '</tbody></table></div>';
-
-  // ── Evaluación cualitativa por barbero ──
-  h += '<div style="font-size:13px;font-weight:700;margin-bottom:12px;color:var(--text)">Evaluación cualitativa — período <span class="kpi-period-badge">'+kpiPeriodo+'</span></div>';
-  h += '<div style="font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.6">Asigna de 1 a 5 estrellas en cada indicador. Los cambios se guardan automáticamente.</div>';
-
-  h += '<div class="kpi-eval-grid">';
-  BB.forEach(function(b){
-    var ev = getEval(kpiPeriodo, b.id);
-    var sc = calcPuntaje(b.id, kpiPeriodo);
-    var grade = gradeFromScore(sc.total, sc.disq);
-    var headColors = {S:'#8b5e00',A:'#1a6b3a',B:'#1a4b8b',C:'#5c5a54',X:'#791f1f'};
-    var headBg = {S:'#fef9e7',A:'#e6f4ea',B:'#e8eef8',C:'#f5f4f0',X:'#fcebeb'};
-
-    h += '<div class="kpi-eval-card">'
-      + '<div class="kpi-eval-head" style="background:'+headBg[grade]+'">'
-      +   '<div>'
-      +     '<div class="kpi-eval-name">'+b.nombre+'</div>'
-      +     '<div style="font-size:11px;color:'+headColors[grade]+';font-weight:600">'+gradeLabel(grade)+' · '+sc.total+'/100</div>'
-      +   '</div>'
-      +   '<span class="kpi-grade '+grade+'">'+grade+'</span>'
-      + '</div>'
-      + '<div class="kpi-eval-body">';
-
-        // Indicadores cualitativos
-    KPI_CUALI.forEach(function(k){
-      var val = ev.cuali[k.id]||0;
-      var isAuto = (k.id==='apertura'||k.id==='cierre') && ev.cuali[k.id+'_auto'];
-      var detalle = isAuto ? (ev.cuali[k.id+'_detalle']||'') : '';
-      h += '<div class="kpi-eval-row" title="'+k.desc+'">';
-      h += '<div class="kpi-eval-label">'+k.label
-        + (isAuto ? '<span style="font-size:9px;background:#e8eef8;color:#1a4b8b;padding:1px 5px;border-radius:10px;margin-left:5px">auto</span>' : '')
-        + '<sup style="font-size:9px;color:var(--text3)"> ×'+k.peso+'</sup></div>';
-      h += '<div class="kpi-stars">';
-      for(var s=1;s<=5;s++){
-        if(isAuto){
-          // Solo lectura — mostrar fracción de estrella con opacidad proporcional
-          h += '<span class="kpi-star" style="cursor:default;opacity:'+(s<=Math.round(val)?'1':s-0.5<=val?'0.5':'0.2')+'">⭐</span>';
-        } else {
-          h += '<span class="kpi-star" data-bid="'+b.id+'" data-kid="'+k.id+'" data-val="'+s+'" '
-            + 'onclick="setKpiStarEl(this)" '
-            + 'title="'+s+' estrella'+(s>1?'s':'')+'" '
-            + 'style="'+(s<=val?'opacity:1':'opacity:.25')+'">⭐</span>';
-        }
+  // ── Evaluación cualitativa ──
+  h+='<div style="font-size:13px;font-weight:700;margin-bottom:6px;color:var(--text)">Evaluación cualitativa — <span class="kpi-period-badge">'+periodo+'</span></div>';
+  h+='<div style="font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.6">Asigna de 1 a '+r.conducta.estrellas_max+' estrellas en cada indicador. Cada cambio se guarda en el servidor al hacer clic.'
+    +' <span id="kpiGuardadoEstado" style="color:var(--text3)"></span></div>';
+  h+='<div class="kpi-eval-grid">';
+  bs.forEach(function(b){
+    var auto=locales[b.bid]||{};
+    h+='<div class="kpi-eval-card" data-bid="'+_escHtml(b.bid)+'"><div class="kpi-eval-head"><div><div class="kpi-eval-name">'+_escHtml(b.nombre)+'</div>'
+      +'<div style="font-size:11px;color:var(--text2);font-weight:600">'+_escHtml(b.estrato.nombre)+' · '+b.puntos.total+'/'+r.puntaje_max+'</div></div>'
+      +'<span class="kpi-grade '+_escHtml(b.estrato.id)+'">'+_escHtml(b.estrato.id)+'</span></div><div class="kpi-eval-body">';
+    r.conducta.indicadores.forEach(function(ind){
+      var val=b.estrellas[ind.id]||0, esAuto=KPI_ESTRELLAS_AUTO.indexOf(ind.id)!==-1 && !!auto[ind.id];
+      h+='<div class="kpi-eval-row"><div class="kpi-eval-label">'+_escHtml(ind.nombre)
+        +(esAuto?'<span style="font-size:9px;background:#e8eef8;color:#1a4b8b;padding:1px 5px;border-radius:10px;margin-left:5px">auto</span>':'')
+        +'<sup style="font-size:9px;color:var(--text3)"> ×'+ind.peso+'</sup></div><div class="kpi-stars">';
+      for(var s=1;s<=r.conducta.estrellas_max;s++){
+        if(esAuto) h+='<span class="kpi-star" style="cursor:default;opacity:'+(s<=Math.round(val)?'1':s-0.5<=val?'0.5':'0.2')+'">⭐</span>';
+        else h+='<span class="kpi-star" data-bid="'+_escHtml(b.bid)+'" data-kid="'+_escHtml(ind.id)+'" data-val="'+s+'" onclick="setKpiStarEl(this)" title="'+s+' estrella'+(s>1?'s':'')+'" style="'+(s<=val?'opacity:1':'opacity:.25')+'">⭐</span>';
       }
-      if(isAuto && detalle){
-        h += '<span style="font-size:10px;font-family:var(--mono);color:var(--text3);margin-left:6px">'
-          + val.toFixed(1) + ' · ' + detalle + '</span>';
-      }
-      h += '</div></div>';
+      if(esAuto) h+='<span style="font-size:10px;font-family:var(--mono);color:var(--text3);margin-left:6px">'+Number(val).toFixed(1)+' · '+_escHtml(auto[ind.id].detalle)+'</span>';
+      h+='</div></div>';
     });
-
-    // Indicadores cuantitativos (solo lectura, automáticos)
-    h += '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border)">'
-      + '<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text3);margin-bottom:6px">Auto — desde registros</div>'
-      + '<div class="kpi-eval-row"><div class="kpi-eval-label">Servicios realizados</div><span style="font-family:var(--mono);font-weight:600">'+sc.cuanti.nSvc+'</span></div>'
-      + '<div class="kpi-eval-row"><div class="kpi-eval-label">Ticket promedio</div><span style="font-family:var(--mono)">$'+fmt(sc.cuanti.tk)+'</span></div>'
-      + '<div class="kpi-eval-row"><div class="kpi-eval-label">Propinas (+bono)</div><span style="font-family:var(--mono);color:#8b5e00">'+(sc.cuanti.totalPropinas>0?'$'+fmt(sc.cuanti.totalPropinas)+' +'+sc.cuanti.propScore+'pts':'—')+'</span></div>'
-      + '</div>';
-
-    // Descalificación
-    h += '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)">'
-      + '<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--err);margin-bottom:7px">⚠ Descalificación (elimina bono)</div>'
-      + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
-      + '<label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">'
-      + '<input type="checkbox" '+(ev.disq?'checked':'')+' data-bid="'+b.id+'" onchange="toggleDisq(this.dataset.bid,this.checked)">'
-      + ' Descalificar</label>';
-    if(ev.disq){
-      h += '<select style="flex:1;min-width:140px;padding:4px 6px;border:1px solid var(--err);border-radius:var(--r);font-size:11px;color:var(--err)" '
-        + 'data-bid="'+b.id+'" onchange="setDisqMotivo(this.dataset.bid,this.value)">';
-      DISQ_CAUSALES.forEach(function(c){
-        h += '<option value="'+c+'"'+(ev.disqMotivo===c?' selected':'')+'>'+c+'</option>';
-      });
-      h += '</select>';
+    h+='<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)">'
+      +'<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--err);margin-bottom:7px">⚠ Descalificación (anula el bono)</div>'
+      +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">'
+      +'<input type="checkbox" '+(b.disq?'checked':'')+' data-bid="'+_escHtml(b.bid)+'" data-nombre="'+_escHtml(b.nombre)+'" onchange="toggleDisq(this.dataset.bid,this.checked,this.dataset.nombre)"> Descalificar</label>';
+    if(b.disq){
+      h+='<select style="flex:1;min-width:140px;padding:4px 6px;border:1px solid var(--err);border-radius:var(--r);font-size:11px;color:var(--err)" data-bid="'+_escHtml(b.bid)+'" onchange="setDisqMotivo(this.dataset.bid,this.value)">';
+      DISQ_CAUSALES.forEach(function(cz){ h+='<option value="'+_escHtml(cz)+'"'+(b.disq_motivo===cz?' selected':'')+'>'+_escHtml(cz)+'</option>'; });
+      h+='</select>';
     }
-    h += '</div>';
-    if(ev.disq && ev.disqMotivo){
-      h += '<div style="margin-top:5px;font-size:11px;color:var(--err);font-weight:600">Motivo: '+ev.disqMotivo+'</div>';
-    }
-    h += '</div>';
-
-    h += '</div></div>';
+    h+='</div></div></div></div>';
   });
-  h += '</div>';
+  h+='</div>';
 
-  // ── Escala de bonos ──
-  h += '<div class="kpi-bonus-section">'
-    + '<div class="kpi-bonus-title">💰 Tabla de bonos e incentivos</div>'
-    + '<div style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.6">'
-    + 'El bono puede pagarse en efectivo, transferencia o en especie (productos, experiencias). '
-    + 'Cualquier descalificación anula el bono completamente, independiente del puntaje obtenido.</div>'
-    + '<div class="kpi-bonus-grid">'
-    + '<div class="kpi-bonus-card"><div style="font-size:18px;margin-bottom:4px">🥇</div><div class="kpi-bonus-name">S — Sobresaliente</div><div style="font-size:11px;color:var(--text3);margin-bottom:6px">90–100 puntos</div><div class="kpi-bonus-amount">'+(BONUS_MODO==='porcentaje'?BONUS_PCT.S+'%':'$'+fmt(BONUS_MONTO.S))+'</div><div class="kpi-bonus-label">'+(BONUS_MODO==='porcentaje'?'de la facturación del mes<br><span style="font-size:10px;color:var(--text3)">(≈ $'+fmt(factBonoS)+' este mes)</span>':'Bono mensual')+'</div></div>'
-    + '<div class="kpi-bonus-card"><div style="font-size:18px;margin-bottom:4px">✅</div><div class="kpi-bonus-name">A — Muy bueno</div><div style="font-size:11px;color:var(--text3);margin-bottom:6px">75–89 puntos</div><div class="kpi-bonus-amount">'+(BONUS_MODO==='porcentaje'?BONUS_PCT.A+'%':'$'+fmt(BONUS_MONTO.A))+'</div><div class="kpi-bonus-label">'+(BONUS_MODO==='porcentaje'?'de la facturación del mes<br><span style="font-size:10px;color:var(--text3)">(≈ $'+fmt(factBonoA)+' este mes)</span>':'Bono mensual')+'</div></div>'
-    + '<div class="kpi-bonus-card"><div style="font-size:18px;margin-bottom:4px">👍</div><div class="kpi-bonus-name">B — Bueno</div><div style="font-size:11px;color:var(--text3);margin-bottom:6px">55–74 puntos</div><div class="kpi-bonus-amount">$'+fmt(BONUS_MONTO.B)+'</div><div class="kpi-bonus-label">Bono mensual</div></div>'
-    + '<div class="kpi-bonus-card"><div style="font-size:18px;margin-bottom:4px">⚠</div><div class="kpi-bonus-name">C — Regular</div><div style="font-size:11px;color:var(--text3);margin-bottom:6px">35–54 puntos</div><div class="kpi-bonus-amount" style="color:var(--text3)">Sin bono</div><div class="kpi-bonus-label">Oportunidad de mejora</div></div>'
-    + '<div class="kpi-bonus-card"><div style="font-size:18px;margin-bottom:4px">🚫</div><div class="kpi-bonus-name">X — Descalificado</div><div style="font-size:11px;color:var(--text3);margin-bottom:6px">Falta grave</div><div class="kpi-bonus-amount" style="color:var(--err)">$0</div><div class="kpi-bonus-label">Bono anulado</div></div>'
-    + '</div></div>';
+  // ── Escala de bonos (from the rules in the server) ──
+  h+='<div class="kpi-bonus-section"><div class="kpi-bonus-title">💰 Estratos y bonos</div>'
+    +'<div style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.6">Los bonos se muestran siempre como potenciales y se pagan solo si el local cumple su meta del mes. '
+    +'La descalificación la decide la administración y anula el bono.</div><div class="kpi-bonus-grid" id="kpiEscala">';
+  _kpiTramos(r).forEach(function(t){
+    var monto=t.bono_pct>0?'<div style="font-size:12px;color:var(--text2);margin-top:2px">de la facturación de servicios del mes</div>'
+      +'<div class="kpi-bonus-label" style="font-size:10px;color:var(--text3)">(≈ $'+fmt(Math.round(m.facturacion_servicios*t.bono_pct/100))+' con la facturación de este mes)</div>':'';
+    h+='<div class="kpi-bonus-card"><div class="kpi-bonus-name">'+_escHtml(t.id)+' — '+_escHtml(t.nombre)+'</div><div style="font-size:11px;color:var(--text3);margin-bottom:6px">'
+      +(t.min===0?'Menos de '+(t.max+1):t.min+'–'+t.max)+' puntos</div><div class="kpi-bonus-amount">'+_escHtml(_kpiBonoTexto(t.bono_pct))+'</div>'+monto+'</div>';
+  });
+  h+='<div class="kpi-bonus-card"><div class="kpi-bonus-name">'+_escHtml(r.descalificado.id)+' — '+_escHtml(r.descalificado.nombre)+'</div><div style="font-size:11px;color:var(--text3);margin-bottom:6px">Falta grave</div><div class="kpi-bonus-amount" style="color:var(--err)">Sin bono</div></div>';
+  h+='</div></div>';
 
-  // ── Notas metodológicas ──
-  h += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--rl);padding:16px;font-size:12px;color:var(--text2);line-height:1.7">'
-    + '<div style="font-weight:700;font-size:13px;margin-bottom:8px;color:var(--text)">📋 Metodología de cálculo</div>'
-    + '<b>Bloque Producción (45 pts):</b> Servicios (hasta 20 pts, vs meta individual) + Facturación estimada (hasta 15 pts, vs meta individual) + Ticket promedio (hasta 10 pts, ref: $13.000).<br>'
-    + '<b>Bloque Conducta (50 pts):</b> Promedio ponderado de los 10 indicadores cualitativos (1–5 ⭐ cada uno con su factor de peso).<br>'
-    + '<b>Bloque Propinas (10 pts extra):</b> &gt;0% propinas = +3 pts · &gt;5% = +5 pts · &gt;10% = +10 pts sobre la facturación del período.<br>'
-    + '<b>Sugerencia adicional:</b> Considera añadir en el futuro KPIs de recurrencia de clientes (clientes que vuelven a pedir el mismo barbero) y evaluación de reseñas en Google Maps.<br>'
-    + '</div>';
+  // ── Metodología (from the rules in the server) ──
+  var pr=r.produccion, pp=r.propinas;
+  h+='<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--rl);padding:16px;font-size:12px;color:var(--text2);line-height:1.7">'
+    +'<div style="font-weight:700;font-size:13px;margin-bottom:8px;color:var(--text)">📋 Metodología de cálculo ('+_escHtml(r.nombre)+')</div>'
+    +'<b>Producción ('+prodMax+' pts):</b> servicios (hasta '+pr.pts_servicios+' pts, vs meta individual en servicios a ticket de referencia $'+fmt(pr.ticket_meta_ref)+') + facturación estimada (hasta '+pr.pts_facturacion+' pts, vs meta individual) + ticket promedio (hasta '+pr.pts_ticket+' pts, ref. $'+fmt(pr.ticket_ref)+'). La meta individual es la meta del local dividida entre los barberos que trabajaron en el mes.<br>'
+    +'<b>Conducta ('+r.conducta.pts+' pts):</b> promedio ponderado de '+r.conducta.indicadores.length+' indicadores (1–'+r.conducta.estrellas_max+' ⭐ con su peso).<br>'
+    +'<b>Propinas ('+propMax+' pts):</b> cantidad (hasta '+pp.pts_cantidad+' pts, meta '+pp.cantidad_por_dia+' por día × '+pp.dias_mes_ref+' días) + monto (hasta '+pp.pts_monto+' pts, meta $'+fmt(pp.monto_por_dia)+' por día × '+pp.dias_mes_ref+' días).<br>'
+    +'Puntaje máximo: '+r.puntaje_max+'. Reglas guardadas en el servidor (configuración del local).'
+    +'</div>';
 
-  // ─── BOTÓN CERRAR EVALUACIÓN + ESTADO DE SINCRONIZACIÓN ────────────────────
-  h += '<div style="margin-top:20px;padding:16px 20px;background:#fff;border:1px solid var(--border);border-radius:var(--rl);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">'
-    + '<div>'
-    + '<div style="font-size:13px;font-weight:700;color:var(--text)">Enviar evaluaci\u00f3n a la nube</div>'
-    + '<div style="font-size:12px;color:var(--text3);margin-top:3px;max-width:480px;line-height:1.5">'
-    + 'Guarda las estrellas del per\u00edodo <strong>' + kpiPeriodo + '</strong> en Railway. '
-    + 'El sistema tambi\u00e9n lo env\u00eda autom\u00e1ticamente a las 23:00 si no lo haces manual.'
-    + '</div>'
-    + '<div id="kpiSyncStatus" style="font-size:11px;color:var(--text3);margin-top:4px">\u25cf Sin enviar hoy</div>'
-    + '</div>'
-    + '<div style="display:flex;gap:10px;flex-wrap:wrap">'
-    + '<button onclick="enviarKpiEvalsARailway(false)" class="kpi-save-btn">'
-    + '\u2601 Cerrar evaluaci\u00f3n'
-    + '</button>'
-    + '</div>'
-    + '</div>';
-
-  h += '</div>'; // kpi-page
-
-  c.innerHTML = h;
-  // Verificar estado de sincronización al renderizar
-  verificarEstadoSyncKpi();
+  h+='</div>'; // kpi-page
+  c.innerHTML=h;
 }
 
-function verificarEstadoSyncKpi(){
-  var el = document.getElementById('kpiSyncStatus');
-  if(!el) return;
-  if(!API_URL){ el.textContent = '\u25cf Sin Railway configurado'; return; }
-  fetch(API_URL + '/kpi-evaluaciones/' + kpiPeriodo + '?check=1')
-    .then(function(r){ return r.json(); })
-    .then(function(json){
-      if(json.ok && json.ultima_actualizacion){
-        var d = new Date(json.ultima_actualizacion);
-        el.innerHTML = '\u2705 \u00daltimo env\u00edo: ' + d.toLocaleDateString('es-CL') + ' ' + d.toLocaleTimeString('es-CL', {hour:'2-digit',minute:'2-digit'});
-        el.style.color = 'var(--ok)';
-      } else {
-        el.textContent = '\u26a0 No hay datos del per\u00edodo en Railway';
-        el.style.color = 'var(--warn)';
-      }
-    })
-    .catch(function(){
-      el.textContent = '\u25cf Sin conexi\u00f3n a Railway';
-    });
+function kpiGuardarCambio(bid, cambio, que){
+  if(_kpiGuardando){ toast('Espera: se está guardando el cambio anterior'); renderKpisInner(); return; }
+  _kpiGuardando=true;
+  var periodo=kpiPeriodo, ev={}; ev[bid]=cambio;
+  var st=document.getElementById('kpiGuardadoEstado'); if(st) st.textContent='Guardando…';
+  kpiGuardarEvaluaciones(periodo, ev).then(function(r){
+    _kpiGuardando=false;
+    _kpiAvisoGuardado=r.ok?null:('No se guardó '+que+': '+r.motivo+'. Se muestran los valores guardados en el servidor.');
+    toast(r.ok?'✓ Guardado':'⚠ No se guardó: '+r.motivo);
+    return kpiCargarMes(periodo);
+  }).then(function(){ if(periodo===kpiPeriodo) renderKpisInner(); });
 }
 
 function setKpiStarEl(el){
-  var bid = el.dataset.bid;
-  var kid = el.dataset.kid;
-  var val = parseInt(el.dataset.val)||0;
-  setKpiStar(bid, kid, val);
+  var cuali={}; cuali[el.dataset.kid]=parseInt(el.dataset.val,10)||0;
+  kpiGuardarCambio(el.dataset.bid, {cuali:cuali}, 'la estrella');
 }
 
-function setKpiStar(bid, kid, val){
-  cargarKpiEvals();
-  var ev = getEval(kpiPeriodo, bid);
-  ev.cuali[kid] = val;
-  guardarKpiEvals();
-  renderKpis();
-}
-
-function toggleDisq(bid, checked){
-  cargarKpiEvals();
-  var ev = getEval(kpiPeriodo, bid);
-  ev.disq = checked;
-  if(!checked) ev.disqMotivo = '';
-  else if(!ev.disqMotivo) ev.disqMotivo = DISQ_CAUSALES[0];
-  guardarKpiEvals();
-  renderKpis();
+function toggleDisq(bid, checked, nombre){
+  if(checked && !window.confirm('¿Descalificar a '+(nombre||bid)+' en '+_kpiNombreMes(kpiPeriodo)+'?\n\nSu bono del mes queda anulado.')){ renderKpisInner(); return; }
+  kpiGuardarCambio(bid, {cuali:{}, disq:!!checked, disqMotivo:checked?DISQ_CAUSALES[0]:''}, checked?'la descalificación':'el retiro de la descalificación');
 }
 
 function setDisqMotivo(bid, motivo){
-  cargarKpiEvals();
-  var ev = getEval(kpiPeriodo, bid);
-  ev.disqMotivo = motivo;
-  guardarKpiEvals();
+  kpiGuardarCambio(bid, {cuali:{}, disq:true, disqMotivo:motivo}, 'el motivo de descalificación');
 }
+
+// ── Administración: períodos de trabajo (solo lectura) y meta mensual ──
+function renderStaffPeriodos(){
+  var el=document.getElementById('staffPeriodos');
+  if(!el) return;
+  if(!API_URL){ el.innerHTML='<div class="staff-note">Sin servidor configurado.</div>'; return; }
+  el.innerHTML='<div class="staff-note">Cargando…</div>';
+  fetchConReintentos(API_URL+'/api/v2/barberos/periodo?desde=2000-01-01&hasta='+fechaHoy).then(function(r){
+    if(!r.ok){ el.innerHTML=avisoDatosHtml('No se pudieron cargar los períodos de trabajo ('+r.motivo+').'); return; }
+    var h='';
+    r.json.barberos.forEach(function(b){
+      h+='<div class="staff-periodo-row" data-bid="'+_escHtml(b.bid)+'"><div><b>'+_escHtml(b.nombre)+'</b> <span class="staff-barber-bid">'+_escHtml(b.bid)+'</span></div><div class="staff-periodo-fechas">'
+        +b.periodos.map(function(p){ return 'Activo desde '+_fechaLegible(p.desde)+(p.hasta?' hasta '+_fechaLegible(p.hasta):' · sigue activo'); }).join('<br>')+'</div></div>';
+    });
+    (r.json.sin_historial||[]).forEach(function(b){
+      h+='<div class="staff-periodo-row" data-bid="'+_escHtml(b.bid)+'"><div><b>'+_escHtml(b.nombre)+'</b> <span class="staff-barber-bid">'+_escHtml(b.bid)+'</span></div><div class="staff-periodo-fechas" style="color:var(--err)">Sin historial registrado</div></div>';
+    });
+    h+='<div class="staff-note" style="margin-top:6px">Las fechas se registran solas al crear, desactivar o reactivar un barbero.</div>';
+    el.innerHTML=h;
+  });
+}
+
+var staffMetaPeriodo=fechaStr(new Date()).substring(0,7);
+var _staffMetaPendiente=null; // change refused as too large, waiting for explicit confirmation
+var _staffMetaDatos=null;
+function staffMetaCambiarPeriodo(p){ staffMetaPeriodo=p; _staffMetaPendiente=null; renderStaffMeta(); }
+function _staffMetaMsg(texto, esError){
+  var el=document.getElementById('staffMetaMsg');
+  if(el){ el.textContent=texto||''; el.style.color=esError?'var(--err)':'var(--text2)'; }
+}
+function renderStaffMeta(){
+  var el=document.getElementById('staffMeta');
+  if(!el) return;
+  if(!API_URL){ el.innerHTML='<div class="staff-note">Sin servidor configurado.</div>'; return; }
+  var periodo=staffMetaPeriodo;
+  el.innerHTML='<div class="staff-note">Cargando…</div>';
+  Promise.all([
+    fetchConReintentos(API_URL+'/api/v2/kpi/mes?periodo='+encodeURIComponent(periodo)),
+    fetchConReintentos(API_URL+'/api/v2/kpi/meta-override?periodo='+encodeURIComponent(periodo))
+  ]).then(function(res){
+    if(periodo!==staffMetaPeriodo) return;
+    var sel='<select id="staffMetaPeriodo" class="staff-input" style="max-width:200px;margin-bottom:10px" onchange="staffMetaCambiarPeriodo(this.value)">';
+    generarPeriodos().forEach(function(p){ sel+='<option value="'+p.val+'"'+(p.val===periodo?' selected':'')+'>'+p.label+'</option>'; });
+    sel+='</select>';
+    if(!res[0].ok || !res[1].ok){
+      el.innerHTML=sel+avisoDatosHtml('No se pudo cargar la meta de '+_kpiNombreMes(periodo)+' ('+(res[0].ok?res[1].motivo:res[0].motivo)+'). No se cambió nada.');
+      return;
+    }
+    var m=res[0].json.meta, hist=res[1].json.historial;
+    _staffMetaDatos={periodo:periodo, calculada:m.calculada, vigente:m.vigente};
+    var h=sel+'<div id="staffMetaResumen" style="font-size:13px;line-height:1.7;margin-bottom:10px">'
+      +'Meta calculada: <b style="font-family:var(--mono)">'+(m.calculada==null?'—':_fmtCLP(m.calculada))+'</b><br>'
+      +'Meta vigente: <b style="font-family:var(--mono)">'+(m.vigente==null?'—':_fmtCLP(m.vigente))+'</b> '
+      +(m.override?'<span style="color:var(--warn)">(ajustada por '+_escHtml(m.override.por)+' el '+_escHtml(m.override.en)+': '+_escHtml(m.override.motivo)+')</span>':'<span style="color:var(--text3)">(la calculada, sin ajuste)</span>')
+      +'<br><span style="color:var(--text3)">Facturación de servicios del mes: '+_fmtCLP(m.facturacion_servicios)+'</span></div>';
+    h+='<div style="display:grid;grid-template-columns:1fr 2fr;gap:8px;margin-bottom:8px">'
+      +'<input id="staffMetaValor" type="number" min="1" step="1000" placeholder="Nueva meta $" class="staff-input" style="font-family:var(--mono)">'
+      +'<input id="staffMetaMotivo" type="text" maxlength="300" placeholder="Motivo del cambio (obligatorio)" class="staff-input"></div>'
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
+      +'<button id="staffMetaFijarBtn" class="staff-add-btn" style="padding:8px 12px;font-size:12px" onclick="staffMetaFijar()">Fijar meta ajustada</button>'
+      +'<button id="staffMetaVolverBtn" class="staff-add-btn" style="padding:8px 12px;font-size:12px;background:var(--surface2)"'+(m.override?'':' disabled')+' onclick="staffMetaAccion(\'volver_al_calculado\')">Volver a la meta calculada</button>'
+      +'<button id="staffMetaDeshacerBtn" class="staff-add-btn" style="padding:8px 12px;font-size:12px;background:var(--surface2)"'+(hist.length?'':' disabled')+' onclick="staffMetaAccion(\'deshacer\')">Deshacer último cambio</button>'
+      +'</div><div id="staffMetaMsg" style="font-size:12px;margin-top:8px;min-height:16px"></div><div id="staffMetaConfirmar"></div>';
+    h+='<div style="font-size:11px;font-weight:600;color:var(--text3);margin:12px 0 4px;text-transform:uppercase;letter-spacing:.06em">Historial de cambios</div>';
+    if(!hist.length) h+='<div class="staff-note" id="staffMetaHistorial">Sin cambios: se usa la meta calculada.</div>';
+    else {
+      var acc={fijar:'Ajuste',volver_al_calculado:'Volver a la calculada',deshacer:'Deshacer'};
+      h+='<div style="overflow-x:auto"><table id="staffMetaHistorial" style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="color:var(--text3);text-align:left">'
+        +'<th style="padding:4px">Fecha</th><th style="padding:4px">Acción</th><th style="padding:4px">Meta</th><th style="padding:4px">Calculada</th><th style="padding:4px">Motivo</th><th style="padding:4px">Por</th></tr></thead><tbody>';
+      hist.forEach(function(x){
+        h+='<tr style="border-top:1px solid var(--border)"><td style="padding:4px;white-space:nowrap">'+_escHtml(x.creado_en)+'</td><td style="padding:4px">'+_escHtml(acc[x.accion]||x.accion)+'</td>'
+          +'<td style="padding:4px;font-family:var(--mono)">'+(x.valor_override==null?'calculada':_fmtCLP(x.valor_override))+'</td>'
+          +'<td style="padding:4px;font-family:var(--mono)">'+(x.valor_calculado==null?'—':_fmtCLP(x.valor_calculado))+'</td>'
+          +'<td style="padding:4px">'+_escHtml(x.motivo)+'</td><td style="padding:4px">'+_escHtml(x.editado_por_nombre)+'</td></tr>';
+      });
+      h+='</tbody></table></div>';
+    }
+    el.innerHTML=h;
+  });
+}
+function staffMetaFijar(){
+  var valor=parseInt(document.getElementById('staffMetaValor').value,10);
+  var motivo=(document.getElementById('staffMetaMotivo').value||'').trim();
+  if(!(valor>0)){ _staffMetaMsg('Escribe la nueva meta en pesos (número entero mayor que 0).', true); return; }
+  if(motivo.length<5){ _staffMetaMsg('Escribe el motivo del cambio (al menos 5 caracteres).', true); return; }
+  var d=_staffMetaDatos||{};
+  if(!window.confirm('¿Fijar la meta de '+_kpiNombreMes(staffMetaPeriodo)+' en '+_fmtCLP(valor)+'?\n\nMeta calculada: '+(d.calculada==null?'—':_fmtCLP(d.calculada)))) return;
+  _staffMetaEnviar({periodo:staffMetaPeriodo, accion:'fijar', valor:valor, motivo:motivo});
+}
+function staffMetaAccion(accion){
+  var motivo=(document.getElementById('staffMetaMotivo').value||'').trim();
+  if(motivo.length<5){ _staffMetaMsg('Escribe el motivo del cambio (al menos 5 caracteres).', true); return; }
+  var txt=accion==='deshacer'?'¿Deshacer el último cambio de meta de '+_kpiNombreMes(staffMetaPeriodo)+'?':'¿Volver a la meta calculada en '+_kpiNombreMes(staffMetaPeriodo)+'?';
+  if(!window.confirm(txt)) return;
+  _staffMetaEnviar({periodo:staffMetaPeriodo, accion:accion, motivo:motivo});
+}
+function staffMetaConfirmarPendiente(){
+  if(!_staffMetaPendiente) return;
+  var body=_staffMetaPendiente; _staffMetaPendiente=null; body.confirmar_variacion=true;
+  _staffMetaEnviar(body);
+}
+function _staffMetaEnviar(body){
+  _staffMetaMsg('Guardando…');
+  var conf=document.getElementById('staffMetaConfirmar'); if(conf) conf.innerHTML='';
+  fetch(API_URL+'/api/v2/kpi/meta-override',{method:'POST',headers:getJsonAuthHeaders(),body:JSON.stringify(body)})
+  .then(function(r){ return r.json().then(function(j){ return {status:r.status,j:j}; },function(){ return {status:r.status,j:null}; }); })
+  .then(function(x){
+    var j=x.j||{};
+    if(x.status===409 && j.error==='variacion_alta'){
+      _staffMetaPendiente=body;
+      _staffMetaMsg(j.detalle||'El cambio es muy grande respecto de la meta calculada.', true);
+      if(conf) conf.innerHTML='<button id="staffMetaConfirmarBtn" class="staff-add-btn" style="margin-top:6px;padding:8px 12px;font-size:12px;background:var(--err)" onclick="staffMetaConfirmarPendiente()">Sí, es correcto: guardar '+(j.propuesta==null?'':_fmtCLP(j.propuesta))+'</button>';
+      return;
+    }
+    if(!j.ok){ _staffMetaMsg('No se guardó: '+(j.detalle||j.error||('el servidor respondió '+x.status))+'.', true); return; }
+    delete _kpiMes[body.periodo];
+    toast('✓ Meta guardada');
+    renderStaffMeta();
+  },function(){ _staffMetaMsg('Sin conexión con el servidor: no se guardó nada.', true); });
+}
+
+// 23:00 automatic send of the day's clock-ins. KPI stars are not sent here:
+// they are saved to the server when they change.
+function programarAutoEnvioHorarios(){
+  if(_horariosAutoTimer){ clearTimeout(_horariosAutoTimer); _horariosAutoTimer = null; }
+  var ahora = new Date();
+  var cierre = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate(), 23, 0, 0);
+  if(ahora >= cierre) return;
+  _horariosAutoTimer = setTimeout(function(){
+    _horariosAutoTimer = null;
+    enviarHorariosARailway(true); // silencioso
+  }, cierre - ahora);
+}
+var _horariosAutoTimer = null;
 
 // ── AVATARES ────────────────────────────────────────────────────
 function cargarAvatares(){
@@ -5592,7 +5257,7 @@ function subirAvatar(bid, nombre, input){
 
 function cambiarPeriodoKpi(val){
   kpiPeriodo = val;
-  window._kpiSynced = false; // forzar re-sync desde Railway al cambiar período
+  _kpiAvisoGuardado = null;
   renderKpis();
 }
 
@@ -7343,6 +7008,7 @@ function renderStaffPanel(){
   catalogoCargar(); // fresh catalog every time Administración opens
   loadProductosCatalogo();
   renderStaffCOM();renderStaffSS();renderStaffProds();
+  renderStaffPeriodos();renderStaffMeta();
 }
 
 function escAttr(s){return(s||'').toString().replace(/&/g,'&amp;').replace(/"/g,'&quot;');}
