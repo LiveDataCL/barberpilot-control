@@ -1870,7 +1870,12 @@ function cargarArchivo(evt){
 // figures are shown as-is — commissions and tips as two separate figures,
 // both from the API; absent (a JSON file opened from disk, no server), the
 // rows are summed here.
+// History render, guarded the same way; Reintentar redraws the same data.
 function mostrarJornadaCargada(fecha,recs,totales){
+  var redibujar=function(){ mostrarJornadaCargada(fecha,recs,totales); };
+  renderSeguro('histContainer', function(){ _mostrarJornadaCargadaSinGuarda(fecha,recs,totales); }, redibujar);
+}
+function _mostrarJornadaCargadaSinGuarda(fecha,recs,totales){
   var c=document.getElementById('histContainer');
   if(!recs||recs.length===0){c.innerHTML='<div class="empty"><div>Archivo vacío o sin registros</div></div>';return;}
   var tot=0,tCom=0,tProp=0,tNeg=0,nota='';
@@ -5153,7 +5158,12 @@ function renderKpis(){
   renderKpisInner();
 }
 
+// KPI tab render, guarded: a rendering error shows a visible message with a
+// retry instead of a blank tab (renderSeguro, reportes-api.js).
 function renderKpisInner(){
+  renderSeguro('kpisContent', _renderKpisInnerSinGuarda, reintentarKpiMes);
+}
+function _renderKpisInnerSinGuarda(){
   // Actualizar automáticamente apertura/cierre para todos los barberos
   var periodoActual = kpiPeriodo;
   BB.forEach(function(b){ syncEstrellaHorarioAuto(b.id, periodoActual); });
