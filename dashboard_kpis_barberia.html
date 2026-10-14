@@ -692,7 +692,12 @@ function renderChips(){
 }
 
 // ═══ RENDER PRINCIPAL ════════════════════════════════════
+// Dashboard render, guarded: a rendering error (tables or charts) shows a
+// visible message with a retry instead of a blank page (reportes-api.js).
 function renderTodo(){
+  renderSeguro('mainContent', _renderTodoSinGuarda, renderTodo);
+}
+function _renderTodoSinGuarda(){
   renderChips();
   var mc=document.getElementById('mainContent');
   if(jornadas.length===0){
@@ -717,7 +722,7 @@ function renderTodo(){
   charts={};
 
   mc.innerHTML = buildHTML(js, regs);
-  setTimeout(function(){ buildCharts(js, regs); }, 60);
+  setTimeout(function(){ renderSeguro('mainContent', function(){ buildCharts(js, regs); }, renderTodo); }, 60);
 }
 
 // ═══ BUILD HTML ══════════════════════════════════════════

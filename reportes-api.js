@@ -85,3 +85,29 @@ function solicitarLoginPanel(email,password){
 function mensajeErrorLogin(j){
   return (j&&j.message)||(j&&j.error==='invalid_credentials'?'Credenciales incorrectas':'Error al ingresar');
 }
+
+// Rendering guard for a page section (KPI tab, history, KPI dashboard): if
+// the render throws, the section shows a visible Spanish error with a
+// "Reintentar" button — never a blank or half-drawn pane — and the error is
+// logged to the console. reintentar: the function the button calls.
+function renderSeguro(contenedorId,render,reintentar){
+  try { return render(); }
+  catch(e){
+    if(window.console) console.error('[renderSeguro] '+contenedorId+':',e);
+    var el=document.getElementById(contenedorId);
+    if(!el) return;
+    var box=document.createElement('div');
+    box.className='aviso-render';
+    box.setAttribute('style','font-size:13px;line-height:1.5;border-radius:6px;padding:12px 14px;margin:8px 0;border:1px solid #f5b7b1;background:#fdecea;color:#7a1c12');
+    box.textContent='⚠ No se pudo mostrar esta sección por un error interno ('+((e&&e.message)||e)+'). Los datos guardados no se modificaron. ';
+    if(reintentar){
+      var b=document.createElement('button');
+      b.textContent='Reintentar';
+      b.setAttribute('style','margin-left:8px;padding:5px 12px;cursor:pointer');
+      b.onclick=function(){ reintentar(); };
+      box.appendChild(b);
+    }
+    el.innerHTML='';
+    el.appendChild(box);
+  }
+}
