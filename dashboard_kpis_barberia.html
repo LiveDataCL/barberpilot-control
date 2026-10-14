@@ -76,6 +76,7 @@ input[type=date]:focus{border-color:var(--border2)}
 .notice.info{background:var(--info-soft);border:1px solid var(--info-border);color:#0f2f5a}
 .notice.warn{background:var(--warn-soft);border:1px solid var(--gold-border);color:#5a3a00}
 .notice.ok{background:var(--ok-soft);border:1px solid var(--ok-border);color:#0e3d20}
+.notice.err{background:#fdecea;border:1px solid #f5b7b1;color:#7a1c12}
 .notice-icon{font-size:16px;flex-shrink:0;margin-top:1px}
 .notice-close{margin-left:auto;cursor:pointer;opacity:.4;font-size:16px;padding:0 4px;flex-shrink:0}
 .notice-close:hover{opacity:.8}
@@ -254,6 +255,18 @@ table.data-table .total-row td{background:var(--text)!important;color:#fff!impor
 <!-- AVISO ESTADO -->
 <div id="noticeBar"></div>
 
+<!-- INICIO DE SESIÓN (sesión del panel de control) -->
+<div class="main no-print" id="loginPanel" style="display:none">
+  <div class="notice info" style="display:block;max-width:420px">
+    <div style="font-weight:700;margin-bottom:6px">Inicia sesión con tu cuenta del panel de control</div>
+    <div style="margin-bottom:10px">Este dashboard requiere una sesión de administrador.</div>
+    <input type="email" id="loginEmail" placeholder="Correo electrónico" autocomplete="username" style="width:100%;margin-bottom:6px;padding:7px 10px" onkeydown="if(event.key==='Enter')loginDashboard()">
+    <input type="password" id="loginPass" placeholder="Contraseña" autocomplete="current-password" style="width:100%;margin-bottom:8px;padding:7px 10px" onkeydown="if(event.key==='Enter')loginDashboard()">
+    <button class="btn btn-dark btn-sm" id="loginBtn" onclick="loginDashboard()">Entrar</button>
+    <div id="loginErr" style="color:#7a1c12;margin-top:6px"></div>
+  </div>
+</div>
+
 <!-- CONTENIDO PRINCIPAL -->
 <div class="main" id="mainContent">
   <div class="empty">
@@ -265,7 +278,7 @@ table.data-table .total-row td{background:var(--text)!important;color:#fff!impor
 
 <div class="toast" id="toast"></div>
 
-<script src="dashboard-config.js"></script>
+<script src="reportes-api.js"></script>
 <script>
 // ═══════════════════════════════════════════════════════════
 //  ESTADO GLOBAL
@@ -274,8 +287,14 @@ var jornadas = [];
 var filtPeriod = 'esta-sem';
 var filtBarbero = 'todos';
 var charts = {};
-var API_URL = window.DASHBOARD_CONFIG?.apiUrl || 'https://barberpilot-api-production.up.railway.app';
-var DASHBOARD_TOKEN = window.DASHBOARD_CONFIG?.token || '';
+var API_URL = 'https://barberpilot-api-production.up.railway.app';
+// Session: the control panel's login (same site, sessionStorage 'panelJwt').
+// The period reads need an admin session; other roles get a Spanish 403
+// message, shown as-is. No shared dashboard token is used any more.
+function getAuthHeaders(){
+  var t=sessionStorage.getItem('panelJwt');
+  return t?{'Authorization':'Bearer '+t}:{};
+}
 var gastosData = {}; // { fecha: [{id, hora, desc_gasto, monto}] }
 
 // Paleta por barbero
@@ -401,7 +420,7 @@ function showNotice(type, msg, id){
   var nb = document.getElementById('noticeBar');
   nb.innerHTML = '<div class="main no-print" style="padding-top:14px;padding-bottom:0">'
     +'<div class="notice '+type+'">'
-    +'<span class="notice-icon">'+(type==='info'?'ℹ️':type==='warn'?'⚠️':'✓')+'</span>'
+    +'<span class="notice-icon">'+(type==='info'?'ℹ️':(type==='warn'||type==='err')?'⚠️':'✓')+'</span>'
     +'<span>'+msg+'</span>'
     +'<span class="notice-close" onclick="document.getElementById(\'noticeBar\').innerHTML=\'\'">✕</span>'
     +'</div></div>';
@@ -419,73 +438,76 @@ function getBarberos(){
 }
 
 // ═══ CARGA DESDE API ════════════════════════════════════
-function cargarDesdeAPI(){
-  var btn=document.getElementById('btnSync');
+// One authenticated read per period (reportes-api.js): sales and expenses
+// arrive together or not at all. A failure clears the figures and names the
+// missing dates — a failed expenses read can never show as $0, and an old
+// period's data is never left on screen as if it were the new one.
+function _escTxt(s){
+  return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});
+}
+function cargarPeriodoDashboard(desde, hasta){
   var st=document.getElementById('syncStatus');
-  btn.textContent='⟳ Cargando…'; btn.disabled=true;
-  if(st) st.textContent='Conectando…';
-
-  var ahora = new Date();
-  var desde = new Date(); desde.setDate(ahora.getDate()-30);
-  var desdeStr = desde.toISOString().slice(0,10);
-  var hastaStr = ahora.toISOString().slice(0,10);
-
-  if(!DASHBOARD_TOKEN){
-    _cargarPorDia(desdeStr,hastaStr,function(ok){
-      if(ok&&jornadas.length>0){
-        renderTodo();
-        if(st) st.textContent='✓ '+jornadas.length+' jornadas · '+new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
-        toast('✓ '+jornadas.length+' jornadas cargadas');
-        clearNotice();
-      } else {
-        showNotice('warn','No se obtuvieron datos de la API. Usa "Importar JSON" o "Demo" para continuar.');
-        renderTodo();
-      }
-      btn.textContent='☁ Cargar API'; btn.disabled=false;
-    });
-    return;
-  }
-
-  var hdrs={'X-Dashboard-Token':DASHBOARD_TOKEN};
-  Promise.all([
-    fetch(API_URL+'/registros/rango?desde='+desdeStr+'&hasta='+hastaStr,{headers:hdrs}).then(function(r){return r.json();}),
-    fetch(API_URL+'/gastos/rango?desde='+desdeStr+'&hasta='+hastaStr,{headers:hdrs}).then(function(r){return r.json();}).catch(function(){return{ok:true,gastos:[]};})
-  ])
-  .then(function(results){
-    var rJson=results[0], gJson=results[1];
-    if(!rJson.ok || !rJson.registros){ throw new Error(rJson.error||'sin datos'); }
+  if(st) st.textContent='Cargando…';
+  return cargarPeriodoApi(desde, hasta, {registros:true, gastos:true}).then(function(res){
+    if(!res.ok){
+      jornadas=[]; gastosData={};
+      if(st) st.textContent='';
+      if(res.status===401) mostrarLogin('Tu sesión expiró. Vuelve a ingresar.');
+      showNotice('err','No se pudieron cargar los datos '+_escTxt(textoPeriodo(desde,hasta))+' ('+_escTxt(res.motivo)+'). '
+        +'No se muestran cifras porque estarían incompletas. Pulsa «Cargar API» para reintentar.');
+      renderTodo();
+      return false;
+    }
     var byFecha={};
-    rJson.registros.forEach(function(r){
-      var f=r.fecha;
-      if(!byFecha[f]) byFecha[f]=[];
-      byFecha[f].push({ bid:r.bid, bnom:r.bnom, snom:r.snom,
-        precio:parseInt(r.precio)||0, pago:r.pago,
-        bb:parseInt(r.bb)||0, neg:parseInt(r.neg)||0,
-        propina:parseInt(r.propina||0) });
+    res.registros.forEach(function(r){
+      if(!byFecha[r.fecha]) byFecha[r.fecha]=[];
+      byFecha[r.fecha].push({bid:r.bid,bnom:r.bnom,snom:r.snom,
+        precio:parseInt(r.precio)||0,pago:r.pago,
+        bb:parseInt(r.bb)||0,neg:parseInt(r.neg)||0,propina:parseInt(r.propina||0)});
     });
     jornadas=[];
-    Object.keys(byFecha).sort().forEach(function(f){
-      jornadas.push({fecha:f, registros:byFecha[f]});
-    });
+    Object.keys(byFecha).sort().forEach(function(f){ jornadas.push({fecha:f,registros:byFecha[f]}); });
     gastosData={};
-    (gJson.gastos||[]).forEach(function(g){
+    res.gastos.forEach(function(g){
       if(!gastosData[g.fecha]) gastosData[g.fecha]=[];
       gastosData[g.fecha].push(g);
     });
-    if(jornadas.length>0){
-      renderTodo();
-      if(st) st.textContent='✓ '+jornadas.length+' jornadas · '+new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
-      toast('✓ '+jornadas.length+' jornadas cargadas');
-      clearNotice();
-    } else {
-      showNotice('warn','No se obtuvieron datos de la API. Usa "Importar JSON" o "Demo" para continuar.');
-      renderTodo();
-    }
-    btn.textContent='☁ Cargar API'; btn.disabled=false;
-  }).catch(function(){
-    showNotice('warn','Error de conexión con la API. Usa "Importar JSON" o "Demo".');
+    clearNotice();
+    if(st) st.textContent='✓ API · '+new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
+    renderTodo();
+    return true;
+  });
+}
+
+function cargarDesdeAPI(){
+  var btn=document.getElementById('btnSync');
+  btn.textContent='⟳ Cargando…'; btn.disabled=true;
+  var ahora = new Date();
+  var desde = new Date(); desde.setDate(ahora.getDate()-30);
+  cargarPeriodoDashboard(isoDate(desde), isoDate(ahora)).then(function(ok){
+    if(ok) toast('✓ '+jornadas.length+' jornadas cargadas');
     btn.textContent='☁ Cargar API'; btn.disabled=false;
   });
+}
+
+function mostrarLogin(msg){
+  document.getElementById('loginPanel').style.display='';
+  document.getElementById('loginErr').textContent=msg||'';
+}
+function loginDashboard(){
+  var email=(document.getElementById('loginEmail').value||'').trim();
+  var pass=document.getElementById('loginPass').value||'';
+  var err=document.getElementById('loginErr'), btn=document.getElementById('loginBtn');
+  err.textContent='';
+  if(!email||!pass){ err.textContent='Completa email y contraseña'; return; }
+  btn.disabled=true; btn.textContent='Entrando…';
+  solicitarLoginPanel(email,pass).then(function(j){
+    btn.disabled=false; btn.textContent='Entrar';
+    if(!j.ok){ err.textContent=mensajeErrorLogin(j); return; }
+    document.getElementById('loginPanel').style.display='none';
+    var ahora=new Date();
+    cargarPeriodoDashboard(isoDate(lunesDe(ahora)), isoDate(ahora));
+  },function(){ btn.disabled=false; btn.textContent='Entrar'; err.textContent='Error de conexión'; });
 }
 
 // ═══ CARGA DEMO ════════════════════════════════════════
@@ -539,41 +561,6 @@ function lunesDe(d){
 }
 function isoDate(d){ return d.toISOString().slice(0,10); }
 
-// Carga pública día por día — no requiere token (registros + gastos)
-function _cargarPorDia(desde, hasta, done){
-  var dias=[], cur=new Date(desde+'T12:00:00'), fin=new Date(hasta+'T12:00:00');
-  while(cur<=fin){ dias.push(isoDate(cur)); cur.setDate(cur.getDate()+1); }
-  var pRegs=dias.map(function(fecha){
-    return fetch(API_URL+'/registros/dia?fecha='+fecha,{mode:'cors'})
-      .then(function(r){return r.json();})
-      .catch(function(){return{ok:false,fecha:fecha,registros:[]};});
-  });
-  var pGastos=dias.map(function(fecha){
-    return fetch(API_URL+'/gastos/dia?fecha='+fecha,{mode:'cors'})
-      .then(function(r){return r.json();})
-      .catch(function(){return{ok:true,fecha:fecha,gastos:[]};});
-  });
-  Promise.all([Promise.all(pRegs),Promise.all(pGastos)]).then(function(all){
-    var rResults=all[0], gResults=all[1];
-    jornadas=[];
-    rResults.forEach(function(json){
-      if(!json.ok||!json.registros||json.registros.length===0) return;
-      jornadas.push({fecha:json.fecha,registros:json.registros.map(function(r){
-        return{bid:r.bid,bnom:r.bnom,snom:r.snom,
-          precio:parseInt(r.precio)||0,pago:r.pago,
-          bb:parseInt(r.bb)||0,neg:parseInt(r.neg)||0,propina:parseInt(r.propina||0)};
-      })});
-    });
-    jornadas.sort(function(a,b){return a.fecha<b.fecha?-1:1;});
-    gastosData={};
-    gResults.forEach(function(json){
-      if(!json.ok||!json.gastos||json.gastos.length===0) return;
-      gastosData[json.fecha]=json.gastos;
-    });
-    done(jornadas.length>0);
-  }).catch(function(){ done(false); });
-}
-
 function setPeriod(p, el){
   document.querySelectorAll('.ctrl-bar .pf').forEach(function(b){
     if(b.onclick&&b.onclick.toString().indexOf('setPeriod')>=0) b.classList.remove('on');
@@ -600,45 +587,7 @@ function setPeriod(p, el){
 }
 
 function cargarRango(desde, hasta){
-  if(!DASHBOARD_TOKEN){
-    _cargarPorDia(desde,hasta,function(){
-      var st=document.getElementById('syncStatus');
-      if(st) st.textContent='✓ '+new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
-      renderTodo();
-    });
-    return;
-  }
-  var hdrs={'X-Dashboard-Token':DASHBOARD_TOKEN};
-  Promise.all([
-    fetch(API_URL+'/registros/rango?desde='+desde+'&hasta='+hasta,{headers:hdrs}).then(function(r){return r.json();}),
-    fetch(API_URL+'/gastos/rango?desde='+desde+'&hasta='+hasta,{headers:hdrs}).then(function(r){return r.json();}).catch(function(){return{ok:true,gastos:[]};})
-  ])
-  .then(function(results){
-    var rJson=results[0], gJson=results[1];
-    if(!rJson.ok||!rJson.registros) throw new Error('sin datos');
-    var byFecha={};
-    rJson.registros.forEach(function(r){
-      var f=r.fecha;
-      if(!byFecha[f]) byFecha[f]=[];
-      byFecha[f].push({bid:r.bid,bnom:r.bnom,snom:r.snom,
-        precio:parseInt(r.precio)||0,pago:r.pago,
-        bb:parseInt(r.bb)||0,neg:parseInt(r.neg)||0,
-        propina:parseInt(r.propina||0)});
-    });
-    jornadas=[];
-    Object.keys(byFecha).sort().forEach(function(f){
-      jornadas.push({fecha:f,registros:byFecha[f]});
-    });
-    gastosData={};
-    (gJson.gastos||[]).forEach(function(g){
-      if(!gastosData[g.fecha]) gastosData[g.fecha]=[];
-      gastosData[g.fecha].push(g);
-    });
-    jornadas.sort(function(a,b){return a.fecha<b.fecha?-1:1;});
-    renderTodo();
-    var st=document.getElementById('syncStatus');
-    if(st) st.textContent='✓ '+new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
-  }).catch(function(){ renderTodo(); });
+  cargarPeriodoDashboard(desde, hasta);
 }
 
 function setBarbero(b,el){
@@ -1073,73 +1022,12 @@ function imprimirReporte(){
   if(di) di.value=hace30.toISOString().slice(0,10);
   if(dh) dh.value=ahora.toISOString().slice(0,10);
 
-  // Intentar API con timeout corto
-  var apiTimedOut=false;
-  var apiTimeout=setTimeout(function(){
-    apiTimedOut=true;
-    // Si en 4s no respondió, cargar demo y mostrar aviso
-    if(jornadas.length===0){
-      cargarDemoData();
-      showNotice('warn',
-        'No se pudo conectar con la API (posiblemente CORS o BD restringida). '
-        +'Se muestran datos de ejemplo. Usa <strong>"Importar JSON"</strong> para cargar datos reales, '
-        +'o activa CORS en el endpoint de la API.');
-    }
-  }, 4000);
-
-  cargarDesdeAPI_silente(function(ok){
-    clearTimeout(apiTimeout);
-    if(ok && jornadas.length>0){
-      var st=document.getElementById('syncStatus');
-      if(st) st.textContent='✓ API · '+new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
-      renderTodo();
-    } else if(!apiTimedOut){
-      cargarDemoData();
-      showNotice('warn',
-        'La API no respondió o no tiene datos para los últimos 7 días. '
-        +'Mostrando datos de ejemplo. Usa <strong>"Importar JSON"</strong> para cargar datos reales.');
-    }
-  });
+  // Real data only: no session → login card; a failed read → error notice.
+  // (Demo data is shown only when "Demo" is pressed.)
+  if(!sessionStorage.getItem('panelJwt')){ mostrarLogin(''); return; }
+  cargarPeriodoDashboard(isoDate(lunesDe(ahora)), isoDate(ahora));
 })();
 
-function cargarDesdeAPI_silente(callback){
-  var ahora=new Date();
-  var desdeStr=isoDate(lunesDe(ahora));
-  var hastaStr=isoDate(ahora);
-
-  if(!DASHBOARD_TOKEN){
-    _cargarPorDia(desdeStr,hastaStr,callback);
-    return;
-  }
-  var hdrs={'X-Dashboard-Token':DASHBOARD_TOKEN};
-  Promise.all([
-    fetch(API_URL+'/registros/rango?desde='+desdeStr+'&hasta='+hastaStr,{headers:hdrs}).then(function(r){return r.json();}),
-    fetch(API_URL+'/gastos/rango?desde='+desdeStr+'&hasta='+hastaStr,{headers:hdrs}).then(function(r){return r.json();}).catch(function(){return{ok:true,gastos:[]};})
-  ])
-  .then(function(results){
-    var rJson=results[0], gJson=results[1];
-    if(!rJson.ok||!rJson.registros){callback(false);return;}
-    var byFecha={};
-    rJson.registros.forEach(function(r){
-      var f=r.fecha;
-      if(!byFecha[f]) byFecha[f]=[];
-      byFecha[f].push({bid:r.bid,bnom:r.bnom,snom:r.snom,
-        precio:parseInt(r.precio)||0,pago:r.pago,
-        bb:parseInt(r.bb)||0,neg:parseInt(r.neg)||0,propina:parseInt(r.propina||0)});
-    });
-    jornadas=[];
-    Object.keys(byFecha).sort().forEach(function(f){
-      jornadas.push({fecha:f,registros:byFecha[f]});
-    });
-    gastosData={};
-    (gJson.gastos||[]).forEach(function(g){
-      if(!gastosData[g.fecha]) gastosData[g.fecha]=[];
-      gastosData[g.fecha].push(g);
-    });
-    jornadas.sort(function(a,b){return a.fecha<b.fecha?-1:1;});
-    callback(jornadas.length>0);
-  }).catch(function(){callback(false);});
-}
 </script>
 </body>
 </html>

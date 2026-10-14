@@ -641,6 +641,7 @@
         <button class="fb" style="margin-left:auto;color:var(--info);font-weight:600" onclick="descargarJornadaHoy()" title="Guarda el JSON del día — ábrelo luego en el Dashboard">💾 Guardar jornada</button>
         <button class="fb" style="color:var(--err)" onclick="limpiarHoy()">Limpiar día</button>
       </div>
+      <div id="avisoVentasHoy" class="catalogo-aviso err" style="display:none"></div>
       <div id="rCont"><div class="empty"><div class="empty-ico">✂</div><div>Sin registros. Registra el primer servicio del día.</div></div></div>
     </div>
 
@@ -1246,7 +1247,7 @@
 <div class="toastel" id="toastel"></div>
 <div class="alerta-stack" id="alertaStack"></div>
 
-<script src="dashboard-config.js"></script>
+<script src="reportes-api.js"></script>
 <script>
 // ═══ DATOS ═══════════════════════════════════════════════
 // Populated from GET /barberos — adding a barber to DB propagates here automatically
@@ -1638,35 +1639,69 @@ function cargar(){
     var d=localStorage.getItem(LSKEY);
     if(d){regs=JSON.parse(d);}
   }catch(e){regs=[];}
-  // API fetch is triggered separately by init() after renderAll()
+  // API fetch is triggered separately by panelApplySession() (cargarRegistrosDia), after login
 }
 
-var API_URL_BASE = 'https://barberpilot-api-production.up.railway.app';
+// ═══ VENTAS DESDE LA API (por período, con sesión) ═══════════
+// Every sales/expenses read in this page goes through cargarPeriodoApi()
+// (reportes-api.js): ONE authenticated request per period instead of one
+// public request per day — the old per-day loops dropped any day that failed
+// without a word, so totals (including the KPI bonus base) came out low. A
+// period loads completely or fails as a whole, and every caller must show
+// the failure (avisoDatosHtml), never a total built from less.
+function avisoDatosHtml(texto){
+  return '<div class="catalogo-aviso err aviso-datos">⚠ '+_escHtml(texto)+'</div>';
+}
+// One mapping from an API sale row to this page's record shape. conCliente
+// adds the client fields — only today's feed shows them, so the per-day
+// localStorage caches of past days don't accumulate client names.
+function registroDesdeApi(r,conCliente){
+  var p=String(r.fecha||'').split('-');
+  var o={
+    id:r.id, bid:r.bid, bnom:r.bnom,
+    sid:r.sid||'custom', snom:r.snom,
+    precio:parseInt(r.precio), pago:r.pago,
+    com:parseFloat(r.com), bb:parseInt(r.bb),
+    neg:parseInt(r.neg), propina:parseInt(r.propina||0),
+    fecha:p.length===3?p[2]+'/'+p[1]+'/'+p[0]:r.fecha,
+    hora:r.hora?r.hora.slice(0,5):'--',
+    ts:parseInt(r.ts)||0
+  };
+  if(conCliente){ o.cliente_nombre=r.cliente_nombre||null; o.cliente_id=r.cliente_id||null; }
+  return o;
+}
+function _avisoVentasHoy(texto){
+  var el=document.getElementById('avisoVentasHoy');
+  if(!el) return;
+  if(texto){ el.textContent='⚠ '+texto; el.style.display=''; }
+  else { el.textContent=''; el.style.display='none'; }
+}
+function _registroHoyDesdeApi(r){
+  var m=registroDesdeApi(r,true);
+  m.ts=m.ts||Date.now();
+  m.numServicio=0; m.totalServicios=0; m.acumBB=0; m.acumFact=0;
+  return m;
+}
+
+// Today's sales from the server, merged with this browser's not-yet-synced
+// ones. Runs only with a panel session (panelApplySession starts it), so
+// nothing is read before login.
 function cargarRegistrosDia(){
-  var url = (API_URL || API_URL_BASE) + '/registros/dia?fecha=' + fechaHoy;
-  fetch(url)
-    .then(function(r){ return r.json(); })
-    .then(function(json){
-      if(!json.ok || !json.registros) return;
-      var apiRegs = json.registros;
+  if(!API_URL || !sessionStorage.getItem('panelJwt')) return;
+  cargarPeriodoApi(fechaHoy,fechaHoy,{registros:true}).then(function(res){
+      if(!res.ok){
+        _avisoVentasHoy('No se pudieron cargar las ventas de hoy ('+_fechaLegible(fechaHoy)+') desde el servidor: '+res.motivo
+          +'. Se muestran solo las registradas en este equipo; pueden faltar ventas.');
+        return;
+      }
+      _avisoVentasHoy('');
+      var apiRegs = res.registros;
       // Fusionar: API tiene prioridad, agregar locales offline
       var merged = [];
       var idsApi = {};
       apiRegs.forEach(function(r){
         idsApi[r.id] = true;
-        merged.push({
-          id: r.id, bid: r.bid, bnom: r.bnom,
-          sid: r.sid||'custom', snom: r.snom,
-          precio: parseInt(r.precio), pago: r.pago,
-          com: parseFloat(r.com), bb: parseInt(r.bb),
-          neg: parseInt(r.neg), propina: parseInt(r.propina||0),
-          fecha: r.fecha_display || fechaHoy,
-          hora: r.hora ? r.hora.slice(0,5) : '--',
-          ts: parseInt(r.ts) || Date.now(),
-          cliente_nombre: r.cliente_nombre || null,
-          cliente_id: r.cliente_id || null,
-          numServicio: 0, totalServicios: 0, acumBB: 0, acumFact: 0
-        });
+        merged.push(_registroHoyDesdeApi(r));
       });
       // Agregar registros locales que la API aún no tiene (offline)
       regs.forEach(function(r){ if(!idsApi[r.id]) merged.push(r); });
@@ -1686,48 +1721,32 @@ function cargarRegistrosDia(){
           toast('☁ '+apiRegs.length+' servicios cargados desde la nube');
         }
       }
-    })
-    .catch(function(e){ console.warn('Sync error:', e.message); });
+  });
 }
 
-// Nuke local cache for today and pull a clean copy from the DB
+// Replace today's local cache with a clean copy from the DB. The local copy
+// is only replaced once the server answered — a failed read keeps it (it
+// used to be wiped first, leaving an empty day on any network error).
 function forzarSyncNube(){
   var btn=document.getElementById('syncNubeBtn');
   if(btn){btn.textContent='⟳ Sincronizando…';btn.disabled=true;}
-  // Wipe today's cached registros so no stale offline records bleed in
-  regs=[];
-  guardar();
-  var url=(API_URL||API_URL_BASE)+'/registros/dia?fecha='+fechaHoy;
-  fetch(url)
-    .then(function(r){return r.json();})
-    .then(function(json){
-      if(!json.ok||!json.registros){toast('Error al conectar con la nube');return;}
-      var apiRegs=json.registros;
-      regs=apiRegs.map(function(r){
-        return {
-          id:r.id,bid:r.bid,bnom:r.bnom,
-          sid:r.sid||'custom',snom:r.snom,
-          precio:parseInt(r.precio),pago:r.pago,
-          com:parseFloat(r.com),bb:parseInt(r.bb),
-          neg:parseInt(r.neg),propina:parseInt(r.propina||0),
-          fecha:r.fecha_display||fechaHoy,
-          hora:r.hora?r.hora.slice(0,5):'--',
-          ts:parseInt(r.ts)||Date.now(),
-          cliente_nombre:r.cliente_nombre||null,
-          cliente_id:r.cliente_id||null,
-          numServicio:0,totalServicios:0,acumBB:0,acumFact:0
-        };
-      });
+  cargarPeriodoApi(fechaHoy,fechaHoy,{registros:true}).then(function(res){
+      if(!res.ok){
+        _avisoVentasHoy('No se pudieron traer las ventas de hoy ('+_fechaLegible(fechaHoy)+') desde el servidor: '+res.motivo
+          +'. No se borró nada de este equipo.');
+        toast('No se pudo sincronizar: '+res.motivo);
+        return;
+      }
+      _avisoVentasHoy('');
+      regs=res.registros.map(_registroHoyDesdeApi);
       regs.sort(function(a,b){return b.ts-a.ts;});
       guardar();
       renderAll();
       updCnts();
       toast('✓ '+regs.length+' servicios cargados desde la nube');
-    })
-    .catch(function(e){toast('Error: '+e.message);})
-    .finally(function(){
+  }).then(function(){
       if(btn){btn.textContent='🔄 Desde nube';btn.disabled=false;}
-    });
+  });
 }
 
 function descargarJSON(){
@@ -1793,52 +1812,31 @@ function cargarPeriodo(){
   cargarRangoFechas(desde, hasta);
 }
 
+// History (week / month / custom period / one past day): the period's sales
+// and its totals from the API in one go. The totals come from
+// /resumen/rango — the same aggregation sf-live shows — not re-summed here.
 function cargarRangoFechas(desde, hasta){
-  // Obtener todos los días del rango
-  var dias = [];
-  var cur = new Date(desde+'T12:00:00');
-  var fin = new Date(hasta+'T12:00:00');
-  while(cur <= fin){
-    dias.push(cur.toISOString().slice(0,10));
-    cur.setDate(cur.getDate()+1);
-  }
-  if(dias.length > 31){ toast('Máximo 31 días por consulta'); return; }
+  var c = document.getElementById('histContainer');
+  var dias = Math.round((new Date(hasta+'T12:00:00') - new Date(desde+'T12:00:00')) / 86400000) + 1;
+  if(!(dias >= 1)){ toast('La fecha de inicio no puede ser posterior a la de fin'); return; }
+  if(dias > 31){ toast('Máximo 31 días por consulta'); return; }
 
-  // Cargar todos los días en paralelo
-  var promises = dias.map(function(fecha){
-    return fetch(API_URL+'/registros/dia?fecha='+fecha)
-      .then(function(r){ return r.json(); })
-      .catch(function(){ return {ok:false,registros:[]}; });
-  });
-
-  Promise.all(promises).then(function(results){
-    var todosRegs = [];
-    var totalGastos = [];
-    results.forEach(function(json){
-      if(json.ok && json.registros){
-        json.registros.forEach(function(r){
-          todosRegs.push({
-            id:r.id, bid:r.bid, bnom:r.bnom,
-            sid:r.sid||'custom', snom:r.snom,
-            precio:parseInt(r.precio), pago:r.pago,
-            com:parseFloat(r.com), bb:parseInt(r.bb),
-            neg:parseInt(r.neg), propina:parseInt(r.propina||0),
-            fecha:r.fecha_display||r.fecha, hora:r.hora||'--',
-            ts:parseInt(r.ts||0)
-          });
-        });
-      }
-    });
+  cargarPeriodoApi(desde, hasta, {registros:true, resumen:true}).then(function(res){
+    if(!res.ok){
+      c.innerHTML = avisoDatosHtml('No se pudieron cargar las ventas '+textoPeriodo(desde, hasta)+' ('+res.motivo+'). '
+        +'No se muestran cifras porque estarían incompletas. Vuelve a cargar para reintentar.');
+      return;
+    }
+    var todosRegs = res.registros.map(function(r){ return registroDesdeApi(r, false); });
     todosRegs.sort(function(a,b){ return b.ts-a.ts; });
 
-    if(todosRegs.length===0){
-      document.getElementById('histContainer').innerHTML =
-        '<div class="empty"><div class="empty-ico">📭</div><div>Sin registros en ese período</div></div>';
+    if(todosRegs.length===0 && res.resumen.servicios===0){
+      c.innerHTML = '<div class="empty"><div class="empty-ico">📭</div><div>Sin registros '+textoPeriodo(desde, hasta)+'</div></div>';
       return;
     }
 
     // Mostrar resumen del período + registros
-    mostrarJornadaCargada(desde+(hasta!==desde?' → '+hasta:''), todosRegs, []);
+    mostrarJornadaCargada(desde+(hasta!==desde?' → '+hasta:''), todosRegs, res.resumen);
     toast('✓ '+todosRegs.length+' registros cargados');
   });
 }
@@ -1850,44 +1848,7 @@ function cargarDesdeNube(){
   if(!fecha){ toast('Selecciona una fecha'); return; }
   // fecha viene como YYYY-MM-DD
   toast('Cargando jornada del '+fecha+' desde la nube…');
-  fetch(API_URL+'/registros/dia?fecha='+fecha)
-    .then(function(r){ return r.json(); })
-    .then(function(json){
-      if(!json.ok){ toast('Error: '+(json.error||'sin datos')); return; }
-      if(!json.registros || json.registros.length===0){
-        document.getElementById('histContainer').innerHTML=
-          '<div class="empty"><div class="empty-ico">📭</div><div>Sin registros para el '+fecha+'</div></div>';
-        return;
-      }
-      // Convertir formato API → formato interno
-      var recs = json.registros.map(function(r){
-        return {
-          id:r.id, bid:r.bid, bnom:r.bnom,
-          sid:r.sid||'custom', snom:r.snom,
-          precio:parseInt(r.precio), pago:r.pago,
-          com:parseFloat(r.com), bb:parseInt(r.bb),
-          neg:parseInt(r.neg), propina:parseInt(r.propina||0),
-          fecha:r.fecha_display||fecha, hora:r.hora||'--',
-          ts:parseInt(r.ts||0)
-        };
-      });
-      // También cargar gastos del día
-      fetch(API_URL+'/resumen?fecha='+fecha)
-        .then(function(r2){ return r2.json(); })
-        .then(function(resumen){
-          var gastosHist = [];
-          if(resumen.ok && resumen.data && resumen.data.listaGastos){
-            gastosHist = resumen.data.listaGastos;
-          }
-          mostrarJornadaCargada(fecha, recs, gastosHist);
-          toast('✓ Jornada del '+fecha+' cargada ('+recs.length+' registros)');
-        })
-        .catch(function(){
-          mostrarJornadaCargada(fecha, recs, []);
-          toast('✓ '+recs.length+' registros cargados');
-        });
-    })
-    .catch(function(e){ toast('Error de conexión: '+e.message); });
+  cargarRangoFechas(fecha, fecha);
 }
 
 function cargarArchivo(evt){
@@ -1905,20 +1866,30 @@ function cargarArchivo(evt){
   evt.target.value='';
 }
 
-function mostrarJornadaCargada(fecha,recs){
+// totales (optional): the period summary from /resumen/rango. Given, its
+// figures are shown as-is — commissions and tips as two separate figures,
+// both from the API; absent (a JSON file opened from disk, no server), the
+// rows are summed here.
+function mostrarJornadaCargada(fecha,recs,totales){
   var c=document.getElementById('histContainer');
   if(!recs||recs.length===0){c.innerHTML='<div class="empty"><div>Archivo vacío o sin registros</div></div>';return;}
-  var tot=0,tBB=0,tNeg=0;
-  for(var i=0;i<recs.length;i++){tot+=recs[i].precio;tBB+=recs[i].bb;tNeg+=recs[i].neg;}
+  var tot=0,tCom=0,tProp=0,tNeg=0,nota='';
+  if(totales){
+    tot=totales.facturacion; tCom=totales.comisionesBarberos; tProp=totales.propinas; tNeg=totales.paraNegocio;
+    if(totales.servicios!==recs.length) nota='<div class="catalogo-aviso warn">Hubo cambios en las ventas mientras se cargaba ('+totales.servicios+' en el resumen, '+recs.length+' en la lista). Vuelve a cargar para ver cifras al día.</div>';
+  } else {
+    for(var i=0;i<recs.length;i++){tot+=recs[i].precio;tCom+=recs[i].bb;tProp+=(recs[i].propina||0);tNeg+=recs[i].neg;}
+  }
 
-  var h='<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--rl);padding:14px;margin-bottom:14px">'
+  var h=nota+'<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--rl);padding:14px;margin-bottom:14px">'
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
     +'<strong style="font-size:15px">Jornada: '+fecha+'</strong>'
     +'<span style="font-size:12px;color:var(--text3)">'+recs.length+' servicios</span>'
     +'</div>'
-    +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">'
+    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">'
     +'<div style="background:var(--surface);padding:10px;border-radius:var(--r);text-align:center"><div style="font-size:10px;color:var(--text3)">Facturación</div><div style="font-family:var(--mono);font-weight:600;font-size:16px;color:var(--warn)">$'+fmt(tot)+'</div></div>'
-    +'<div style="background:var(--surface);padding:10px;border-radius:var(--r);text-align:center"><div style="font-size:10px;color:var(--text3)">Barberos</div><div style="font-family:var(--mono);font-weight:600;font-size:16px;color:var(--ok)">$'+fmt(tBB)+'</div></div>'
+    +'<div style="background:var(--surface);padding:10px;border-radius:var(--r);text-align:center"><div style="font-size:10px;color:var(--text3)">Comisiones barberos</div><div style="font-family:var(--mono);font-weight:600;font-size:16px;color:var(--ok)">$'+fmt(tCom)+'</div></div>'
+    +'<div style="background:var(--surface);padding:10px;border-radius:var(--r);text-align:center"><div style="font-size:10px;color:var(--text3)">Propinas</div><div style="font-family:var(--mono);font-weight:600;font-size:16px;color:#8b5e00">$'+fmt(tProp)+'</div></div>'
     +'<div style="background:var(--surface);padding:10px;border-radius:var(--r);text-align:center"><div style="font-size:10px;color:var(--text3)">Negocio</div><div style="font-family:var(--mono);font-weight:600;font-size:16px;color:var(--info)">$'+fmt(tNeg)+'</div></div>'
     +'</div>'
     +'<table style="width:100%;border-collapse:collapse;font-size:12px">'
@@ -2107,7 +2078,9 @@ function init(){
   buildBarbers();buildServices();buildProductos();buildProdBarbers();buildBarberFilters();buildSalaBidOptions();
   cargarBarberosDesdeAPI(); // unauthenticated — always runs, no panel login required
   cargarSheetsUrl();cargar();cargarGastos();cargarLiquidaciones();cargarHorarios();cargarKpiEvals();renderAll();
-  cargarRegistrosDia(); // explicit call — bypasses any API_URL guard inside cargar()
+  // Today's sales are read from the server only with a panel session:
+  // panelApplySession() starts the first read (after login, or on reload with
+  // a saved session), and the 60 s refresh below is a no-op until then.
   // Auto-refresh cada 60 segundos si la página está activa
   setInterval(function(){
     if(document.visibilityState==='visible' && API_URL){
@@ -5064,18 +5037,6 @@ function metaCumplida(periodo){
 }
 
 // ─── Render principal ─────────────────────────────────────────────
-function cargarKpiCuantiDesdeApi(periodo, callback){
-  // Carga métricas cuantitativas reales desde Railway para el período
-  if(!API_URL){ if(callback) callback({}); return; }
-  fetch(API_URL + '/barbero/all/mes/' + periodo)
-    .then(function(r){ return r.json(); })
-    .catch(function(){ return {ok:false}; })
-    .then(function(json){
-      if(!json.ok){ if(callback) callback({}); return; }
-      if(callback) callback(json.stats || {});
-    });
-}
-
 // Calcular cuantitativos directamente desde registros del localStorage/memoria
 function calcKpiCuantiLocal(bid, periodo){
   var todosRegs = [];
@@ -5109,52 +5070,71 @@ function calcKpiCuantiLocal(bid, periodo){
   return {n:n, tot:tot, bb:bb, tk:tk, propCnt:prop, propMonto:propMonto, upsCnt:ups};
 }
 
+// The KPI month — total billing (the goal and bonus base) and the sales
+// behind each barber's score — comes from ONE period read: the total from
+// /resumen/rango, the rows (cached per day in localStorage for the score
+// calculations) from /registros/rango. If the read fails the month is
+// marked as failed and renderKpisInner shows only the warning: no goal %,
+// bonus, score or per-barber figure, because partial data used to lower
+// all of them silently.
 function sincronizarMesDesdeApi(periodo, callback){
-  // Descarga todos los registros del mes desde Railway y los guarda en localStorage
   if(!API_URL){ if(callback) callback(); return; }
+  if(!window._factMesCache) window._factMesCache = {};
+  if(!window._kpiMesFallo) window._kpiMesFallo = {};
+  var p = periodo.split('-');
   var desde = periodo + '-01';
-  var hoy   = fechaHoy;
-  var dias  = [];
-  var cur   = new Date(desde + 'T12:00:00');
-  var fin   = new Date(hoy   + 'T12:00:00');
-  while(cur <= fin){
-    var d = cur.toISOString().slice(0,10);
-    if(d.substring(0,7) === periodo) dias.push(d);
-    cur.setDate(cur.getDate()+1);
+  var ultimo = fechaStr(new Date(parseInt(p[0],10), parseInt(p[1],10), 0)); // último día del mes
+  var hasta = ultimo < fechaHoy ? ultimo : fechaHoy;
+  if(desde > hasta){ // mes futuro: todavía sin ventas
+    delete window._kpiMesFallo[periodo];
+    window._factMesCache[periodo] = 0;
+    if(callback) callback();
+    return;
   }
-  var promesas = dias.map(function(fecha){
-    return fetch(API_URL+'/registros/dia?fecha='+fecha)
-      .then(function(r){ return r.json(); })
-      .catch(function(){ return {ok:false,registros:[]}; });
-  });
-  Promise.all(promesas).then(function(results){
-    var totalRailway = 0; // acumula facturación real desde Railway
-    results.forEach(function(json){
-      if(!json.ok || !json.registros || !json.registros.length) return;
-      var fecha = json.fecha;
-      var recs  = json.registros.map(function(r){
-        totalRailway += parseInt(r.precio||0); // suma directa desde la fuente
-        return {
-          id:r.id, bid:r.bid, bnom:r.bnom, sid:r.sid||'custom', snom:r.snom,
-          precio:parseInt(r.precio), pago:r.pago, com:parseFloat(r.com),
-          bb:parseInt(r.bb), neg:parseInt(r.neg), propina:parseInt(r.propina||0),
-          fecha:r.fecha_display||fecha, hora:r.hora||'--', ts:parseInt(r.ts||0)
-        };
-      });
+  cargarPeriodoApi(desde, hasta, {registros:true, resumen:true}).then(function(res){
+    if(!res.ok){
+      delete window._factMesCache[periodo];
+      window._kpiMesFallo[periodo] = {desde:desde, hasta:hasta, motivo:res.motivo};
+      if(callback) callback();
+      return;
+    }
+    delete window._kpiMesFallo[periodo];
+    var porDia = {};
+    res.registros.forEach(function(r){
+      (porDia[r.fecha] = porDia[r.fecha] || []).push(registroDesdeApi(r, false));
+    });
+    Object.keys(porDia).forEach(function(fecha){
       try{
         var key = 'sfsf_'+fecha;
         // Fusionar con lo que ya haya en localStorage
         var existing = JSON.parse(localStorage.getItem(key)||'[]');
         var seen = {}; existing.forEach(function(r){seen[r.id]=1;});
-        var nuevos = recs.filter(function(r){return !seen[r.id];});
+        var nuevos = porDia[fecha].filter(function(r){return !seen[r.id];});
         localStorage.setItem(key, JSON.stringify(existing.concat(nuevos)));
       }catch(e){}
     });
     // Cachear total Railway — fuente de verdad para cálculo de bonos
-    if(!window._factMesCache) window._factMesCache = {};
-    window._factMesCache[periodo] = totalRailway;
+    window._factMesCache[periodo] = res.resumen.facturacion;
     if(callback) callback();
   });
+}
+
+function reintentarKpiMes(){
+  window._kpiSynced = false;
+  renderKpis();
+}
+
+function _kpiSelectorPeriodoHtml(){
+  var h = '<div class="kpi-period">'
+    + '<span class="kpi-period-label">Período</span>'
+    + '<select id="kpiPeriodSel" onchange="cambiarPeriodoKpi(this.value)">';
+  generarPeriodos().forEach(function(p){
+    h += '<option value="'+p.val+'"'+(p.val===kpiPeriodo?' selected':'')+'>'+p.label+'</option>';
+  });
+  h += '</select>';
+  h += '<span class="kpi-period-badge" id="kpiPeriodBadge">'+kpiPeriodo+'</span>';
+  h += '</div>';
+  return h;
 }
 
 function renderKpis(){
@@ -5180,6 +5160,17 @@ function renderKpisInner(){
   cargarConfigKpi();
   var c = document.getElementById('kpisContent');
   if(!c) return;
+
+  var fallo = window._kpiMesFallo && window._kpiMesFallo[kpiPeriodo];
+  if(fallo){
+    c.innerHTML = '<div class="kpi-page">' + _kpiSelectorPeriodoHtml()
+      + avisoDatosHtml('No se pudieron cargar las ventas '+textoPeriodo(fallo.desde, fallo.hasta)+' ('+fallo.motivo+'). '
+        + 'La meta, el % de avance, los bonos y los puntajes no se muestran porque estarían calculados con datos incompletos. '
+        + 'Las evaluaciones guardadas no se modificaron.')
+      + '<button onclick="reintentarKpiMes()" id="kpiReintentarBtn" style="padding:8px 16px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-size:12px;font-weight:600;cursor:pointer">Reintentar</button>'
+      + '</div>';
+    return;
+  }
 
   // ── META Y BONOS ────────────────────────────────────────
   var factMes   = calcFacturacionMes(kpiPeriodo);
@@ -5263,8 +5254,6 @@ function renderKpisInner(){
   configH += '<button onclick="guardarBonos()" style="margin-top:8px;width:100%;padding:7px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-size:12px;font-weight:600;cursor:pointer">Guardar configuración</button>';
   configH += '</div></div></div>';
 
-  // Selector de período
-  var periodos = generarPeriodos();
   var h = '<div class="kpi-page">';
   h += configH;
   h += '<div style="margin-bottom:18px">';
@@ -5275,15 +5264,7 @@ function renderKpisInner(){
     + '</div></div>';
 
   // Selector período
-  h += '<div class="kpi-period">'
-    + '<span class="kpi-period-label">Período</span>'
-    + '<select id="kpiPeriodSel" onchange="cambiarPeriodoKpi(this.value)">';
-  periodos.forEach(function(p){
-    h += '<option value="'+p.val+'"'+(p.val===kpiPeriodo?' selected':'')+'>'+p.label+'</option>';
-  });
-  h += '</select>';
-  h += '<span class="kpi-period-badge" id="kpiPeriodBadge">'+kpiPeriodo+'</span>';
-  h += '</div>';
+  h += _kpiSelectorPeriodoHtml();
 
   // Resumen global (tarjetas)
   var scores = BB.map(function(b){ return calcPuntaje(b.id, kpiPeriodo); });
@@ -6164,14 +6145,22 @@ function salaCheckin(){
   _doCheckin(nombre, bid, svc, tel, bebida, bebidaEsOtro);
 }
 
+// "Primer disponible" ranks free barbers by their last sale today, so it
+// needs today's sales; if they can't be loaded it picks nobody (the
+// operator chooses) instead of ranking on missing data.
 function _resolverPrimerDisponible(callback){
   Promise.all([
     fetch(API_URL+'/queue/control',{headers:getAuthHeaders()}).then(function(r){return r.json();}),
-    fetch(API_URL+'/registros/dia?fecha='+fechaHoy).then(function(r){return r.json();}),
+    cargarPeriodoApi(fechaHoy,fechaHoy,{registros:true}),
     fetch(API_URL+'/horarios/'+fechaHoy).then(function(r){return r.json();}).catch(function(){return {ok:false};})
   ]).then(function(res){
-    var queue=res[0]; var regData=res[1]; var horData=res[2];
-    var registros=regData.registros||regData||[];
+    var queue=res[0]; var regRes=res[1]; var horData=res[2];
+    if(!regRes.ok){
+      toast('No se pudo calcular el primer disponible: no se cargaron las ventas de hoy ('+regRes.motivo+'). Elige un barbero.');
+      callback(null, null);
+      return;
+    }
+    var registros=regRes.registros;
 
     var horMap={};
     if(horData.ok&&horData.horarios){
@@ -6579,12 +6568,14 @@ function renderSillas(){
   }
   Promise.all([
     fetch(API_URL+'/queue/control',{headers:getAuthHeaders()}).then(function(r){return r.json();}),
-    fetch(API_URL+'/registros/dia?fecha='+fechaHoy).then(function(r){return r.json();}),
+    cargarPeriodoApi(fechaHoy,fechaHoy,{registros:true}),
     fetch(API_URL+'/horarios/'+fechaHoy).then(function(r){return r.json();}).catch(function(){return {ok:false};})
   ]).then(function(res){
-    var queue=res[0]; var regData=res[1]; var horData=res[2];
+    var queue=res[0]; var regRes=res[1]; var horData=res[2];
     if(!queue.ok) throw new Error(queue.error||'Error cola');
-    var registros=regData.registros||regData||[];
+    // Without today's sales the rotation order is unknown: the chairs are
+    // still shown, but no "next turn" is recommended (see the banner below).
+    var registros=regRes.ok?regRes.registros:[];
 
     // Horarios keyed by bid → determine presence
     var horMap={};
@@ -6626,7 +6617,10 @@ function renderSillas(){
 
     // Banner próximo turno
     var bannerEl=document.getElementById('sillasNextTurn');
-    if(libres.length>0){
+    if(!regRes.ok){
+      bannerEl.innerHTML=avisoDatosHtml('No se pudo calcular el próximo turno: no se cargaron las ventas de hoy ('+regRes.motivo+'). '
+        +'Las sillas se muestran, pero el orden de rotación no. Presiona «Actualizar» para reintentar.');
+    } else if(libres.length>0){
       var next=libres[0];
       var resto=libres.slice(1).map(function(b){return b.nombre;}).join(', ');
       var llegadaNext=horMap[next.id]&&horMap[next.id].entrada?horMap[next.id].entrada.slice(0,5):'';
@@ -7088,15 +7082,10 @@ function panelLogin(){
   errEl.textContent='';
   if(!email||!pass){errEl.textContent='Completa email y contraseña';return;}
   btn.disabled=true;btn.textContent='Entrando…';
-  fetch(API_URL+'/api/v2/panel/login',{
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({email:email,password:pass})
-  })
-  .then(function(r){return r.json();})
+  solicitarLoginPanel(email,pass) // reportes-api.js — stores panelJwt on success
   .then(function(j){
     btn.disabled=false;btn.textContent='Entrar';
-    if(!j.ok){errEl.textContent=j.message||(j.error==='invalid_credentials'?'Credenciales incorrectas':'Error al ingresar');return;}
-    sessionStorage.setItem('panelJwt',j.token);
+    if(!j.ok){errEl.textContent=mensajeErrorLogin(j);return;}
     _panelRole=j.role; _panelNombre=j.nombre;
     panelApplySession();
   })
@@ -7121,6 +7110,7 @@ function panelApplySession(){
   if(API_URL) staffRefreshFromAPI();
   if(API_URL) loadProductosCatalogo(); // real catalog now that a panelJwt exists
   catalogoCargar(); // service catalog: cobro, Administración, payment edit
+  cargarRegistrosDia(); // today's sales — first read happens here, never before login
   drainOutbox(); // flush any services queued before login
   waPoll(); // immediate refresh on login rather than waiting up to 25s for the first tick
 }

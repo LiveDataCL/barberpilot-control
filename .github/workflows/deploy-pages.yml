@@ -1,9 +1,8 @@
-# Replaces the June 15 broken approach (commit e83400c, `git rm --cached dashboard-config.js`).
-# A gitignored file can never reach a classic branch-deploy Pages site — it always 404s.
-# This workflow injects DASHBOARD_READ_TOKEN from a GitHub Actions secret at deploy time
-# so dashboard-config.js is always present in production without ever entering the repository.
-# Prerequisite: Settings → Pages → Source must be switched from "Deploy from a branch"
-# to "GitHub Actions" before the first run will publish successfully.
+# Publishes the repository as-is to GitHub Pages (Settings → Pages → Source:
+# "GitHub Actions"). Nothing is generated at deploy time and no secret is
+# read: until Stage L2a (2026-10-13) a step here wrote DASHBOARD_READ_TOKEN
+# into a public dashboard-config.js; dashboard_kpis_barberia.html now uses
+# the panel login instead, and that file is no longer published.
 
 name: Deploy GitHub Pages
 
@@ -34,17 +33,6 @@ jobs:
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
-
-      - name: Write dashboard-config.js from secret
-        env:
-          DASHBOARD_READ_TOKEN: ${{ secrets.DASHBOARD_READ_TOKEN }}
-        run: |
-          {
-            echo 'window.DASHBOARD_CONFIG = {'
-            echo "  apiUrl: 'https://barberpilot-api-production.up.railway.app',"
-            echo "  token: '${DASHBOARD_READ_TOKEN}'"
-            echo '};'
-          } > dashboard-config.js
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
