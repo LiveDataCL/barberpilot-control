@@ -2330,7 +2330,7 @@ function registrarProducto(){
   r.totalServicios=mismos.length;
   var acumBB=0,acumFact=0;
   for(var i=0;i<mismos.length;i++){acumBB+=mismos[i].bb+(mismos[i].propina||0);acumFact+=mismos[i].precio;}
-  r.acumBB=acumBB;r.acumFact=acumFact;
+  r.acumBB=acumBB;r.acumFact=acumFact;r.acumProp=pagoBarbero(mismos).propina;
   guardar();
   enviarAApi(r);
   selProd={b:null,prod:null,p:null,qty:1};
@@ -2480,6 +2480,7 @@ function registrar(){
   var acumBB = 0;
   for(var i=0;i<mismosBarbero.length;i++) acumBB += mismosBarbero[i].bb + (mismosBarbero[i].propina||0);
   r.acumBB = acumBB;
+  r.acumProp = pagoBarbero(mismosBarbero).propina;
   // Acumulado facturado (precio total cobrado a clientes)
   var acumFact = 0;
   for(var i=0;i<mismosBarbero.length;i++) acumFact += mismosBarbero[i].precio;
@@ -2568,7 +2569,7 @@ function renderReg(){
   if(arr.length===0){c.innerHTML='<div class="empty"><div class="empty-ico">✂</div><div>Sin registros aún.</div></div>';return;}
   var h='<table class="rt"><thead><tr>'
     +'<th>#</th><th>Hora</th><th>Barbero</th><th>Servicio</th><th>Pago</th>'
-    +'<th>Monto</th><th>Barbero</th><th>Cliente</th><th></th>'
+    +'<th>Monto</th><th>Comisión</th><th>Cliente</th><th></th>'
     +'</tr></thead><tbody>';
   for(var i=0;i<arr.length;i++){
     var r=arr[i],bc=r.pago==='efectivo'?'be':r.pago==='debito'?'bd':'btr';
@@ -2579,7 +2580,7 @@ function renderReg(){
       +'<td style="color:var(--text2);font-size:12px">'+r.snom+'</td>'
       +'<td><span class="badge '+bc+'">'+r.pago+'</span></td>'
       +'<td style="font-family:var(--mono);font-weight:600">$'+fmt(r.precio)+'</td>'
-      +'<td style="font-family:var(--mono);font-weight:600;color:var(--ok)">$'+fmt(r.bb+(r.propina||0))+(r.propina>0?'<br><span style="font-size:10px;color:#8b5e00">+$'+fmt(r.propina)+' prop.</span>':'')+'</td>'
+      +'<td style="font-family:var(--mono);font-weight:600;color:var(--ok)">'+pagoCeldaHtml(r.bb, r.propina||0)+'</td>'
       +'<td><span style="font-size:12px;color:var(--text2);display:block;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(r.cliente_nombre||r.cliente_id||'')+'">'+( r.cliente_nombre||r.cliente_id||'—')+'</span></td>'
       +'<td style="white-space:nowrap">'
       +'<button class="bsm" onclick="verTkt(\''+r.id+'\')">Ver</button>'
@@ -2597,7 +2598,8 @@ function renderSum(){
   document.getElementById('sCards').innerHTML=
     '<div class="sc"><div class="scl">Servicios</div><div class="scv">'+regs.length+'</div></div>'
     +'<div class="sc"><div class="scl">Facturación</div><div class="scv a">$'+fmt(tot)+'</div></div>'
-    +'<div class="sc"><div class="scl">Pago barberos</div><div class="scv g">$'+fmt(tBB)+'</div></div>'
+    +'<div class="sc"><div class="scl">Comisiones barberos</div><div class="scv g">$'+fmt(pagoBarbero(regs).comision)+'</div></div>'
+    +'<div class="sc"><div class="scl">Propinas</div><div class="scv g">$'+fmt(pagoBarbero(regs).propina)+'</div></div>'
     +'<div class="sc"><div class="scl">Para negocio</div><div class="scv b">$'+fmt(tNeg)+'</div></div>';
   var g='';
   var activeBB=_barberosParaImpresion(regs);
@@ -2613,7 +2615,9 @@ function renderSum(){
       +'<span style="font-family:var(--mono);font-size:11px;opacity:.7">'+br.length+' svc</span></div>'
       +'<div class="bscb">'
       +'<div class="bscr"><span style="color:var(--text2)">Facturado</span><span style="font-family:var(--mono);font-weight:600">$'+fmt(bt)+'</span></div>'
-      +'<div class="bscr"><span style="color:var(--text2)">A cobrar</span><span style="font-family:var(--mono);font-weight:600;color:var(--ok)">$'+fmt(bBB)+'</span></div>'
+      +'<div class="bscr"><span style="color:var(--text2)">Comisión</span><span style="font-family:var(--mono)">$'+fmt(pagoBarbero(br).comision)+'</span></div>'
+      +'<div class="bscr"><span style="color:var(--text2)">Propina</span><span style="font-family:var(--mono)">$'+fmt(pagoBarbero(br).propina)+'</span></div>'
+      +'<div class="bscr"><span style="color:var(--text2)">A cobrar (comisión + propina)</span><span style="font-family:var(--mono);font-weight:600;color:var(--ok)">$'+fmt(bBB)+'</span></div>'
       +'<div class="bscr"><span style="color:var(--text2)">Negocio</span><span style="font-family:var(--mono)">$'+fmt(bNeg)+'</span></div>'
       +'<div class="bscr"><span style="color:var(--text2)">Tkt promedio</span><span style="font-family:var(--mono)">$'+fmt(tk)+'</span></div>'
       +'<div class="bscr" style="display:block"><div style="color:var(--text2);font-size:11px;margin-bottom:2px">Servicios</div>'
@@ -2657,7 +2661,7 @@ function renderCierre(){
         +'<td style="padding:5px 6px">'+r.snom+'</td>'
         +'<td style="padding:5px 6px;text-transform:capitalize">'+r.pago+'</td>'
         +'<td style="padding:5px 6px;text-align:right;font-family:var(--mono)">$'+fmt(r.precio)+'</td>'
-        +'<td style="padding:5px 6px;text-align:right;font-family:var(--mono);color:var(--ok);font-weight:600">$'+fmt(r.bb+(r.propina||0))+(r.propina>0?' <span style="font-size:9px;color:#8b5e00">+prop</span>':'')+'</td>'
+        +'<td style="padding:5px 6px;text-align:right;font-family:var(--mono);color:var(--ok);font-weight:600">'+pagoCeldaHtml(r.bb, r.propina||0)+'</td>'
         +'</tr>';
     }
     h+='</tbody></table>'
@@ -2923,6 +2927,9 @@ function mkTktHtml(r){
     +'<span>Acumulado '+r.bnom+':</span>'
     +'<span>$'+fmt(r.acumBB||0)+'</span>'
     +'</div>'
+    +'<div style="display:flex;justify-content:space-between;font-size:10px">'
+    +'<span>Comisión $'+fmt((r.acumBB||0)-(r.acumProp||0))+'</span><span>Propina $'+fmt(r.acumProp||0)+'</span>'
+    +'</div>'
     +'</div>'
     +'</div>';
   return h;
@@ -2940,7 +2947,7 @@ function printTicket62(r){
       acumFact+=mismos[i].precio;
     }
     r.totalServicios=mismos.length;
-    r.acumBB=acumBB; r.acumFact=acumFact;
+    r.acumBB=acumBB; r.acumFact=acumFact; r.acumProp=pagoBarbero(mismos).propina;
   }
   var css='<style>'
     +'@page{size:58mm auto;margin:0}'
@@ -2964,7 +2971,7 @@ function verTkt(id){
       acumFact+=mismos[i].precio;
     }
     r.totalServicios=mismos.length;
-    r.acumBB=acumBB; r.acumFact=acumFact;
+    r.acumBB=acumBB; r.acumFact=acumFact; r.acumProp=pagoBarbero(mismos).propina;
   }
   var win=window.open('','_blank','width=310,height=640,toolbar=0,menubar=0,location=0,scrollbars=1');
   if(!win){toast('Activa pop-ups para ver el ticket');return;}
@@ -3131,11 +3138,12 @@ function generarHTMLA4(fecha, recs, gastosParam){
     +'<div class="doc-meta"><strong>Resumen de Jornada</strong><br>'+fecha+'<br>Generado: '+new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'})+'</div>'
     +'</div>'
     +'<div class="doc-title">Cierre de Jornada · '+fecha+'</div>'
-    +'<div class="kpis" style="grid-template-columns:repeat(6,1fr)">'
+    +'<div class="kpis" style="grid-template-columns:repeat(7,1fr)">'
     +'<div class="kpi"><div class="kpi-lbl">Servicios</div><div class="kpi-val">'+cnt+'</div></div>'
     +'<div class="kpi"><div class="kpi-lbl">Ticket promedio</div><div class="kpi-val">$'+fmt(cnt>0?Math.round(tot/cnt):0)+'</div></div>'
     +'<div class="kpi"><div class="kpi-lbl">Facturación total</div><div class="kpi-val a">$'+fmt(tot)+'</div></div>'
-    +'<div class="kpi"><div class="kpi-lbl">Pago barberos</div><div class="kpi-val g">$'+fmt(tBB)+'</div></div>'
+    +'<div class="kpi"><div class="kpi-lbl">Comisiones barberos</div><div class="kpi-val g">$'+fmt(pagoBarbero(recs).comision)+'</div></div>'
+    +'<div class="kpi"><div class="kpi-lbl">Propinas</div><div class="kpi-val g">$'+fmt(pagoBarbero(recs).propina)+'</div></div>'
     +'<div class="kpi"><div class="kpi-lbl">Para el negocio</div><div class="kpi-val b">$'+fmt(tNeg)+'</div></div>'
     +'<div class="kpi"><div class="kpi-lbl">Utilidad neta</div><div class="kpi-val '+(tNeg-totalGastosPrint>=0?'g':'err')+'">$'+fmt(tNeg-totalGastosPrint)+'</div></div>'
 
@@ -3159,7 +3167,9 @@ function generarHTMLA4(fecha, recs, gastosParam){
       +'<div class="bb-head"><span>'+b.nombre+'</span><span style="font-size:9pt;opacity:.7">'+br.length+' svc</span></div>'
       +'<div class="bb-body">'
       +'<div class="bb-row"><span class="l">Facturado</span><span class="v">$'+fmt(bt)+'</span></div>'
-      +'<div class="bb-row"><span class="l">A cobrar</span><span class="v g">$'+fmt(bBB)+'</span></div>'
+      +'<div class="bb-row"><span class="l">Comisión</span><span class="v">$'+fmt(pagoBarbero(br).comision)+'</span></div>'
+      +'<div class="bb-row"><span class="l">Propina</span><span class="v">$'+fmt(pagoBarbero(br).propina)+'</span></div>'
+      +'<div class="bb-row"><span class="l">A cobrar (comisión + propina)</span><span class="v g">$'+fmt(bBB)+'</span></div>'
       +'<div class="bb-row"><span class="l">Negocio</span><span class="v">$'+fmt(bNeg)+'</span></div>'
       +'<div class="bb-row"><span class="l">Tkt promedio</span><span class="v">$'+fmt(tk)+'</span></div>'
       +(minsB>0?'<div class="bb-row"><span class="l">Jornada</span><span class="v b">'+fmtJornada(minsB)+'</span></div>':'')
@@ -3186,7 +3196,7 @@ function generarHTMLA4(fecha, recs, gastosParam){
       var prodHora=mins>0?Math.round(bt/(mins/60)):0;
       var jornada=fmtJornada(mins);
 
-      h+='<div class="hor-card">'        +'<div class="hor-head"><span style="font-weight:700">'+b.nombre+'</span>'        +'<span style="font-size:9pt;opacity:.7">'+br.length+' svc</span></div>'        +'<div class="hor-body">'        +(reg.entrada?'<div class="hor-row"><span class="l">Entrada</span><span class="v">'+(reg.entrada||'—')+'</span></div>':'')        +(reg.salida?'<div class="hor-row"><span class="l">Salida</span><span class="v">'+(reg.salida||'—')+'</span></div>':'')        +(mins>0?'<div class="hor-row"><span class="l">Jornada</span><span class="v b">'+jornada+'</span></div>':'')        +'<div class="hor-row"><span class="l">Servicios</span><span class="v">'+br.length+'</span></div>'        +'<div class="hor-row"><span class="l">Ticket promedio</span><span class="v">$'+fmt(tk)+'</span></div>'        +(prodHora>0?'<div class="hor-row"><span class="l">Producción/hora</span><span class="v g">$'+fmt(prodHora)+'</span></div>':'')        +'<div class="hor-row"><span class="l">Facturado</span><span class="v">$'+fmt(bt)+'</span></div>'        +'<div class="hor-row"><span class="l">A cobrar</span><span class="v g">$'+fmt(bBB)+'</span></div>'        +'</div></div>';
+      h+='<div class="hor-card">'        +'<div class="hor-head"><span style="font-weight:700">'+b.nombre+'</span>'        +'<span style="font-size:9pt;opacity:.7">'+br.length+' svc</span></div>'        +'<div class="hor-body">'        +(reg.entrada?'<div class="hor-row"><span class="l">Entrada</span><span class="v">'+(reg.entrada||'—')+'</span></div>':'')        +(reg.salida?'<div class="hor-row"><span class="l">Salida</span><span class="v">'+(reg.salida||'—')+'</span></div>':'')        +(mins>0?'<div class="hor-row"><span class="l">Jornada</span><span class="v b">'+jornada+'</span></div>':'')        +'<div class="hor-row"><span class="l">Servicios</span><span class="v">'+br.length+'</span></div>'        +'<div class="hor-row"><span class="l">Ticket promedio</span><span class="v">$'+fmt(tk)+'</span></div>'        +(prodHora>0?'<div class="hor-row"><span class="l">Producción/hora</span><span class="v g">$'+fmt(prodHora)+'</span></div>':'')        +'<div class="hor-row"><span class="l">Facturado</span><span class="v">$'+fmt(bt)+'</span></div>'        +'<div class="hor-row"><span class="l">A cobrar</span><span class="v g">'+pagoCeldaHtml(pagoBarbero(br).comision, pagoBarbero(br).propina)+'</span></div>'        +'</div></div>';
     }
     h+='</div>';
   }
@@ -3208,7 +3218,7 @@ function generarHTMLA4(fecha, recs, gastosParam){
       +'<td>'+r.snom+'</td>'
       +'<td style="text-transform:capitalize">'+r.pago+'</td>'
       +'<td style="text-align:right;font-family:monospace;font-weight:600">$'+fmt(r.precio)+'</td>'
-      +'<td style="text-align:right;font-family:monospace;font-weight:600;color:#1a6b3a">$'+fmt(r.bb+(r.propina||0))+(r.propina>0?'<br><span style="font-size:10px;color:#8b5e00">+prop $'+fmt(r.propina)+'</span>':'')+'</td>'
+      +'<td style="text-align:right;font-family:monospace;font-weight:600;color:#1a6b3a">'+pagoCeldaHtml(r.bb, r.propina||0)+'</td>'
       +'<td style="text-align:right;font-family:monospace;color:#1a4b8b">$'+fmt(r.neg)+'</td>'
       +'</tr>';
   }
@@ -3224,12 +3234,12 @@ function generarHTMLA4(fecha, recs, gastosParam){
   h+='<div class="section-title">Conformidad de pago</div>'
     +'<div class="firma-grid">';
   for(var i=0;i<activeBBA4.length;i++){
-    var b=activeBBA4[i],br=[],bBB2=0;
+    var b=activeBBA4[i],br=[];
     for(var j=0;j<recs.length;j++)if(recs[j].bid===b.id)br.push(recs[j]);
-    for(var j=0;j<br.length;j++)bBB2+=br[j].bb;
+    var pB=pagoBarbero(br);
     h+='<div class="firma-box">'
       +'<div class="firma-name">'+b.nombre+'</div>'
-      +'<div class="firma-monto">'+(br.length===0?'Sin servicios':br.length+' servicios · Recibe $'+fmt(bBB2))+'</div>'
+      +'<div class="firma-monto">'+(br.length===0?'Sin servicios':br.length+' servicios · Comisión $'+fmt(pB.comision)+' + propina $'+fmt(pB.propina)+' = recibe $'+fmt(pB.total))+'</div>'
       +'<div class="firma-line"></div>'
       +'<div class="firma-label">Firma · '+fecha+'</div>'
       +'</div>';
@@ -3555,7 +3565,7 @@ function renderCaja(){
     +'<table style="width:100%;border-collapse:collapse;font-size:13px">'
     +'<thead><tr style="border-bottom:2px solid var(--text)">'
     +'<th style="text-align:left;padding:7px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--text3)">Barbero</th>'
-    +'<th style="text-align:right;padding:7px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--text3)">Le corresponde</th>'
+    +'<th style="text-align:right;padding:7px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--text3)">Le corresponde<br><span style="text-transform:none;letter-spacing:0">(comisión + propina)</span></th>'
     +'<th style="text-align:center;padding:7px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--warn)">Pago efectivo</th>'
     +'<th style="text-align:center;padding:7px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--info)">Pago transf.</th>'
     +'<th style="text-align:right;padding:7px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--text3)">Pendiente</th>'
@@ -3584,7 +3594,7 @@ function renderCaja(){
 
     h+='<tr style="border-bottom:1px solid var(--border)">'
       +'<td style="padding:8px;font-weight:600">'+b.nombre+'<br><span style="font-size:10px;color:var(--text3);font-weight:400">'+bbRegs.length+' servicio'+(bbRegs.length!==1?'s':'')+'</span></td>'
-      +'<td style="padding:8px;text-align:right;font-family:var(--mono);font-weight:700">$'+fmt(correspondeTotal)+(propinas>0?'<br><span style="font-size:10px;color:#8b5e00;font-weight:400">incl. $'+fmt(propinas)+' prop.</span>':'')+'</td>'
+      +'<td style="padding:8px;text-align:right;font-family:var(--mono);font-weight:700">$'+fmt(correspondeTotal)+'<br><span style="font-size:10px;color:#8b5e00;font-weight:400">comisión $'+fmt(corresponde)+' + propina $'+fmt(propinas)+'</span>'+'</td>'
       +'<td style="padding:5px 8px;text-align:center">'
       +'<div style="display:flex;flex-direction:column;gap:3px;align-items:center">'
       +'<input type="number" min="0" step="1000" value="'+(liq.efectivo||'')+'" placeholder="0"'
@@ -3857,7 +3867,10 @@ function printCaja(){
     totalPagoTransf+=liq.transferencia;
     var pend=corresponde-(liq.efectivo+liq.transferencia);
     totalPendiente+=pend;
+    var pL=pagoBarbero(bbRegs);
     lineasLiq+='<div style="display:flex;justify-content:space-between"><b>'+b.nombre+'</b><span>$'+fmt(corresponde)+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;padding-left:10px"><span>Comisión:</span><span>$'+fmt(pL.comision)+'</span></div>'
+      +'<div style="display:flex;justify-content:space-between;padding-left:10px"><span>Propina:</span><span>$'+fmt(pL.propina)+'</span></div>'
       +(liq.efectivo>0?'<div style="display:flex;justify-content:space-between;padding-left:10px"><span>Efectivo:</span><span>$'+fmt(liq.efectivo)+'</span></div>':'')
       +(liq.transferencia>0?'<div style="display:flex;justify-content:space-between;padding-left:10px"><span>Transf.:</span><span>$'+fmt(liq.transferencia)+'</span></div>':'')
       +(pend>0?'<div style="display:flex;justify-content:space-between;padding-left:10px"><span>Pendiente:</span><b>$'+fmt(pend)+'</b></div>':'<div style="font-size:9px;padding-left:10px;color:#555">✓ Pagado completo</div>');
@@ -4055,7 +4068,7 @@ function printCajaA4(){
     var pendStyle=pend===0?'color:#1a6b3a':pend>0?'color:#c0392b':'color:#8b5e00';
     bbRows+='<tr>'
       +'<td style="padding:7px 10px;font-weight:600">'+b.nombre+'<br><span style="font-weight:400;font-size:11px;color:#9c9a93">'+br.length+' servicio'+(br.length!==1?'s':'')+'</span></td>'
-      +'<td style="padding:7px 10px;text-align:right;font-family:monospace;font-weight:700">$'+fmt(cor)+'</td>'
+      +'<td style="padding:7px 10px;text-align:right;font-family:monospace;font-weight:700">$'+fmt(cor)+'<br><span style="font-weight:400;font-size:9pt;color:#8b5e00">comisión $'+fmt(pagoBarbero(br).comision)+' + propina $'+fmt(pagoBarbero(br).propina)+'</span></td>'
       +'<td style="padding:7px 10px;text-align:right;font-family:monospace;color:#8b5e00">'+( liq.efectivo>0?'$'+fmt(liq.efectivo):'-')+'</td>'
       +'<td style="padding:7px 10px;text-align:right;font-family:monospace;color:#1a4b8b">'+( liq.transferencia>0?'$'+fmt(liq.transferencia):'-')+'</td>'
       +'<td style="padding:7px 10px;text-align:right;font-family:monospace;'+pendStyle+';font-weight:700">'+(pend===0?'✓ Pagado':pend>0?'$'+fmt(pend)+' pend.':'-')+'</td>'
@@ -4116,7 +4129,8 @@ function printCajaA4(){
     +'<div class="kpis">'
     +'<div class="kpi"><div class="kpi-l">Facturación total</div><div class="kpi-v" style="color:#8b5e00">$'+fmt(totalFact)+'</div></div>'
     +'<div class="kpi"><div class="kpi-l">Para el negocio</div><div class="kpi-v" style="color:#1a6b3a">$'+fmt(negocioTotal)+'</div></div>'
-    +'<div class="kpi"><div class="kpi-l">Pago barberos</div><div class="kpi-v" style="color:#1a4b8b">$'+fmt(totalCorresponde)+'</div></div>'
+    +'<div class="kpi"><div class="kpi-l">Pago barberos (comisión + propina)</div><div class="kpi-v" style="color:#1a4b8b">$'+fmt(totalCorresponde)+'</div>'
+      +'<div style="font-size:9pt;color:#5c5a54">comisiones $'+fmt(pagoBarbero(regs).comision)+' · propinas $'+fmt(pagoBarbero(regs).propina)+'</div></div>'
     +'<div class="kpi"><div class="kpi-l">Utilidad neta</div><div class="kpi-v" style="color:'+(utilidad>=0?'#1a6b3a':'#c0392b')+'">$'+fmt(utilidad)+'</div></div>'
     +'</div>'
     +'<div class="stitle">Cobros del día</div>'
@@ -4127,7 +4141,7 @@ function printCajaA4(){
     +'<tr class="tot-row"><td colspan="2">TOTAL FACTURADO</td><td style="text-align:right">$'+fmt(totalFact)+'</td></tr>'
     +'</tbody></table>'
     +'<div class="stitle">Liquidación de barberos</div>'
-    +'<table><thead><tr><th>Barbero</th><th style="text-align:right">Le corresponde</th><th style="text-align:right">Pagado efectivo</th><th style="text-align:right">Pagado transf.</th><th style="text-align:right">Pendiente</th></tr></thead>'
+    +'<table><thead><tr><th>Barbero</th><th style="text-align:right">Le corresponde (comisión + propina)</th><th style="text-align:right">Pagado efectivo</th><th style="text-align:right">Pagado transf.</th><th style="text-align:right">Pendiente</th></tr></thead>'
     +'<tbody>'+bbRows
     +'<tr class="tot-row"><td>TOTALES</td><td style="text-align:right">$'+fmt(totalCorresponde)+'</td><td style="text-align:right">$'+fmt(totalPagoEf)+'</td><td style="text-align:right">$'+fmt(totalPagoTr)+'</td><td style="text-align:right">'+(totalPend===0?'✓ Al día':'$'+fmt(totalPend)+' pendiente')+'</td></tr>'
     +'</tbody></table>'
@@ -6035,7 +6049,7 @@ function salaCerrarServicio(queue_id,bid,pago,propina,precio){
           hora:String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0'),
           ts:now.getTime(),
           numServicio:mismos.length+1,totalServicios:mismos.length+1,
-          acumBB:acumBB,acumFact:acumFact
+          acumBB:acumBB,acumFact:acumFact,acumProp:(j.propina||0)+pagoBarbero(mismos).propina
         };
         printTicket62(r2);
         setTimeout(function(){cargarRegistrosDia();renderSala();},500);

@@ -635,9 +635,9 @@ function getGastosFiltrados(){
 function calcKpis(regs,js){
   var tot=0,tBB=0,tNeg=0;
   regs.forEach(function(r){tot+=r.precio;tBB+=r.bb+(r.propina||0);tNeg+=r.neg;});
-  var dias=js.length;
+  var dias=js.length, pago=pagoBarbero(regs);
   return {
-    tot:tot,tBB:tBB,tNeg:tNeg,
+    tot:tot,tBB:tBB,tNeg:tNeg,tCom:pago.comision,tProp:pago.propina,
     dias:dias,svc:regs.length,
     promDia:dias>0?tot/dias:0,
     promSvc:dias>0?regs.length/dias:0,
@@ -654,10 +654,11 @@ function datosPorDia(js){
 }
 function datosPorBarbero(regs){
   var res={};
-  ACTIVE_BARBERS.forEach(function(b){ res[b]={tot:0,tBB:0,tNeg:0,cnt:0}; });
+  ACTIVE_BARBERS.forEach(function(b){ res[b]={tot:0,tBB:0,tCom:0,tProp:0,tNeg:0,cnt:0}; });
   regs.forEach(function(r){
-    if(!res[r.bnom]) res[r.bnom]={tot:0,tBB:0,tNeg:0,cnt:0};
+    if(!res[r.bnom]) res[r.bnom]={tot:0,tBB:0,tCom:0,tProp:0,tNeg:0,cnt:0};
     res[r.bnom].tot+=r.precio; res[r.bnom].tBB+=r.bb+(r.propina||0); res[r.bnom].tNeg+=r.neg; res[r.bnom].cnt++;
+    res[r.bnom].tCom+=Number(r.bb)||0; res[r.bnom].tProp+=Number(r.propina)||0;
   });
   return res;
 }
@@ -745,7 +746,8 @@ function buildHTML(js, regs){
   var totalGastos=gastosFiltrados.reduce(function(a,g){return a+(g.monto||0);},0);
   var utilidad=k.tNeg-totalGastos;
   h+=kpiCard('Facturación total',fmtK(k.tot),'warn','$'+fmt(k.tot));
-  h+=kpiCard('Pago barberos',fmtK(k.tBB),'ok','$'+fmt(k.tBB));
+  h+=kpiCard('Comisiones barberos',fmtK(k.tCom),'ok','$'+fmt(k.tCom));
+  h+=kpiCard('Propinas',fmtK(k.tProp),'ok','$'+fmt(k.tProp));
   h+=kpiCard('Para el negocio',fmtK(k.tNeg),'info','$'+fmt(k.tNeg));
   h+=kpiCard('Gastos período',fmtK(totalGastos),'err','$'+fmt(totalGastos)+' ('+gastosFiltrados.length+' registros)');
   h+=kpiCard('Utilidad neta',fmtK(Math.abs(utilidad)),utilidad>=0?'ok':'err',(utilidad>=0?'':'−')+'$'+fmt(Math.abs(utilidad)));
@@ -803,7 +805,9 @@ function buildHTML(js, regs){
       +'<div class="bb-head '+c.head+'"><span class="bb-name">'+b+'</span><span class="bb-cnt">'+d.cnt+' svc</span></div>'
       +'<div class="bb-body">'
       +'<div class="bb-row"><span class="l">Facturado</span><span class="v">$'+fmt(d.tot)+'</span></div>'
-      +'<div class="bb-row"><span class="l">A cobrar</span><span class="v g">$'+fmt(d.tBB)+'</span></div>'
+      +'<div class="bb-row"><span class="l">Comisión</span><span class="v">$'+fmt(d.tCom)+'</span></div>'
+      +'<div class="bb-row"><span class="l">Propina</span><span class="v">$'+fmt(d.tProp)+'</span></div>'
+      +'<div class="bb-row"><span class="l">A cobrar (comisión + propina)</span><span class="v g">$'+fmt(d.tBB)+'</span></div>'
       +'<div class="bb-row"><span class="l">Negocio</span><span class="v b">$'+fmt(d.tNeg)+'</span></div>'
       +'<div class="bb-row"><span class="l">Tkt promedio</span><span class="v">$'+fmt(tk)+'</span></div>'
       +'<div class="bb-bar"><div class="bb-bar-fill" style="width:'+pct+'%;background:'+c.bar+'"></div></div>'
@@ -837,7 +841,7 @@ function buildHTML(js, regs){
   h+='<div class="table-wrap"><table class="data-table"><thead><tr>';
   h+='<th>Fecha</th><th class="r">Svc</th><th class="r">Facturado</th>';
   var bbs=Object.keys(porBB);
-  bbs.forEach(function(b){ h+='<th class="r">'+b+'</th>'; });
+  bbs.forEach(function(b){ h+='<th class="r">'+b+'<br><span style="font-weight:400;text-transform:none">comisión</span></th>'; });
   h+='<th class="r">Negocio</th><th class="r">Gastos</th><th class="r">Utilidad</th><th>Top servicio</th>';
   h+='</tr></thead><tbody>';
 
@@ -847,7 +851,7 @@ function buildHTML(js, regs){
     var jRecs=null;
     for(var i=0;i<js.length;i++) if(js[i].fecha===d.fecha){jRecs=js[i].registros;break;}
     var bbTots={};
-    if(jRecs) jRecs.forEach(function(r){bbTots[r.bnom]=(bbTots[r.bnom]||0)+r.bb+(r.propina||0);});
+    if(jRecs) jRecs.forEach(function(r){ (bbTots[r.bnom]=bbTots[r.bnom]||[]).push(r); });
     var svcRank={};
     if(jRecs) jRecs.forEach(function(r){svcRank[r.snom]=(svcRank[r.snom]||0)+1;});
     var topSvc='—',maxC=0;
@@ -856,7 +860,7 @@ function buildHTML(js, regs){
       +'<td style="font-weight:600">'+d.fecha+(isBest?' ⭐':'')+'</td>'
       +'<td class="r mono">'+d.cnt+'</td>'
       +'<td class="r warn mono">$'+fmt(d.tot)+'</td>';
-    bbs.forEach(function(b){ h+='<td class="r mono ok">$'+fmt(bbTots[b]||0)+'</td>'; });
+    bbs.forEach(function(b){ var p=pagoBarbero(bbTots[b]||[]); h+='<td class="r mono ok">'+pagoCeldaHtml(p.comision, p.propina)+'</td>'; });
     var gastoDia=(gastosData[d.fecha]||[]).reduce(function(a,g){return a+(g.monto||0);},0);
     var utilDia=d.tNeg-gastoDia;
     h+='<td class="r info mono">$'+fmt(d.tNeg)+'</td>'
@@ -869,12 +873,12 @@ function buildHTML(js, regs){
   var totD=0,totBB2=0,totNeg2=0,totCnt2=0;
   porDia.forEach(function(d){totD+=d.tot;totBB2+=d.tBB;totNeg2+=d.tNeg;totCnt2+=d.cnt;});
   var totBBx={};
-  regs.forEach(function(r){totBBx[r.bnom]=(totBBx[r.bnom]||0)+r.bb+(r.propina||0);});
+  regs.forEach(function(r){ (totBBx[r.bnom]=totBBx[r.bnom]||[]).push(r); });
   h+='<tr class="total-row">'
     +'<td>TOTAL '+js.length+' días</td>'
     +'<td class="r">'+totCnt2+'</td>'
     +'<td class="r">$'+fmt(totD)+'</td>';
-  bbs.forEach(function(b){ h+='<td class="r">$'+fmt(totBBx[b]||0)+'</td>'; });
+  bbs.forEach(function(b){ var p=pagoBarbero(totBBx[b]||[]); h+='<td class="r">'+pagoCeldaHtml(p.comision, p.propina)+'</td>'; });
   var totGastos2=gastosFiltrados.reduce(function(a,g){return a+(g.monto||0);},0);
   var totUtil2=totNeg2-totGastos2;
   h+='<td class="r">$'+fmt(totNeg2)+'</td>'

@@ -90,6 +90,21 @@ function mensajeErrorLogin(j){
 // the render throws, the section shows a visible Spanish error with a
 // "Reintentar" button — never a blank or half-drawn pane — and the error is
 // logged to the console. reintentar: the function the button calls.
+// Barber pay is always shown as TWO figures — commission (bb) and tips
+// (propina) — never merged into one number (owner decision 2026-10-13);
+// where it is money to hand over, their total is shown too, labelled.
+// One helper so every view adds them the same way.
+function pagoBarbero(lista){
+  var c=0,p=0;
+  for(var i=0;i<lista.length;i++){ c+=Number(lista[i].bb)||0; p+=Number(lista[i].propina)||0; }
+  return {comision:c, propina:p, total:c+p};
+}
+function _clp(n){ return '$'+Math.round(n||0).toLocaleString('es-CL'); }
+// One sale's (or one barber's) pay in a table cell: the commission, and the
+// tip with the total below it when there is a tip.
+function pagoCeldaHtml(comision, propina){
+  return _clp(comision)+(propina>0?'<br><span style="font-size:10px;color:#8b5e00;font-weight:400">+ propina '+_clp(propina)+' = '+_clp(comision+propina)+'</span>':'');
+}
 function renderSeguro(contenedorId,render,reintentar){
   try { return render(); }
   catch(e){
