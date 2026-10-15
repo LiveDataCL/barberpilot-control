@@ -1089,7 +1089,7 @@
             <span>Períodos de trabajo</span>
             <span class="staff-note">Activo desde / hasta · solo lectura</span>
           </div>
-          <div id="staffPeriodos"></div>
+          <div id="staffPeriodos"><div class="staff-note">Cargando…</div></div>
         </div>
 
         <!-- Meta mensual del local -->
@@ -1098,7 +1098,7 @@
             <span>Meta mensual del local</span>
             <span class="staff-note">Facturación de servicios · ajuste con motivo</span>
           </div>
-          <div id="staffMeta"></div>
+          <div id="staffMeta"><div class="staff-note">Cargando…</div></div>
         </div>
 
         <!-- Comisiones -->
@@ -1107,7 +1107,7 @@
             <span>Comisiones</span>
             <span class="staff-note">% que recibe el barbero por método de pago</span>
           </div>
-          <div id="staffCOM"></div>
+          <div id="staffCOM"><div class="staff-note">Cargando…</div></div>
         </div>
 
         <!-- Servicios -->
@@ -2032,8 +2032,6 @@ function showTabById(id){
   if(id==='pAgenda'){
     var t=document.getElementById('tabAgenda');
     if(t) t.classList.add('on');
-    var fr=document.getElementById('agendaIframe');
-    if(fr && !fr.src.includes('agenda-admin')) fr.src='agenda-admin.html?embedded=1';
   } else {
     // ID-based lookup (matches the tab's onclick attribute, e.g.
     // showTab('pHist',this)) rather than a positional array indexed
@@ -2046,8 +2044,7 @@ function showTabById(id){
       if(oc.indexOf("'"+id+"'")!==-1){ tabs[i].classList.add('on'); break; }
     }
   }
-  if(id==='pSala'){ renderSala(); salaCargarIndiceClientes(); if(_salaInterval) clearInterval(_salaInterval); _salaInterval=setInterval(renderSala,20000); }
-  if(id==='pWhatsapp') waRenderPanel();
+  _alAbrirPestana(id);
 }
 
 // ═══ PANEL IZQUIERDO COLAPSABLE (desktop) ═══════════════════
@@ -2835,6 +2832,14 @@ function showTab(id,el){
   all=document.querySelectorAll('.tab');for(var i=0;i<all.length;i++)all[i].classList.remove('on');
   all=document.querySelectorAll('.pane');for(var i=0;i<all.length;i++)all[i].classList.remove('on');
   el.classList.add('on');document.getElementById(id).classList.add('on');
+  _alAbrirPestana(id);
+}
+// Everything a tab needs when it is shown — ONE place for every way of
+// opening a tab (a tab click: showTab; a link, an alert or the Agenda frame:
+// showTabById), so no path shows a pane without drawing it. (The KPI tab's
+// "Ajustar meta en Administración" link used showTabById, which only
+// switched panes: Comisiones, Períodos and Meta stayed empty.)
+function _alAbrirPestana(id){
   if(id==='pSum')renderSum();
   if(id==='pCierre')renderCierre();
   if(id==='pCaja')renderCaja();
@@ -4886,7 +4891,7 @@ function _renderKpisInnerSinGuarda(){
   h+='<div id="kpiMetaBox" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:14px 16px;margin-bottom:16px">';
   h+='<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">'
     +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3)">Meta del local · '+_kpiNombreMes(periodo)+'</div>'
-    +'<button onclick="showTabById(\'pStaff\')" style="font-size:11px;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer">Ajustar meta en Administración</button></div>';
+    +'<button id="kpiAjustarMetaBtn" onclick="kpiIrAAjustarMeta()" style="font-size:11px;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer">Ajustar meta en Administración</button></div>';
   if(m.vigente!=null){
     h+='<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;gap:8px;flex-wrap:wrap">'
       +'<span style="color:var(--text2)">Facturación de servicios vs meta</span>'
@@ -5023,6 +5028,15 @@ function _renderKpisInnerSinGuarda(){
   c.innerHTML=h;
 }
 
+// "Ajustar meta en Administración": opens Administración (drawn like a tab
+// click) on the same month, at the goal section.
+function kpiIrAAjustarMeta(){
+  staffMetaPeriodo=kpiPeriodo; _staffMetaPendiente=null;
+  showTabById('pStaff');
+  var s=document.getElementById('staffMeta');
+  if(s && s.scrollIntoView) s.scrollIntoView({block:'start'});
+}
+
 function kpiGuardarCambio(bid, cambio, que){
   if(_kpiGuardando){ toast('Espera: se está guardando el cambio anterior'); renderKpisInner(); return; }
   _kpiGuardando=true;
@@ -5051,24 +5065,34 @@ function setDisqMotivo(bid, motivo){
 }
 
 // ── Administración: períodos de trabajo (solo lectura) y meta mensual ──
+// An Administración section that couldn't load or draw: a visible Spanish
+// message with "Reintentar", and the error in the console — never blank.
+function _staffSeccionError(el, texto, reintentar, detalle){
+  if(window.console) console.error('[Administración] '+texto, detalle===undefined?'':detalle);
+  el.innerHTML=avisoDatosHtml(texto)
+    +'<button class="staff-add-btn staff-reintentar" style="padding:6px 12px;font-size:12px" onclick="'+reintentar+'()">Reintentar</button>';
+}
 function renderStaffPeriodos(){
   var el=document.getElementById('staffPeriodos');
   if(!el) return;
   if(!API_URL){ el.innerHTML='<div class="staff-note">Sin servidor configurado.</div>'; return; }
   el.innerHTML='<div class="staff-note">Cargando…</div>';
   fetchConReintentos(API_URL+'/api/v2/barberos/periodo?desde=2000-01-01&hasta='+fechaHoy).then(function(r){
-    if(!r.ok){ el.innerHTML=avisoDatosHtml('No se pudieron cargar los períodos de trabajo ('+r.motivo+').'); return; }
+    if(!r.ok) return _staffSeccionError(el, 'No se pudieron cargar los períodos de trabajo ('+r.motivo+').', 'renderStaffPeriodos', r.status);
+    renderSeguro('staffPeriodos', function(){ _dibujarStaffPeriodos(el, r.json); }, renderStaffPeriodos);
+  }).catch(function(e){ _staffSeccionError(el, 'No se pudieron mostrar los períodos de trabajo.', 'renderStaffPeriodos', e); });
+}
+function _dibujarStaffPeriodos(el, j){
     var h='';
-    r.json.barberos.forEach(function(b){
+    j.barberos.forEach(function(b){
       h+='<div class="staff-periodo-row" data-bid="'+_escHtml(b.bid)+'"><div><b>'+_escHtml(b.nombre)+'</b> <span class="staff-barber-bid">'+_escHtml(b.bid)+'</span></div><div class="staff-periodo-fechas">'
         +b.periodos.map(function(p){ return 'Activo desde '+_fechaLegible(p.desde)+(p.hasta?' hasta '+_fechaLegible(p.hasta):' · sigue activo'); }).join('<br>')+'</div></div>';
     });
-    (r.json.sin_historial||[]).forEach(function(b){
+    (j.sin_historial||[]).forEach(function(b){
       h+='<div class="staff-periodo-row" data-bid="'+_escHtml(b.bid)+'"><div><b>'+_escHtml(b.nombre)+'</b> <span class="staff-barber-bid">'+_escHtml(b.bid)+'</span></div><div class="staff-periodo-fechas" style="color:var(--err)">Sin historial registrado</div></div>';
     });
     h+='<div class="staff-note" style="margin-top:6px">Las fechas se registran solas al crear, desactivar o reactivar un barbero.</div>';
     el.innerHTML=h;
-  });
 }
 
 var staffMetaPeriodo=fechaStr(new Date()).substring(0,7);
@@ -5090,13 +5114,16 @@ function renderStaffMeta(){
     fetchConReintentos(API_URL+'/api/v2/kpi/meta-override?periodo='+encodeURIComponent(periodo))
   ]).then(function(res){
     if(periodo!==staffMetaPeriodo) return;
+    if(!res[0].ok || !res[1].ok)
+      return _staffSeccionError(el, 'No se pudo cargar la meta de '+_kpiNombreMes(periodo)+' ('+(res[0].ok?res[1].motivo:res[0].motivo)+'). No se cambió nada.',
+        'renderStaffMeta', res[0].ok?res[1].status:res[0].status);
+    renderSeguro('staffMeta', function(){ _dibujarStaffMeta(el, periodo, res); }, renderStaffMeta);
+  }).catch(function(e){ _staffSeccionError(el, 'No se pudo mostrar la meta mensual del local.', 'renderStaffMeta', e); });
+}
+function _dibujarStaffMeta(el, periodo, res){
     var sel='<select id="staffMetaPeriodo" class="staff-input" style="max-width:200px;margin-bottom:10px" onchange="staffMetaCambiarPeriodo(this.value)">';
     generarPeriodos().forEach(function(p){ sel+='<option value="'+p.val+'"'+(p.val===periodo?' selected':'')+'>'+p.label+'</option>'; });
     sel+='</select>';
-    if(!res[0].ok || !res[1].ok){
-      el.innerHTML=sel+avisoDatosHtml('No se pudo cargar la meta de '+_kpiNombreMes(periodo)+' ('+(res[0].ok?res[1].motivo:res[0].motivo)+'). No se cambió nada.');
-      return;
-    }
     var m=res[0].json.meta, hist=res[1].json.historial;
     _staffMetaDatos={periodo:periodo, calculada:m.calculada, vigente:m.vigente};
     var h=sel+'<div id="staffMetaResumen" style="font-size:13px;line-height:1.7;margin-bottom:10px">'
@@ -5127,7 +5154,6 @@ function renderStaffMeta(){
       h+='</tbody></table></div>';
     }
     el.innerHTML=h;
-  });
 }
 function staffMetaFijar(){
   var valor=parseInt(document.getElementById('staffMetaValor').value,10);
@@ -7007,8 +7033,14 @@ function renderStaffPanel(){
   staffRefreshFromAPI();
   catalogoCargar(); // fresh catalog every time Administración opens
   loadProductosCatalogo();
-  renderStaffCOM();renderStaffSS();renderStaffProds();
-  renderStaffPeriodos();renderStaffMeta();
+  // Each section draws on its own: a failure in one shows its own Spanish
+  // message with "Reintentar" (renderSeguro, also logged to the console)
+  // and never leaves the sections after it blank.
+  renderSeguro('staffCOM', renderStaffCOM, renderStaffCOM);
+  renderSeguro('staffSS', renderStaffSS, renderStaffSS);
+  renderSeguro('staffProds', renderStaffProds, renderStaffProds);
+  renderSeguro('staffPeriodos', renderStaffPeriodos, renderStaffPeriodos);
+  renderSeguro('staffMeta', renderStaffMeta, renderStaffMeta);
 }
 
 function escAttr(s){return(s||'').toString().replace(/&/g,'&amp;').replace(/"/g,'&quot;');}
