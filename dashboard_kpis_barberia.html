@@ -445,10 +445,20 @@ function getBarberos(){
 function _escTxt(s){
   return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});
 }
+// Payment-method names come from the server (stage 3b: "debito" is shown as
+// the server's label, e.g. "Tarjeta"); loaded once, before the first period.
+var ETIQUETAS_PAGO=null;
+function cargarEtiquetasPago(){
+  if(ETIQUETAS_PAGO) return Promise.resolve();
+  return fetchConReintentos(API_URL+'/api/v2/config/metodos-pago').then(function(r){
+    if(r.ok){ ETIQUETAS_PAGO={}; (r.json.metodos||[]).forEach(function(m){ ETIQUETAS_PAGO[m.clave]=m.etiqueta; }); }
+  });
+}
+function etiquetaPago(clave){ return (ETIQUETAS_PAGO&&ETIQUETAS_PAGO[clave])||clave; }
 function cargarPeriodoDashboard(desde, hasta){
   var st=document.getElementById('syncStatus');
   if(st) st.textContent='Cargando…';
-  return cargarPeriodoApi(desde, hasta, {registros:true, gastos:true}).then(function(res){
+  return cargarEtiquetasPago().then(function(){ return cargarPeriodoApi(desde, hasta, {registros:true, gastos:true}); }).then(function(res){
     if(!res.ok){
       jornadas=[]; gastosData={};
       if(st) st.textContent='';
@@ -906,9 +916,9 @@ function kpiCard(lbl, val, cls, sub){
 function buildPagoList(pp){
   var total=(pp.efectivo||0)+(pp.debito||0)+(pp.transferencia||0);
   var items=[
-    {label:'Efectivo',val:pp.efectivo||0,color:'#1a1916'},
-    {label:'Débito MP',val:pp.debito||0,color:'#1a4b8b'},
-    {label:'Transferencia',val:pp.transferencia||0,color:'#1a6b3a'}
+    {label:_escTxt(etiquetaPago('efectivo')),val:pp.efectivo||0,color:'#1a1916'},
+    {label:_escTxt(etiquetaPago('debito'))+' MP',val:pp.debito||0,color:'#1a4b8b'},
+    {label:_escTxt(etiquetaPago('transferencia')),val:pp.transferencia||0,color:'#1a6b3a'}
   ];
   return '<div class="pago-list">'+items.map(function(it){
     var pct=total>0?Math.round(it.val/total*100):0;

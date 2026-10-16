@@ -535,9 +535,9 @@
     <div id="secPago">
       <div class="slbl">3 · Forma de pago</div>
       <div class="pgrid">
-        <button class="pbtn" data-pay="efectivo" onclick="selP(this)"><span class="pn">Efectivo</span><span class="pc">50%</span></button>
-        <button class="pbtn" data-pay="debito" onclick="selP(this)"><span class="pn">Débito</span><span class="pc">43%</span></button>
-        <button class="pbtn" data-pay="transferencia" onclick="selP(this)"><span class="pn">Transf.</span><span class="pc">50%</span></button>
+        <button class="pbtn" data-pay="efectivo" onclick="selP(this)"><span class="pn">…</span><span class="pc"></span></button>
+        <button class="pbtn" data-pay="debito" onclick="selP(this)"><span class="pn">…</span><span class="pc"></span></button>
+        <button class="pbtn" data-pay="transferencia" onclick="selP(this)"><span class="pn">…</span><span class="pc"></span></button>
       </div>
     </div>
     <div>
@@ -592,9 +592,9 @@
         </div>
         <div class="slbl" style="margin-top:8px">Forma de pago</div>
         <div class="pgrid">
-          <button class="pbtn" data-prodpay="efectivo" onclick="selProdPago(this)"><span class="pn">Efectivo</span><span class="pc">10%</span></button>
-          <button class="pbtn" data-prodpay="debito" onclick="selProdPago(this)"><span class="pn">Debito</span><span class="pc">10%</span></button>
-          <button class="pbtn" data-prodpay="transferencia" onclick="selProdPago(this)"><span class="pn">Transf.</span><span class="pc">10%</span></button>
+          <button class="pbtn" data-prodpay="efectivo" onclick="selProdPago(this)"><span class="pn">…</span><span class="pc"></span></button>
+          <button class="pbtn" data-prodpay="debito" onclick="selProdPago(this)"><span class="pn">…</span><span class="pc"></span></button>
+          <button class="pbtn" data-prodpay="transferencia" onclick="selProdPago(this)"><span class="pn">…</span><span class="pc"></span></button>
         </div>
         <div class="prev" id="prodPrev" style="margin-top:8px">
           <div class="pr"><span class="pl2">Barbero</span><span class="pv" id="ppvB">Sin asignar</span></div>
@@ -705,7 +705,7 @@
           </div>
           <div>
             <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Precio</div>
-            <input id="sala-precio" type="number" placeholder="12000"
+            <input id="sala-precio" type="number" placeholder="Precio"
               style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--mono);background:var(--surface)" />
           </div>
         </div>
@@ -797,9 +797,7 @@
           <div>
             <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Método de pago</div>
             <select id="editPagoSel" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--surface);font-family:var(--sans)">
-              <option value="efectivo">💵 Efectivo</option>
-              <option value="debito">💳 Débito</option>
-              <option value="transferencia">📲 Transferencia</option>
+              <!-- options from the server (aplicarMetodosPagoUI) -->
             </select>
           </div>
           <div>
@@ -1434,12 +1432,74 @@ function catalogoAviso(){
   if(CATALOGO.origen==='cargando') return{tipo:'info',texto:'Cargando catálogo de servicios…'};
   return null;
 }
-var COM={efectivo:.5,debito:.43,transferencia:.5};
+// Payment methods and commission rates come from the server
+// (GET /api/v2/config/metodos-pago, stage 3b), loaded after login. The panel
+// uses them only to PREVIEW a sale (cobro, products, Sala de espera); the
+// server computes and stores the real commission, and the panel then shows
+// the server's figures. No rate lives in this page or in browser storage.
+var METODOS_PAGO=null;           // [{clave, etiqueta, pct_barbero, activo, orden}] — null until loaded
+var COMISION_PRODUCTO_PCT=null;  // % when a barber sells a product
+var _metodosPagoError='todavía no se cargan';
+function _metodoPago(clave){
+  if(!METODOS_PAGO) return null;
+  for(var i=0;i<METODOS_PAGO.length;i++) if(METODOS_PAGO[i].clave===clave) return METODOS_PAGO[i];
+  return null;
+}
+// Barber rate (0–1) for a SERVICE paid with `clave`; null if unknown or inactive.
+function tasaComision(clave){ var m=_metodoPago(clave); return m&&m.activo?m.pct_barbero/100:null; }
+function tasaComisionProducto(){ return COMISION_PRODUCTO_PCT==null?null:COMISION_PRODUCTO_PCT/100; }
+function etiquetaPago(clave){ var m=_metodoPago(clave); return m?m.etiqueta:(clave||''); }
+function _metodosActivos(){ return (METODOS_PAGO||[]).filter(function(m){return m.activo;}); }
+function _pctTexto(p){ return String(p).replace('.',',')+'%'; }
+// <option>s for a payment-method select, from the server list.
+function opcionesPagoHtml(sel, conPct){
+  return _metodosActivos().map(function(m){
+    return '<option value="'+escAttr(m.clave)+'"'+(m.clave===sel?' selected':'')+'>'+_escHtml(m.etiqueta)+(conPct?' ('+_pctTexto(m.pct_barbero)+')':'')+'</option>';
+  }).join('');
+}
+function cargarMetodosPago(){
+  if(!API_URL) return Promise.resolve(false);
+  return fetchConReintentos(API_URL+'/api/v2/config/metodos-pago').then(function(r){
+    if(!r.ok){ _metodosPagoError=r.motivo; if(window.console) console.error('[comisiones] '+r.motivo); aplicarMetodosPagoUI(); return false; }
+    METODOS_PAGO=r.json.metodos||[];
+    COMISION_PRODUCTO_PCT=r.json.productos?r.json.productos.con_barbero_pct:null;
+    _metodosPagoError=null;
+    aplicarMetodosPagoUI();
+    return true;
+  });
+}
+// Labels and % on the cobro buttons and the payment select, from the server.
+function aplicarMetodosPagoUI(){
+  document.querySelectorAll('.pbtn[data-pay],.pbtn[data-prodpay]').forEach(function(btn){
+    var prod=btn.hasAttribute('data-prodpay'), clave=btn.getAttribute(prod?'data-prodpay':'data-pay');
+    var m=_metodoPago(clave);
+    btn.style.display=(m&&!m.activo)?'none':'';
+    var pn=btn.querySelector('.pn'), pc=btn.querySelector('.pc');
+    if(pn) pn.textContent=m?m.etiqueta:'…';
+    var pct=prod?COMISION_PRODUCTO_PCT:(m?m.pct_barbero:null);
+    if(pc) pc.textContent=pct==null?'':_pctTexto(pct);
+  });
+  var e=document.getElementById('editPagoSel');
+  if(e&&METODOS_PAGO){ var v=e.value; e.innerHTML=opcionesPagoHtml(v,false); if(v) e.value=v; }
+}
+// Before saving a sale: the rates must be loaded (the server still computes the real figures).
+function comisionesListas(){
+  if(METODOS_PAGO) return true;
+  toast('No se pudieron cargar las comisiones del servidor ('+_metodosPagoError+'). Reintentando; vuelve a intentar en unos segundos.');
+  cargarMetodosPago();
+  return false;
+}
+// The server's figures replace this panel's preview once a sale is saved.
+function aplicarComisionServidor(id, c){
+  if(!c) return;
+  for(var i=0;i<regs.length;i++) if(regs[i].id===id){ regs[i].com=c.com; regs[i].bb=c.bb; regs[i].neg=c.neg; break; }
+  try{ if(typeof guardar==='function') guardar(); }catch(e){}
+  try{ renderAll(); }catch(e){}
+}
 var PRODUCTOS=[
   {id:'p01',nombre:'Cera Modeladora Media', precio:8500},
   {id:'p02',nombre:'Cera Modeladora Fuerte',precio:8500}
 ];
-var COM_PRODUCTO=0.10;
 
 // ═══ GOOGLE SHEETS INTEGRATION ═══════════════════════════
 // Pega aquí la URL de tu Apps Script Web App deployment
@@ -1522,6 +1582,7 @@ function drainOutbox(){
     }).then(function(res){
       if(res.ok){
         updateOutboxItem(item.idempotency_key,{status:'sent',sent_at:new Date().toISOString()});
+        res.json().then(function(j){ if(j&&j.comision) aplicarComisionServidor(item.payload.id, j.comision); }).catch(function(){});
       } else {
         updateOutboxItem(item.idempotency_key,{
           attempts:(item.attempts||0)+1,
@@ -2279,12 +2340,13 @@ function updProdPrev(){
   var prod=selProd.prod?find(PRODUCTOS,selProd.prod):null;
   var qty=selProd.qty||1;
   var total=prod?prod.precio*qty:0;
-  var bb=(prod&&b)?Math.round(total*COM_PRODUCTO):0;
+  var tp=tasaComisionProducto();
+  var bb=(prod&&b&&tp!=null)?Math.round(total*tp):0;
   var neg=prod?total-bb:0;
   document.getElementById('ppvB').textContent=b?b.nombre:'Sin asignar';
   document.getElementById('ppvS').textContent=prod?(qty>1?qty+'x '+prod.nombre:prod.nombre):'—';
   document.getElementById('ppvM').textContent=prod?'$'+fmt(total):'—';
-  document.getElementById('ppvBB').textContent=prod?(b?'$'+fmt(bb):'$0'):'—';
+  document.getElementById('ppvBB').textContent=prod?(b?(tp==null?'se calcula al guardar':'$'+fmt(bb)):'$0'):'—';
   document.getElementById('ppvN').textContent=prod?'$'+fmt(neg):'—';
   document.getElementById('btnProd').disabled=!(selProd.prod&&selProd.p);
 }
@@ -2295,17 +2357,19 @@ function chgQty(delta){
 }
 function registrarProducto(){
   if(!selProd.prod||!selProd.p)return;
+  if(!comisionesListas())return;
   var b=selProd.b?find(BB,selProd.b):null;
   var prod=find(PRODUCTOS,selProd.prod);
   var qty=selProd.qty||1;
   var total=prod.precio*qty;
-  var bb=b?Math.round(total*COM_PRODUCTO):0;
+  var tp=tasaComisionProducto();
+  var bb=b?Math.round(total*tp):0;
   var neg=total-bb;
   var nomProducto=qty>1?qty+'x '+prod.nombre:prod.nombre;
   var msg='─── CONFIRMAR VENTA ───\n\n'
     +'Barbero:   '+(b?b.nombre:'Sin asignar')+'\n'
     +'Producto:  '+nomProducto+'\n'
-    +'Pago:      '+selProd.p.charAt(0).toUpperCase()+selProd.p.slice(1)+'\n'
+    +'Pago:      '+etiquetaPago(selProd.p)+'\n'
     +'Total:     $'+fmt(total)+'\n\n'
     +'Barbero recibe: $'+fmt(bb)+'\n'
     +'Negocio retiene: $'+fmt(neg)+'\n'
@@ -2317,7 +2381,7 @@ function registrarProducto(){
     bid:b?b.id:'none',bnom:b?b.nombre:'Sin asignar',
     sid:prod.id,snom:nomProducto,
     precio:total,pago:selProd.p,
-    com:b?COM_PRODUCTO:0,bb:bb,neg:neg,
+    com:b?tp:0,bb:bb,neg:neg,
     propina:0,
     fecha:now.toLocaleDateString('es-CL'),
     hora:pad(now.getHours())+':'+pad(now.getMinutes()),
@@ -2417,9 +2481,10 @@ function updPrev(){
   var s=find(SS,sel.s);
   document.getElementById('pvB').textContent=b?b.nombre:'—';
   document.getElementById('pvS').textContent=s?s.nombre:'—';
-  document.getElementById('pvP').textContent=p?(p.charAt(0).toUpperCase()+p.slice(1)):'—';
-  if(s&&p){
-    var com=COM[p],bb=Math.round(s.precio*com),neg=s.precio-bb;
+  document.getElementById('pvP').textContent=p?etiquetaPago(p):'—';
+  var com=p?tasaComision(p):null;
+  if(s&&p&&com!=null){
+    var bb=Math.round(s.precio*com),neg=s.precio-bb;
     document.getElementById('pvM').textContent='$'+fmt(s.precio);
     document.getElementById('pvBB').textContent='$'+fmt(bb)+' ('+Math.round(com*100)+'%)';
     document.getElementById('pvN').textContent='$'+fmt(neg);
@@ -2439,13 +2504,16 @@ function registrar(){
   var b=find(BB,sel.b),p=sel.p;
   var s=find(SS,sel.s);
   if(!s){toast('Ese servicio ya no está disponible. Elige otro.');resetForm();return;}
-  var com=COM[p],bb=Math.round(s.precio*com),neg=s.precio-bb;
+  if(!comisionesListas())return;
+  var com=tasaComision(p);
+  if(com==null){toast('El método de pago "'+p+'" no está disponible. Elige otro.');return;}
+  var bb=Math.round(s.precio*com),neg=s.precio-bb;
 
   var propina = sel.propina||0;
   var msg='─── CONFIRMAR REGISTRO ───\n\n'
     +'Barbero:   '+b.nombre+'\n'
     +'Servicio:  '+s.nombre+'\n'
-    +'Pago:      '+p.charAt(0).toUpperCase()+p.slice(1)+'\n'
+    +'Pago:      '+etiquetaPago(p)+'\n'
     +'Precio:    $'+fmt(s.precio)+'\n'
     +(propina>0?'Propina:   $'+fmt(propina)+'\n':'')
     +'\n'
@@ -2578,7 +2646,7 @@ function renderReg(){
       +'<td style="font-family:var(--mono);color:var(--text2)">'+r.hora+'</td>'
       +'<td style="font-weight:500">'+r.bnom+'</td>'
       +'<td style="color:var(--text2);font-size:12px">'+r.snom+'</td>'
-      +'<td><span class="badge '+bc+'">'+r.pago+'</span></td>'
+      +'<td><span class="badge '+bc+'">'+_escHtml(etiquetaPago(r.pago))+'</span></td>'
       +'<td style="font-family:var(--mono);font-weight:600">$'+fmt(r.precio)+'</td>'
       +'<td style="font-family:var(--mono);font-weight:600;color:var(--ok)">'+pagoCeldaHtml(r.bb, r.propina||0)+'</td>'
       +'<td><span style="font-size:12px;color:var(--text2);display:block;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(r.cliente_nombre||r.cliente_id||'')+'">'+( r.cliente_nombre||r.cliente_id||'—')+'</span></td>'
@@ -2659,7 +2727,7 @@ function renderCierre(){
         +'<td style="padding:5px 6px;color:var(--text3)">'+(j+1)+'</td>'
         +'<td style="padding:5px 6px;font-family:var(--mono)">'+r.hora+'</td>'
         +'<td style="padding:5px 6px">'+r.snom+'</td>'
-        +'<td style="padding:5px 6px;text-transform:capitalize">'+r.pago+'</td>'
+        +'<td style="padding:5px 6px;">'+_escHtml(etiquetaPago(r.pago))+'</td>'
         +'<td style="padding:5px 6px;text-align:right;font-family:var(--mono)">$'+fmt(r.precio)+'</td>'
         +'<td style="padding:5px 6px;text-align:right;font-family:var(--mono);color:var(--ok);font-weight:600">'+pagoCeldaHtml(r.bb, r.propina||0)+'</td>'
         +'</tr>';
@@ -2736,7 +2804,7 @@ function renderAprobaciones(pend){
       var pagoColor = r.pago==='efectivo'?'#4db87a':r.pago==='debito'?'#5580d4':'#c9a84c';
       h += '<div style="flex:1">';
       h += '<div style="font-size:14px;font-weight:600">'+r.snom+'</div>';
-      h += '<div style="font-size:12px;color:var(--text3);margin-top:3px">'+r.hora+' · <span style="color:'+pagoColor+'">'+r.pago+'</span> · $'+Math.round(r.precio).toLocaleString('es-CL')+'</div>';
+      h += '<div style="font-size:12px;color:var(--text3);margin-top:3px">'+r.hora+' · <span style="color:'+pagoColor+'">'+_escHtml(etiquetaPago(r.pago))+'</span> · $'+Math.round(r.precio).toLocaleString('es-CL')+'</div>';
       // Foto comprobante si es transferencia
       if(r.pago === 'transferencia'){
         h += '<div style="margin-top:8px">';
@@ -2908,7 +2976,7 @@ function mkTktHtml(r){
     +'<div style="font-size:10px;font-weight:bold;margin:2px 0">SERVICIO:</div>';
   for(var i=0;i<lns.length;i++)h+='<div style="font-size:11px;font-weight:bold">'+lns[i]+'</div>';
   h+='<div style="border-top:1px dashed #000;margin:4px 0"></div>'
-    +'<div style="display:flex;justify-content:space-between;font-size:10px"><span>Forma de pago:</span><span style="text-transform:capitalize">'+r.pago+'</span></div>'
+    +'<div style="display:flex;justify-content:space-between;font-size:10px"><span>Forma de pago:</span><span>'+_escHtml(etiquetaPago(r.pago))+'</span></div>'
     +'<div style="display:flex;justify-content:space-between;font-size:10px"><span>Comisión:</span><span>'+Math.round(r.com*100)+'%</span></div>'
     +'<div style="border-top:1px dashed #000;margin:4px 0"></div>'
     +'<div style="display:flex;justify-content:space-between;font-size:10px"><span>Precio servicio:</span><span>$'+fmt(r.precio)+'</span></div>'
@@ -3008,7 +3076,7 @@ function printCierre58mm(){
         +'<span>'+r.snom.substring(0,18)+'</span>'
         +'</div>'
         +'<div style="display:flex;justify-content:space-between;font-size:9px;padding-left:10px">'
-        +'<span>'+r.pago+' · '+Math.round(r.com*100)+'%</span>'
+        +'<span>'+_escHtml(etiquetaPago(r.pago))+' · '+Math.round(r.com*100)+'%</span>'
         +'<b>$'+fmt(r.bb)+'</b>'
         +'</div>'
         +(j<br.length-1?'<div style="border-top:1px dotted #bbb;margin:2px 0"></div>':'');
@@ -3216,7 +3284,7 @@ function generarHTMLA4(fecha, recs, gastosParam){
       +'<td style="font-family:monospace">'+r.hora+'</td>'
       +'<td style="font-weight:500">'+r.bnom+'</td>'
       +'<td>'+r.snom+'</td>'
-      +'<td style="text-transform:capitalize">'+r.pago+'</td>'
+      +'<td style="">'+_escHtml(etiquetaPago(r.pago))+'</td>'
       +'<td style="text-align:right;font-family:monospace;font-weight:600">$'+fmt(r.precio)+'</td>'
       +'<td style="text-align:right;font-family:monospace;font-weight:600;color:#1a6b3a">'+pagoCeldaHtml(r.bb, r.propina||0)+'</td>'
       +'<td style="text-align:right;font-family:monospace;color:#1a4b8b">$'+fmt(r.neg)+'</td>'
@@ -3541,7 +3609,7 @@ function renderCaja(){
   h+='<div class="caja-card">'
     +'<div class="caja-head tarjeta">💳 Cobros POS / Transferencia</div>'
     +'<div class="caja-body">'
-    +'<div class="caja-row"><span class="caja-lbl">Débito — máquina MP ('+cntDebito+' svc)</span><span class="caja-val">$'+fmt(totDebito)+'</span></div>'
+    +'<div class="caja-row"><span class="caja-lbl">'+_escHtml(etiquetaPago('debito'))+' — máquina MP ('+cntDebito+' svc)</span><span class="caja-val">$'+fmt(totDebito)+'</span></div>'
     +'<div class="caja-row highlight"><span class="caja-lbl" style="font-weight:600">Total POS (tal como muestra MP)</span><span class="caja-val">$'+fmt(totDebito)+'</span></div>'
     +'<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)">'
     +'<div class="caja-row"><span class="caja-lbl">Transferencias ('+cntTransf+' svc)</span><span class="caja-val">$'+fmt(totTransf)+'</span></div>'
@@ -3787,7 +3855,7 @@ function textoCierreWhatsapp(){
   lineas.push('');
   lineas.push('*Cobros del día*');
   lineas.push('💵 Efectivo\t'+cntE+' servicios\t$'+fmt(totE));
-  lineas.push('💳 POS Mercado Pago (débito)\t'+cntD+' servicios\t$'+fmt(totD));
+  lineas.push('💳 POS Mercado Pago ('+etiquetaPago('debito')+')\t'+cntD+' servicios\t$'+fmt(totD));
   lineas.push('📲 Transferencia\t'+cntT+' servicios\t$'+fmt(totT));
   lineas.push('*TOTAL FACTURADO*\t*$'+fmt(totE+totD+totT)+'*');
   lineas.push('');
@@ -3891,7 +3959,7 @@ function printCaja(){
     +'<hr style="border-top:1px dashed #000;margin:4px 0">'
     +'<b>COBROS DEL DÍA</b><br>'
     +'<div style="display:flex;justify-content:space-between"><span>Efectivo ('+cntE+' svc):</span><span>$'+fmt(totE)+'</span></div>'
-    +'<div style="display:flex;justify-content:space-between"><span>POS Débito ('+cntD+' svc):</span><span>$'+fmt(totD)+'</span></div>'
+    +'<div style="display:flex;justify-content:space-between"><span>POS '+_escHtml(etiquetaPago('debito'))+' ('+cntD+' svc):</span><span>$'+fmt(totD)+'</span></div>'
     +'<div style="display:flex;justify-content:space-between"><span>Transferencia ('+cntT+' svc):</span><span>$'+fmt(totT)+'</span></div>'
     +'<div style="display:flex;justify-content:space-between"><b>TOTAL FACTURADO:</b><b>$'+fmt(totE+totD+totT)+'</b></div>'
     +'<hr style="border-top:1px dashed #000;margin:4px 0">'
@@ -4136,7 +4204,7 @@ function printCajaA4(){
     +'<div class="stitle">Cobros del día</div>'
     +'<table><thead><tr><th>Canal</th><th>Servicios</th><th style="text-align:right">Monto bruto</th></tr></thead><tbody>'
     +'<tr><td>💵 Efectivo</td><td>'+cntE+' servicios</td><td style="text-align:right;font-family:monospace;font-weight:600">$'+fmt(totE)+'</td></tr>'
-    +'<tr><td>💳 POS Mercado Pago (débito)</td><td>'+cntD+' servicios</td><td style="text-align:right;font-family:monospace;font-weight:600">$'+fmt(totD)+'</td></tr>'
+    +'<tr><td>💳 POS Mercado Pago ('+_escHtml(etiquetaPago('debito'))+')</td><td>'+cntD+' servicios</td><td style="text-align:right;font-family:monospace;font-weight:600">$'+fmt(totD)+'</td></tr>'
     +'<tr><td>📲 Transferencia</td><td>'+cntT+' servicios</td><td style="text-align:right;font-family:monospace;font-weight:600">$'+fmt(totT)+'</td></tr>'
     +'<tr class="tot-row"><td colspan="2">TOTAL FACTURADO</td><td style="text-align:right">$'+fmt(totalFact)+'</td></tr>'
     +'</tbody></table>'
@@ -4467,9 +4535,7 @@ function renderIngresarHistorico(){
     +'<div>'
     +'<div style="font-size:11px;color:var(--text2);margin-bottom:4px">Pago</div>'
     +'<select id="hPago" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--sans)">'
-    +'<option value="efectivo">Efectivo (50%)</option>'
-    +'<option value="debito">Débito (43%)</option>'
-    +'<option value="transferencia">Transferencia (50%)</option>'
+    +opcionesPagoHtml('efectivo',true)
     +'</select></div>'
 
     +'<div>'
@@ -4507,7 +4573,7 @@ function renderIngresarHistorico(){
         +'<td style="padding:7px 10px;font-family:var(--mono)">'+r.hora+'</td>'
         +'<td style="padding:7px 10px;font-weight:500">'+r.bnom+'</td>'
         +'<td style="padding:7px 10px;color:var(--text2)">'+r.snom+'</td>'
-        +'<td style="padding:7px 10px;text-transform:capitalize">'+r.pago+'</td>'
+        +'<td style="padding:7px 10px;">'+_escHtml(etiquetaPago(r.pago))+'</td>'
         +'<td style="padding:7px 10px;text-align:right;font-family:var(--mono);font-weight:600">$'+r.precio.toLocaleString('es-CL')+'</td>'
         +'<td style="padding:7px 10px;text-align:right;font-family:var(--mono);color:var(--ok);font-weight:600">$'+r.bb.toLocaleString('es-CL')+'</td>'
         +'<td style="padding:7px 10px"><button class="bsm dx" onclick="eliminarItemHistorico('+i+')">✕</button></td>'
@@ -4551,7 +4617,9 @@ function agregarItemHistorico(){
   if(!sid){alert('Selecciona un servicio');return;}
 
   var b=null; for(var i=0;i<BB.length;i++) if(BB[i].id===bid){b=BB[i];break;}
-  var com=COM[pago];
+  if(!comisionesListas())return;
+  var com=tasaComision(pago);
+  if(com==null){alert('El método de pago no está disponible.');return;}
   var snom, precio;
 
   if(sid==='custom'){
@@ -5965,16 +6033,21 @@ function salaCerrarServicio(queue_id,bid,pago,propina,precio){
   if(!barber) barber={nombre:bid};
   var ed=_salaEditorData[queue_id]||{};
   var precioPreview=precio>0?precio:(SALA_PRECIOS[ed.service]||0);
-  var bbPreview=precioPreview>0?Math.round(precioPreview*(COM[pago]||0.5)):0;
+  // No price known and none typed: never a made-up amount (was $12.000) — the server also refuses it.
+  if(!(precioPreview>0)){toast('No hay precio para "'+(ed.service||'el servicio')+'": escríbelo antes de cerrar.');return;}
+  var tPrev=tasaComision(pago), tProd=tasaComisionProducto();
+  if(!comisionesListas())return;
+  if(tPrev==null){toast('El método de pago "'+pago+'" no está disponible.');return;}
+  var bbPreview=precioPreview>0?Math.round(precioPreview*tPrev):0;
   var negPreview=precioPreview-bbPreview;
-  // Productos adjuntados vía el editor (staging local) — 10% plano de
-  // comisión, sin importar `pago` (docs/attach-product-to-ticket-design_2026-08-03.md).
+  // Productos adjuntados vía el editor (staging local) — comisión de producto
+  // del servidor, sin importar `pago` (el servidor calcula la definitiva).
   var productosAdjuntos=ed.productosAdjuntos||[];
   var productosLineas='',productosTotalBB=0,productosTotal=0;
   for(var _pi=0;_pi<productosAdjuntos.length;_pi++){
     var _p=productosAdjuntos[_pi];
     var _pTotal=_p.precio*_p.cantidad;
-    var _pBB=Math.round(_pTotal*0.10);
+    var _pBB=Math.round(_pTotal*(tProd||0));
     productosTotal+=_pTotal;productosTotalBB+=_pBB;
     productosLineas+='+ '+(_p.cantidad>1?_p.cantidad+'x ':'')+_p.nombre+': $'+fmt(_pTotal)+' (bb $'+fmt(_pBB)+')\n';
   }
@@ -5982,10 +6055,10 @@ function salaCerrarServicio(queue_id,bid,pago,propina,precio){
     +'Cliente:   '+(ed.client_name||'—')+'\n'
     +'Barbero:   '+barber.nombre+'\n'
     +'Servicio:  '+(ed.service||'—')+'\n'
-    +'Pago:      '+pago.charAt(0).toUpperCase()+pago.slice(1)+'\n'
+    +'Pago:      '+etiquetaPago(pago)+'\n'
     +'Precio:    $'+fmt(precioPreview)+'\n'
     +(propina>0?'Propina:   $'+fmt(propina)+'\n':'')
-    +(productosAdjuntos.length>0?'\nProductos adjuntos (10% comisión c/u):\n'+productosLineas:'')
+    +(productosAdjuntos.length>0?'\nProductos adjuntos ('+_pctTexto(COMISION_PRODUCTO_PCT)+' comisión c/u):\n'+productosLineas:'')
     +'\n'
     +'→ Barbero recibe: $'+fmt(bbPreview)+(propina>0?' + propina $'+fmt(propina):'')+(productosAdjuntos.length>0?' + productos $'+fmt(productosTotalBB):'')+' = $'+fmt(bbPreview+propina+productosTotalBB)+'\n'
     +'Negocio retiene: $'+fmt(negPreview+(productosTotal-productosTotalBB))+'\n\n'
@@ -6018,7 +6091,7 @@ function salaCerrarServicio(queue_id,bid,pago,propina,precio){
           j.productos_adjuntos.forEach(function(pa){
             regs.unshift({
               id:pa.registro_id,bid:bid,bnom:barber.nombre,sid:pa.producto_id,snom:pa.nombre,
-              precio:pa.precio,pago:pago,com:0.10,bb:pa.bb,neg:pa.neg,propina:0,
+              precio:pa.precio,pago:pago,com:tProd,bb:pa.bb,neg:pa.neg,propina:0,
               fecha:String(new Date().getDate()).padStart(2,'0')+'/'+String(new Date().getMonth()+1).padStart(2,'0')+'/'+new Date().getFullYear(),
               hora:String(new Date().getHours()).padStart(2,'0')+':'+String(new Date().getMinutes()).padStart(2,'0'),
               ts:Date.now(),
@@ -6043,7 +6116,7 @@ function salaCerrarServicio(queue_id,bid,pago,propina,precio){
         var r2={
           id:j.registro_id,bid:bid,bnom:barber.nombre,
           snom:ed.service||'Servicio',
-          precio:j.precio,pago:pago,com:COM[pago]||0.5,
+          precio:j.precio,pago:pago,com:tPrev,
           bb:j.bb,neg:j.neg,propina:j.propina||0,
           fecha:String(now.getDate()).padStart(2,'0')+'/'+String(now.getMonth()+1).padStart(2,'0')+'/'+now.getFullYear(),
           hora:String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0'),
@@ -6161,7 +6234,7 @@ function renderSala(){
           var sv=b.enServicio;
           var desde=sv.service_start?new Date(sv.service_start).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'}):'—';
           h+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:5px">EN SERVICIO</div>';
-          _salaEditorData[sv.queue_id]={client_name:sv.client_name,phone:sv.phone||'',service:sv.service,precio:SALA_PRECIOS[sv.service]||12000,cliente_id:sv.cliente_id||null,productosAdjuntos:sv.productos_adjuntos||[]};
+          _salaEditorData[sv.queue_id]={client_name:sv.client_name,phone:sv.phone||'',service:sv.service,precio:SALA_PRECIOS[sv.service]||0,cliente_id:sv.cliente_id||null,productosAdjuntos:sv.productos_adjuntos||[]};
           h+='<div style="margin-bottom:8px">';
           h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">';
           h+='<div style="font-weight:500">'+sv.client_name+'</div>';
@@ -6181,13 +6254,11 @@ function renderSala(){
           h+='</div>';
           h+='<div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap">';
           h+='<input id="prc-'+sv.queue_id+'" type="number" min="0" step="1000" ';
-          h+='value="'+(_salaEditorData[sv.queue_id]&&_salaEditorData[sv.queue_id].precio?_salaEditorData[sv.queue_id].precio:(SALA_PRECIOS[sv.service]||12000))+'" ';
+          h+='value="'+(_salaEditorData[sv.queue_id]&&_salaEditorData[sv.queue_id].precio?_salaEditorData[sv.queue_id].precio:(SALA_PRECIOS[sv.service]||''))+'" ';
           h+='style="width:84px;padding:6px 8px;border:1.5px solid var(--border2);border-radius:var(--r);font-size:12px;font-family:var(--mono);background:var(--surface)" title="Precio"/>';
           var _sp=_pagoSelections[sv.queue_id]||'efectivo';
           h+='<select id="pago-'+sv.queue_id+'" onchange="salaGuardarPago('+sv.queue_id+',this.value)" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface);font-family:var(--sans)">';
-          h+='<option value="efectivo"'+(_sp==='efectivo'?' selected':'')+'>💵 Efectivo</option>';
-          h+='<option value="debito"'+(_sp==='debito'?' selected':'')+'>💳 Débito</option>';
-          h+='<option value="transferencia"'+(_sp==='transferencia'?' selected':'')+'>📲 Transferencia</option>';
+          h+=opcionesPagoHtml(_sp,false);
           h+='</select>';
           h+='<input id="prop-'+sv.queue_id+'" type="number" placeholder="Propina" min="0" step="500" ';
           h+='style="width:78px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;font-family:var(--mono);background:var(--surface)"/>';
@@ -6202,7 +6273,7 @@ function renderSala(){
         if(b.enEspera.length>0){
           h+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:6px">EN ESPERA</div>';
           b.enEspera.forEach(function(e,i){
-            _salaEditorData[e.queue_id]={client_name:e.client_name,phone:e.phone||'',service:e.service,precio:SALA_PRECIOS[e.service]||12000,cliente_id:e.cliente_id||null,productosAdjuntos:e.productos_adjuntos||[]};
+            _salaEditorData[e.queue_id]={client_name:e.client_name,phone:e.phone||'',service:e.service,precio:SALA_PRECIOS[e.service]||0,cliente_id:e.cliente_id||null,productosAdjuntos:e.productos_adjuntos||[]};
             h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border)">';
             h+='<div style="font-size:13px"><span style="color:var(--text3);font-family:var(--mono);font-size:11px">'+(i+1)+'. </span>'+e.client_name+'</div>';
             h+='<div style="display:flex;align-items:center;gap:4px">';
@@ -6697,15 +6768,9 @@ function salaActualizarServicio(){
 // ═══ STAFF MANAGEMENT ════════════════════════════════════
 var STAFF_KEY='bp_staff_v1';
 
-// Stage 0 containment (2026-10-13) for commission rates, see sf-docs
-// TECH_DEBT.md 2026-10-12 "Commission rates are editable per-browser": a
-// rate edit only changed this browser's localStorage and changed real
-// payouts with no trace. While this flag is true the rate inputs are
-// disabled and staffSaveCOM refuses to run. Stage 3 (rates from the API)
-// replaces this. (The service part of Stage 0 was replaced in Stage 2a by
-// the API-backed catalog — see "CATÁLOGO DE SERVICIOS".)
-var EDICION_LOCAL_COMISIONES_CONGELADA=true;
-var AVISO_COMISIONES_CONGELADAS='Edición de comisiones en mantención — los porcentajes se muestran solo como referencia';
+// Commission rates are no longer kept in this browser (Stage 0 freeze,
+// 2026-10-13): they live in the server and are edited in Administración →
+// Comisiones (stage 3b), with reason, history and undo.
 var BB_DEFAULT=[
   {id:'b1',nombre:'Didian',  active:true},
   {id:'b2',nombre:'Emerson', active:true},
@@ -6713,7 +6778,6 @@ var BB_DEFAULT=[
   {id:'b5',nombre:'Steven',  active:true},
   {id:'b6',nombre:'Winder',  active:true}
 ];
-var COM_DEFAULT={efectivo:.5,debito:.43,transferencia:.5};
 
 // Canonical bid→name — must match constants.js in the app and BARBER_NAME_MAP in the API
 var BB_CANONICAL_NAMES = {b1:'Didian',b2:'Emerson',b5:'Steven',b6:'Winder'};
@@ -6743,13 +6807,12 @@ function loadStaffConfig(){
     // since Stage 2a. Any pre-existing bp_staff_v1.PRODUCTOS from before
     // that fix is ignored on purpose, not migrated (real backend catalog is
     // the only source of truth going forward).
-    if(cfg.COM)COM=cfg.COM;
   }catch(e){}
 }
 
 function saveStaffConfig(){
   try{
-    localStorage.setItem(STAFF_KEY,JSON.stringify({BB:BB,COM:COM}));
+    localStorage.setItem(STAFF_KEY,JSON.stringify({BB:BB}));
     buildBarbers();buildServices();buildProdBarbers();buildBarberFilters();buildSalaBidOptions();buildProductos();
     var el=document.getElementById('staffSaved');
     if(el){el.classList.add('show');setTimeout(function(){el.classList.remove('show');},2000);}
@@ -6825,6 +6888,7 @@ function panelApplySession(){
   if(API_URL) staffRefreshFromAPI();
   if(API_URL) loadProductosCatalogo(); // real catalog now that a panelJwt exists
   catalogoCargar(); // service catalog: cobro, Administración, payment edit
+  cargarMetodosPago(); // payment methods + commission rates from the server (preview only)
   cargarRegistrosDia(); // today's sales — first read happens here, never before login
   drainOutbox(); // flush any services queued before login
   waPoll(); // immediate refresh on login rather than waiting up to 25s for the first tick
@@ -7092,25 +7156,95 @@ function staffSaveBB(id,val){
   saveStaffConfig();
 }
 
+// ── Administración: Comisiones (from the server, stage 3b) ──
+// Barber % per payment method, changed with a reason; every change is
+// recorded (who, when, before → after) and can be undone. A change larger
+// than the server's limit asks for a separate confirmation. Product and
+// counter rates come from the server rules (shown, not edited here).
+var _comPendiente=null;
+function _comMsg(t, err){ var el=document.getElementById('staffCOMMsg'); if(el){ el.textContent=t||''; el.style.color=err?'var(--err)':'var(--text2)'; } }
 function renderStaffCOM(){
-  var el=document.getElementById('staffCOM');if(!el)return;
-  var keys=[['efectivo','Efectivo'],['debito','Débito'],['transferencia','Transferencia']];
-  var congelado=EDICION_LOCAL_COMISIONES_CONGELADA;
-  var h=congelado?'<div class="staff-freeze-note" id="staffCOMAviso">'+AVISO_COMISIONES_CONGELADAS+'</div>':'';
-  for(var i=0;i<keys.length;i++){
-    var k=keys[i][0];var label=keys[i][1];
-    var pct=Math.round((COM[k]||0)*100);
-    h+='<div class="staff-row">'
-      +'<span class="staff-label">'+label+'</span>'
-      +'<input class="staff-input" type="number" min="0" max="100" value="'+pct+'"'+(congelado?' disabled':'')+' onblur="staffSaveCOM(\''+k+'\',this.value)" style="max-width:80px"> %'
-      +'</div>';
+  var el=document.getElementById('staffCOM');
+  if(!el) return;
+  if(!API_URL){ el.innerHTML='<div class="staff-note">Sin servidor configurado.</div>'; return; }
+  el.innerHTML='<div class="staff-note">Cargando…</div>';
+  Promise.all([
+    fetchConReintentos(API_URL+'/api/v2/config/metodos-pago'),
+    fetchConReintentos(API_URL+'/api/v2/config/metodos-pago/historial')
+  ]).then(function(res){
+    if(!res[0].ok||!res[1].ok)
+      return _staffSeccionError(el, 'No se pudieron cargar las comisiones ('+(res[0].ok?res[1].motivo:res[0].motivo)+'). No se cambió nada.',
+        'renderStaffCOM', res[0].ok?res[1].status:res[0].status);
+    renderSeguro('staffCOM', function(){ _dibujarStaffCOM(el, res[0].json, res[1].json.historial); }, renderStaffCOM);
+  }).catch(function(e){ _staffSeccionError(el, 'No se pudieron mostrar las comisiones.', 'renderStaffCOM', e); });
+}
+function _dibujarStaffCOM(el, cfg, hist){
+  METODOS_PAGO=cfg.metodos; COMISION_PRODUCTO_PCT=cfg.productos?cfg.productos.con_barbero_pct:null; aplicarMetodosPagoUI();
+  var h='<div class="staff-note" style="margin-bottom:8px">% que recibe el barbero en cada servicio según cómo paga el cliente. Productos: '
+    +(cfg.productos?_pctTexto(cfg.productos.con_barbero_pct)+' si los vende un barbero, '+_pctTexto(cfg.productos.mostrador_pct)+' en mostrador':'—')+'.</div>';
+  cfg.metodos.forEach(function(m){
+    h+='<div class="staff-row" data-clave="'+escAttr(m.clave)+'"><span class="staff-label">'+_escHtml(m.etiqueta)+(m.activo?'':' <span class="staff-note">(no se ofrece)</span>')+'</span>'
+      +'<input class="staff-input" id="comPct-'+escAttr(m.clave)+'" type="number" min="0" max="100" step="0.5" value="'+m.pct_barbero+'" style="max-width:80px"'+(m.activo?'':' disabled')+'> %';
+    if(m.activo){
+      h+='<button class="staff-add-btn" style="padding:6px 10px;font-size:11px;margin-left:6px" data-clave="'+escAttr(m.clave)+'" onclick="staffGuardarCOM(this.dataset.clave)">Guardar</button>'
+        +'<button class="staff-add-btn" style="padding:6px 10px;font-size:11px;margin-left:4px;background:var(--surface2)" data-clave="'+escAttr(m.clave)+'" onclick="staffDeshacerCOM(this.dataset.clave)">Deshacer</button>';
+    }
+    h+='</div>';
+  });
+  h+='<input id="staffCOMMotivo" type="text" maxlength="300" placeholder="Motivo del cambio (obligatorio)" class="staff-input" style="margin-top:8px">'
+    +'<div id="staffCOMMsg" style="font-size:12px;margin-top:6px;min-height:16px"></div><div id="staffCOMConfirmar"></div>';
+  h+='<div style="font-size:11px;font-weight:600;color:var(--text3);margin:12px 0 4px;text-transform:uppercase;letter-spacing:.06em">Historial de cambios</div>';
+  if(!hist.length) h+='<div class="staff-note" id="staffCOMHistorial">Sin cambios registrados.</div>';
+  else {
+    h+='<div style="overflow-x:auto"><table id="staffCOMHistorial" style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="color:var(--text3);text-align:left">'
+      +'<th style="padding:4px">Fecha</th><th style="padding:4px">Método</th><th style="padding:4px">Cambio</th><th style="padding:4px">Motivo</th><th style="padding:4px">Por</th></tr></thead><tbody>';
+    hist.forEach(function(x){
+      h+='<tr style="border-top:1px solid var(--border)"><td style="padding:4px;white-space:nowrap">'+_escHtml(x.creado_en)+'</td><td style="padding:4px">'+_escHtml(etiquetaPago(x.clave))+'</td>'
+        +'<td style="padding:4px;font-family:var(--mono)">'+_pctTexto(x.pct_anterior)+' → '+_pctTexto(x.pct_nuevo)+(x.accion==='deshacer'?' (deshacer)':'')+'</td>'
+        +'<td style="padding:4px">'+_escHtml(x.motivo)+'</td><td style="padding:4px">'+_escHtml(x.editado_por_nombre)+'</td></tr>';
+    });
+    h+='</tbody></table></div>';
   }
   el.innerHTML=h;
 }
-function staffSaveCOM(key,val){
-  if(EDICION_LOCAL_COMISIONES_CONGELADA){toast(AVISO_COMISIONES_CONGELADAS);renderStaffCOM();return;}
-  var n=parseFloat(val);if(isNaN(n)||n<0||n>100)return;
-  COM[key]=n/100;saveStaffConfig();
+function _comMotivo(){ return (document.getElementById('staffCOMMotivo').value||'').trim(); }
+function staffGuardarCOM(clave){
+  var inp=document.getElementById('comPct-'+clave), pct=parseFloat(inp&&inp.value), motivo=_comMotivo();
+  var m=_metodoPago(clave);
+  if(!(pct>=0&&pct<=100)){ _comMsg('Escribe un porcentaje entre 0 y 100.', true); return; }
+  if(motivo.length<5){ _comMsg('Escribe el motivo del cambio (al menos 5 caracteres).', true); return; }
+  if(!window.confirm('¿Cambiar la comisión del barbero con '+(m?m.etiqueta:clave)+' de '+(m?_pctTexto(m.pct_barbero):'—')+' a '+_pctTexto(pct)+'?\n\nAplica a las ventas que se registren desde ahora.')) return;
+  _staffCOMEnviar(API_URL+'/api/v2/config/metodos-pago/'+encodeURIComponent(clave), {pct_barbero:pct, motivo:motivo});
+}
+function staffDeshacerCOM(clave){
+  var motivo=_comMotivo();
+  if(motivo.length<5){ _comMsg('Escribe el motivo del cambio (al menos 5 caracteres).', true); return; }
+  if(!window.confirm('¿Deshacer el último cambio de comisión de '+etiquetaPago(clave)+'?')) return;
+  _staffCOMEnviar(API_URL+'/api/v2/config/metodos-pago/'+encodeURIComponent(clave)+'/deshacer', {motivo:motivo});
+}
+function staffCOMConfirmarPendiente(){
+  if(!_comPendiente) return;
+  var p=_comPendiente; _comPendiente=null; p.body.confirmar_variacion=true;
+  _staffCOMEnviar(p.url, p.body);
+}
+function _staffCOMEnviar(url, body){
+  _comMsg('Guardando…');
+  var conf=document.getElementById('staffCOMConfirmar'); if(conf) conf.innerHTML='';
+  fetch(url,{method:'POST',headers:getJsonAuthHeaders(),body:JSON.stringify(body)})
+  .then(function(r){ return r.json().then(function(j){ return {status:r.status,j:j}; },function(){ return {status:r.status,j:null}; }); })
+  .then(function(x){
+    var j=x.j||{};
+    if(x.status===409&&j.error==='variacion_alta'){
+      _comPendiente={url:url, body:body};
+      _comMsg(j.detalle||'El cambio es muy grande.', true);
+      if(conf) conf.innerHTML='<button id="staffCOMConfirmarBtn" class="staff-add-btn" style="margin-top:6px;padding:8px 12px;font-size:12px;background:var(--err)" onclick="staffCOMConfirmarPendiente()">Sí, es correcto: guardar '+_pctTexto(j.propuesta)+'</button>';
+      return;
+    }
+    if(!j.ok){ _comMsg('No se guardó: '+(j.detalle||j.error||('el servidor respondió '+x.status))+'.', true); return; }
+    toast('✓ Comisión guardada');
+    renderStaffCOM();
+    cargarMetodosPago();
+  },function(){ _comMsg('Sin conexión con el servidor: no se guardó nada.', true); });
 }
 
 // ── Servicios (API-backed, Stage 2a) ─────────────────────────────────────────
@@ -7525,7 +7659,6 @@ function staffReset(){
   // restore; this button can't affect the real catalogs.
   if(!confirm('¿Restaurar los valores por defecto? Se perderán los cambios guardados.'))return;
   BB=JSON.parse(JSON.stringify(BB_DEFAULT));
-  COM=Object.assign({},COM_DEFAULT);
   localStorage.removeItem(STAFF_KEY);
   renderStaffPanel();buildBarbers();buildServices();buildProdBarbers();
 }
