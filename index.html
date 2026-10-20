@@ -2141,16 +2141,7 @@ function init(){
       renderHorarios();
     });
   }
-  // Programar auto-envío de horarios a las 23:00 si no se hace manual
-  programarAutoEnvioHorarios();
   
-  // Timer para reprogramar el auto-envío al día siguiente (a medianoche)
-  setInterval(function(){
-    var ahora = new Date();
-    if(ahora.getHours() === 0 && ahora.getMinutes() === 0){
-      programarAutoEnvioHorarios();
-    }
-  }, 60000);
   // Auto-sync staff roster from API if token available
   if(API_URL && (staffGetToken() || sessionStorage.getItem('panelJwt'))) staffRefreshFromAPI();
 
@@ -2866,7 +2857,7 @@ function _alAbrirPestana(id){
   if(id==='pSum')renderSum();
   if(id==='pCierre')renderCierre();
   if(id==='pCaja')renderCaja();
-  if(id==='pHorarios')renderHorarios();
+  if(id==='pHorarios'){ renderHorarios(); cargarHorariosDesdeRailway(renderHorarios); }
   if(id==='pHistorico')renderIngresarHistorico();
   if(id==='pSala'){
     renderSala();
@@ -4227,81 +4218,79 @@ function guardarHorariosHoy(){
   try{ localStorage.setItem('sfsf_horarios_'+fechaHoy, JSON.stringify(horarios[fechaHoy]||[])); }catch(e){}
 }
 
-// ─── SINCRONIZACIÓN HORARIOS ↔ RAILWAY ───────────────────────────────────────
-var _horEnviando = false;
-var _horAutoTimer = null;
+// ─── HORARIOS: the server is the truth (stage 8b) ────────────────────────────
+// A clock-in is saved to the server at the moment it is made
+// (POST /api/v2/asistencia/marcar). The server decides the day and what "now"
+// is, refuses future times and other days, and audits every change. This page
+// keeps no pending edits and sends nothing later: if the server does not
+// confirm, the screen says so and nothing changes. The copy in this browser's
+// storage (sfsf_horarios_<date>) is only a mirror written from the server's
+// answers — the attendance stars (calcEstrellaHorario) still read it until
+// stage 9 moves punctuality to the server.
+var _horCargados = false;   // true once today's times were read from the server with the panel login
+var _horMotivoMin = null;   // minutes above which an adjusted time needs a reason (from the server's config)
+var _horGuardando = false;
+var _horError = '';
 
-function enviarHorariosARailway(silencioso){
-  if(!API_URL || _horEnviando) return;
-  var payload = { fecha: fechaHoy, horarios: horarios[fechaHoy]||[] };
-  _horEnviando = true;
-  fetch(API_URL + '/horarios/' + fechaHoy, {
-    method: 'POST',
-    headers: getJsonAuthHeaders(),
-    body: JSON.stringify(payload)
-  })
-  .then(function(r){ return r.json(); })
-  .then(function(json){
-    _horEnviando = false;
-    if(!silencioso) toast(json.ok ? '\u2705 Horarios guardados en la nube' : '\u26a0 Error al guardar horarios');
-    if(json.ok && _horAutoTimer){ clearTimeout(_horAutoTimer); _horAutoTimer = null; }
-  })
-  .catch(function(){ _horEnviando = false; });
+function _horAplicarServidor(barberos){
+  horarios[fechaHoy] = (barberos||[]).filter(function(b){ return b.entrada||b.salida; }).map(function(b){
+    return {bid:b.bid, bnom:b.nombre, entrada:b.entrada||'', salida:b.salida||'', entradaMeta:b.entrada_meta||null, salidaMeta:b.salida_meta||null};
+  });
+  guardarHorariosHoy();   // mirror for calcEstrellaHorario
 }
 
 function cargarHorariosDesdeRailway(callback){
-  if(!API_URL){ cargarHorarios(); if(callback) callback(); return; }
-  fetch(API_URL + '/horarios/' + fechaHoy)
-    .then(function(r){ return r.json(); })
+  if(!API_URL){ _horCargados=false; _horError='Sin servidor configurado.'; cargarHorarios(); if(callback) callback(); return; }
+  var jwt = sessionStorage.getItem('panelJwt');
+  var url = jwt ? API_URL+'/api/v2/asistencia/hoy' : API_URL+'/horarios/'+fechaHoy;
+  fetch(url, jwt ? {headers:getAuthHeaders()} : undefined)
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
     .then(function(json){
-      cargarHorarios(); // base local
-      if(json.ok && json.horarios && json.horarios.length > 0){
-        horarios[fechaHoy] = json.horarios;
-        guardarHorariosHoy();
+      if(!json.ok) throw new Error(json.detalle||json.error||'error');
+      if(json.barberos){
+        _horAplicarServidor(json.barberos); _horCargados = true;
+        if(typeof json.motivo_obligatorio_min === 'number') _horMotivoMin = json.motivo_obligatorio_min;
+      } else {   // no panel login yet: read-only copy of the public list
+        horarios[fechaHoy] = (json.horarios||[]).map(function(h){ return {bid:h.bid, bnom:h.bnom, entrada:(h.entrada||'').slice(0,5), salida:(h.salida||'').slice(0,5)}; });
+        guardarHorariosHoy(); _horCargados = false;
       }
+      _horError = '';
       if(callback) callback();
     })
-    .catch(function(){ cargarHorarios(); if(callback) callback(); });
+    .catch(function(e){ _horCargados=false; _horError='No se pudieron leer los horarios del servidor ('+e.message+').'; cargarHorarios(); if(callback) callback(); });
 }
 
-function marcarHora(bid, tipo){
-  if(!horarios[fechaHoy]) horarios[fechaHoy]=[];
-  var now = new Date();
-  var horaActual = pad(now.getHours())+':'+pad(now.getMinutes());
-  var reg = null;
-  for(var i=0;i<horarios[fechaHoy].length;i++){
-    if(horarios[fechaHoy][i].bid===bid) { reg=horarios[fechaHoy][i]; break; }
-  }
-  if(!reg){
-    var b=null; for(var i=0;i<BB.length;i++) if(BB[i].id===bid){b=BB[i];break;}
-    reg={bid:bid, bnom:b.nombre, entrada:'', salida:'', entradaManual:'', salidaManual:''};
-    horarios[fechaHoy].push(reg);
-  }
-  if(tipo==='entrada') reg.entrada = horaActual;
-  if(tipo==='salida')  reg.salida  = horaActual;
-  guardarHorariosHoy();
-  // Actualizar KPIs de horario automáticamente cada vez que se registra entrada/salida
-  kpiProgramarSyncEstrellasAuto(); // guarda en el servidor las estrellas automáticas del mes
-  renderHorarios();
-  // Enviar horario a Railway (con debounce 3s para no spamear)
-  if(API_URL){
-    if(window._horarioTimer) clearTimeout(window._horarioTimer);
-    window._horarioTimer = setTimeout(function(){ enviarHorariosARailway(true); }, 3000);
-  }
+function registrarHora(bid, tipo, hora){
+  if(_horGuardando) return;
+  if(!_horCargados){ toast('Los horarios no se cargaron del servidor: recarga la página e inténtalo de nuevo.'); return; }
+  var body = {bid:bid, tipo:tipo};
+  if(hora) body.hora = hora;
+  // Read the reason BEFORE redrawing: renderHorarios() rebuilds the fields.
+  var mel = document.getElementById('hmot-'+tipo+'-'+bid);
+  var motivo = mel ? mel.value.trim() : '';
+  if(hora && motivo) body.motivo = motivo;   // a reason only goes with an adjusted time
+  _horGuardando = true; renderHorarios();
+  fetch(API_URL+'/api/v2/asistencia/marcar', {method:'POST', headers:getJsonAuthHeaders(), body:JSON.stringify(body)})
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      _horGuardando = false;
+      if(!j.ok){
+        toast('⚠ '+(j.detalle||j.error||'No se guardó la hora.')+' No se cambió nada.');
+        renderHorarios();
+        if(j.error==='motivo_requerido'){ var m2 = document.getElementById('hmot-'+tipo+'-'+bid); var t2 = document.getElementById('hin-'+tipo+'-'+bid); if(t2) t2.value = hora; if(m2){ m2.focus(); m2.style.borderColor = 'var(--err)'; } }
+        return;
+      }
+      toast(j.sin_cambio ? 'Sin cambios: ya estaba '+j.valor : '✅ '+(tipo==='entrada'?'Entrada':'Salida')+' guardada: '+j.valor);
+      cargarHorariosDesdeRailway(function(){ renderHorarios(); kpiProgramarSyncEstrellasAuto(); });   // stars from the saved times
+    })
+    .catch(function(){ _horGuardando = false; toast('⚠ Sin conexión: la hora NO se guardó. Inténtalo de nuevo.'); renderHorarios(); });
 }
-
-function guardarHoraManual(bid, tipo, valor){
-  if(!horarios[fechaHoy]) horarios[fechaHoy]=[];
-  var reg=null;
-  for(var i=0;i<horarios[fechaHoy].length;i++) if(horarios[fechaHoy][i].bid===bid){reg=horarios[fechaHoy][i];break;}
-  if(!reg){
-    var b=null;for(var i=0;i<BB.length;i++) if(BB[i].id===bid){b=BB[i];break;}
-    reg={bid:bid,bnom:b.nombre,entrada:'',salida:''};
-    horarios[fechaHoy].push(reg);
-  }
-  reg[tipo]=valor;
-  guardarHorariosHoy();
-  renderHorasCalc(bid);
+function marcarHora(bid, tipo){ registrarHora(bid, tipo, ''); }          // "Marcar ahora": the server's current minute
+function guardarHoraDeCampo(bid, tipo){                                    // the time typed in the field
+  var el = document.getElementById('hin-'+tipo+'-'+bid);
+  var v = el ? el.value : '';
+  if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(v)){ toast('Escribe la hora (HH:MM) antes de guardar.'); return; }
+  registrarHora(bid, tipo, v);
 }
 
 function renderHorasCalc(bid){
@@ -4318,6 +4307,33 @@ function renderHorasCalc(bid){
   el.style.color='var(--ok)';
 }
 
+function _horCampoHtml(b, tipo, val, meta, canEdit){
+  var etiqueta = tipo==='entrada' ? 'Entrada' : 'Salida';
+  var tiene = val!=='';
+  var nota = '';
+  if(meta){
+    if(meta.origen==='ajuste') nota = '<span style="color:#b36b00">ajustada · anotada a las '+_escHtml(meta.hora_servidor)+' por '+_escHtml(meta.por)+'</span>';
+    else if(meta.origen==='legado') nota = 'registrada desde el panel anterior';
+    else nota = 'marcada a las '+_escHtml(meta.hora_servidor)+' por '+_escHtml(meta.por);
+  }
+  var dis = (_horGuardando || !_horCargados) ? ' disabled' : '';
+  var color = tipo==='entrada' ? 'var(--ok)' : 'var(--info)', soft = tipo==='entrada' ? 'var(--ok-soft)' : 'var(--info-soft)';
+  var btn = 'padding:6px 10px;border:none;border-radius:var(--r);font-size:11px;cursor:pointer;white-space:nowrap;color:#fff;';
+  return '<div>'
+    +'<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:6px">'+etiqueta+'</div>'
+    +'<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">'
+    +'<input type="time" id="hin-'+tipo+'-'+_escHtml(b.id)+'" value="'+_escHtml(val)+'"'+(canEdit?'':' readonly')+dis
+    +' style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--mono);font-size:14px;'+(tiene?'border-color:'+color+';background:'+soft:'')+'">'
+    +(canEdit
+      ? (tiene ? '' : '<button data-bid="'+_escHtml(b.id)+'" data-tipo="'+tipo+'" onclick="marcarHora(this.dataset.bid,this.dataset.tipo)"'+dis+' style="'+btn+'background:var(--text)">Marcar ahora</button>')
+        +'<button data-bid="'+_escHtml(b.id)+'" data-tipo="'+tipo+'" onclick="guardarHoraDeCampo(this.dataset.bid,this.dataset.tipo)"'+dis+' style="'+btn+'background:'+(tiene?color:'var(--text2)')+'">'+(tiene?'Corregir':'Guardar hora')+'</button>'
+      : '')
+    +'</div>'
+    +(canEdit ? '<input type="text" id="hmot-'+tipo+'-'+_escHtml(b.id)+'" maxlength="200"'+dis+' placeholder="Motivo del ajuste'+(_horMotivoMin!=null?' (obligatorio si difiere más de '+_horMotivoMin+' min de ahora)':'')+'" style="margin-top:6px;width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:11px">' : '')
+    +(nota ? '<div style="font-size:10px;color:var(--text3);margin-top:4px">'+nota+'</div>' : '')
+    +'</div>';
+}
+
 function renderHorarios(){
   var c=document.getElementById('horariosContent');
   if(!c) return;
@@ -4329,7 +4345,8 @@ function renderHorarios(){
   for(var i=0;i<horarios[fechaHoy].length;i++) regMap[horarios[fechaHoy][i].bid]=horarios[fechaHoy][i];
 
   var h='<p style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6">'
-    +'Registra la entrada y salida de cada barbero. Usa los botones para marcar la hora actual, o escribe manualmente si lo registras después.</p>';
+    +'Registra la entrada y salida de cada barbero. «Marcar ahora» guarda la hora actual; si lo registras después, escribe la hora y pulsa «Guardar hora». Todo se guarda en el servidor al instante, queda anotado quién lo hizo, y no se aceptan horas futuras ni de otros días. Si la hora que escribes se aleja de ahora más de lo permitido, el sistema pide el motivo.</p>';
+  if(!_horCargados) h+=avisoDatosHtml(_horError||'Cargando los horarios del servidor… (no se puede registrar hasta que carguen)');
 
   h+='<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">';
   var activeBBHor=BB.filter(function(b){return b.active!==false;});
@@ -4343,7 +4360,7 @@ function renderHorarios(){
     var svcCnt=regs.filter(function(r){return r.bid===b.id;}).length;
     var hasEntrada = entradaVal!=='';
     var hasSalida  = salidaVal!=='';
-    var canEdit=(_panelRole==='admin');
+    var canEdit=(_panelRole==='admin'||_panelRole==='operator');   // admin and the shop's encargado
 
     h+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden">'
       // Header barbero
@@ -4353,35 +4370,8 @@ function renderHorarios(){
       +'</div>'
       +'<div style="padding:14px 16px;display:grid;grid-template-columns:1fr 1fr 100px;gap:16px;align-items:center">'
 
-      // ENTRADA
-      +'<div>'
-      +'<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:6px">Entrada</div>'
-      +'<div style="display:flex;gap:6px;align-items:center">'
-      +'<input type="time" value="'+entradaVal+'" data-bid="'+b.id+'" data-tipo="entrada" '
-      +(canEdit?'':'readonly ')
-      +'oninput="guardarHoraManual(this.dataset.bid,this.dataset.tipo,this.value)" '
-      +'style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--mono);font-size:14px;'+(hasEntrada?'border-color:var(--ok);background:var(--ok-soft)':'')+'">'
-      +(canEdit?('<button data-bid="'+b.id+'" data-tipo="entrada" onclick="marcarHora(this.dataset.bid,this.dataset.tipo)" '
-      +'style="padding:6px 10px;background:'+(hasEntrada?'var(--ok)':'var(--text)')+';color:#fff;border:none;border-radius:var(--r);font-size:11px;cursor:pointer;white-space:nowrap">'
-      +(hasEntrada?'✓ '+entradaVal:'Marcar ahora')
-      +'</button>'):'')
-      +'</div>'
-      +'</div>'
-
-      // SALIDA
-      +'<div>'
-      +'<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:6px">Salida</div>'
-      +'<div style="display:flex;gap:6px;align-items:center">'
-      +'<input type="time" value="'+salidaVal+'" data-bid="'+b.id+'" data-tipo="salida" '
-      +(canEdit?'':'readonly ')
-      +'oninput="guardarHoraManual(this.dataset.bid,this.dataset.tipo,this.value)" '
-      +'style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--mono);font-size:14px;'+(hasSalida?'border-color:var(--info);background:var(--info-soft)':'')+'">'
-      +(canEdit?('<button data-bid="'+b.id+'" data-tipo="salida" onclick="marcarHora(this.dataset.bid,this.dataset.tipo)" '
-      +'style="padding:6px 10px;background:'+(hasSalida?'var(--info)':'var(--text)')+';color:#fff;border:none;border-radius:var(--r);font-size:11px;cursor:pointer;white-space:nowrap">'
-      +(hasSalida?'✓ '+salidaVal:'Marcar ahora')
-      +'</button>'):'')
-      +'</div>'
-      +'</div>'
+      +_horCampoHtml(b, 'entrada', entradaVal, reg.entradaMeta, canEdit)
+      +_horCampoHtml(b, 'salida', salidaVal, reg.salidaMeta, canEdit)
 
       // HORAS TRABAJADAS
       +'<div style="text-align:center">'
@@ -5230,17 +5220,6 @@ function _staffMetaEnviar(body){
 
 // 23:00 automatic send of the day's clock-ins. KPI stars are not sent here:
 // they are saved to the server when they change.
-function programarAutoEnvioHorarios(){
-  if(_horariosAutoTimer){ clearTimeout(_horariosAutoTimer); _horariosAutoTimer = null; }
-  var ahora = new Date();
-  var cierre = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate(), 23, 0, 0);
-  if(ahora >= cierre) return;
-  _horariosAutoTimer = setTimeout(function(){
-    _horariosAutoTimer = null;
-    enviarHorariosARailway(true); // silencioso
-  }, cierre - ahora);
-}
-var _horariosAutoTimer = null;
 
 // ── AVATARES ────────────────────────────────────────────────────
 function cargarAvatares(){
