@@ -621,10 +621,10 @@
       <div class="tab" onclick="showTab('pStaff',this)">👥 Administración</div>
       <div class="tab" onclick="showTab('pClientes',this)">👤 Clientes</div>
       <div class="tab" id="tabAgenda" onclick="showTab('pAgenda',this)">📅 Agenda <span id="badgeAgenda" style="display:none;background:#2d5e8e;color:#fff;border-radius:20px;font-size:10px;font-weight:700;padding:1px 7px;margin-left:4px;vertical-align:middle">0</span></div>
+      <div class="tab" onclick="showTab('pKpis',this)">🏆 KPIs</div>
       <div style="position:relative" id="tabMasWrap">
         <div class="tab" onclick="toggleTabMas(event)">Más ▾</div>
         <div id="tabMasMenu" style="display:none;position:absolute;top:100%;right:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:100;min-width:190px;overflow:hidden">
-          <div class="tab tab-dropdown-item" onclick="showTab('pKpis',this);closeTabMas()">🏆 KPIs</div>
           <div class="tab tab-dropdown-item" id="tabAprob" onclick="showTab('pAprob',this);closeTabMas()">✅ Aprobar <span id="badgeAprob" style="display:none;background:#d4a843;color:#0a0908;border-radius:20px;font-size:10px;font-weight:700;padding:1px 7px;margin-left:4px">0</span></div>
           <div class="tab tab-dropdown-item" onclick="showTab('pCierre',this);closeTabMas()">Cierre jornada</div>
           <div class="tab tab-dropdown-item" onclick="showTab('pHist',this);closeTabMas()">Histórico</div>
