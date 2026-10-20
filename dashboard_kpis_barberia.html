@@ -804,7 +804,7 @@ function buildHTML(js, regs){
   h+='</div></div></div>';
 
   // ── Por barbero (active only — historical David amounts counted in totals above)
-  var barberos=Object.keys(porBB).filter(function(b){return ACTIVE_BARBERS.indexOf(b)>-1;});
+  var barberos=Object.keys(porBB).filter(function(b){return ACTIVE_BARBERS.indexOf(b)>-1;}).sort(function(a,b){return ACTIVE_BARBERS.indexOf(a)-ACTIVE_BARBERS.indexOf(b);}); // server display order
   h+='<div class="section"><div class="section-title">Por barbero</div>';
   h+='<div class="bb-grid" style="grid-template-columns:repeat('+Math.min(barberos.length,4)+',1fr)">';
   barberos.forEach(function(b){
@@ -939,7 +939,7 @@ function buildCharts(js, regs){
   var porPago=datosPorPago(regs);
   var porSvc=datosPorServicio(regs);
   var porBB=datosPorBarbero(regs);
-  var barberos=Object.keys(porBB).filter(function(b){return ACTIVE_BARBERS.indexOf(b)>-1;});
+  var barberos=Object.keys(porBB).filter(function(b){return ACTIVE_BARBERS.indexOf(b)>-1;}).sort(function(a,b){return ACTIVE_BARBERS.indexOf(a)-ACTIVE_BARBERS.indexOf(b);}); // server display order
 
   var base={
     responsive:true, maintainAspectRatio:false,
