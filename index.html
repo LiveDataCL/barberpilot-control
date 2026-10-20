@@ -1218,6 +1218,7 @@
 
 <script src="texto-seguro.js"></script>
 <script src="reportes-api.js"></script>
+<script src="conducta-diaria.js"></script>
 <script>
 // ═══ DATOS ═══════════════════════════════════════════════
 // Populated from GET /barberos — adding a barber to DB propagates here automatically
@@ -3264,6 +3265,9 @@ function generarHTMLA4(fecha, recs, gastosParam){
 
 function imprimirA4(){
   if(regs.length===0){toast('Sin registros para imprimir');return;}
+  a4Recordatorio(imprimirA4Directo);
+}
+function imprimirA4Directo(){
   var win=window.open('','_blank','width=900,height=700,toolbar=0,menubar=0,location=0,scrollbars=1');
   if(!win){toast('Activa pop-ups para abrir el A4');return;}
   win.document.write(generarHTMLA4(new Date().toLocaleDateString('es-CL'),regs,gastos));
@@ -4049,7 +4053,8 @@ function testSheetsConnection(){
 }
 
 // ═══ IMPRIMIR CIERRE A4 ═══════════════════════════════════════
-function printCajaA4(){
+function printCajaA4(){ a4Recordatorio(printCajaA4Directo); }
+function printCajaA4Directo(){
   var fecha = new Date().toLocaleDateString('es-CL');
   var hora  = pad(new Date().getHours())+':'+pad(new Date().getMinutes());
 
@@ -4415,10 +4420,12 @@ function renderHorarios(){
       +'</tr>';
   }
   h+='</tbody></table></div>';
+  h+='<div id="conductaHoyBox"></div>';
 
   c.innerHTML=h;
   // Calcular horas después de render
   for(var i=0;i<activeBBHor.length;i++) renderHorasCalc(activeBBHor[i].id);
+  renderConductaHoy();
 }
 
 // ═══ INGRESO HISTÓRICO ═══════════════════════════════════════
@@ -4758,7 +4765,10 @@ function _estrellasAutoLocales(periodo){
 }
 function kpiSincronizarEstrellasAuto(periodo){
   if(!API_URL || periodo!==fechaHoy.substring(0,7)) return Promise.resolve({ok:true,enviados:0});
-  var locales=_estrellasAutoLocales(periodo), mes=_kpiMes[periodo], ev={}, n=0;
+  var mes=_kpiMes[periodo];
+  if(!mes) return kpiCargarMes(periodo).then(function(r){ return (r.ok && _kpiMes[periodo]) ? kpiSincronizarEstrellasAuto(periodo) : {ok:true,enviados:0}; });
+  if(mes.modelo==='v2') return Promise.resolve({ok:true,enviados:0}); // November model: punctuality comes from the server's horarios, conduct is daily
+  var locales=_estrellasAutoLocales(periodo), ev={}, n=0;
   var enMes=mes ? mes.barberos.reduce(function(a,b){ a[b.bid]=b; return a; },{}) : null;
   Object.keys(locales).forEach(function(bid){
     if(enMes && !enMes[bid]) return; // not a barber of this month
@@ -4963,12 +4973,15 @@ function _renderKpisInnerSinGuarda(){
     +'</div>';
 
   // ── Tabla resumen ──
-  h+='<div class="kpi-table-wrap"><div class="kpi-table-head"><span>Resumen del período</span><small>'+periodo+'</small></div>'
+  var v2=(k.modelo==='v2');
+  if(v2) h+=kpiTablaV2Html(k,periodo);
+  else h+='<div class="kpi-table-wrap"><div class="kpi-table-head"><span>Resumen del período</span><small>'+periodo+'</small></div>'
     +'<table class="kpi-rt" id="kpiTabla"><thead><tr><th>Barbero</th><th class="r">Servicios</th><th class="r">Tkt prom.</th><th class="r">Propinas</th>'
     +'<th class="r">Producción<br><small style="font-weight:400;text-transform:none;color:var(--text3)">'+prodMax+' pts</small></th>'
     +'<th class="r">Conducta<br><small style="font-weight:400;text-transform:none;color:var(--text3)">'+r.conducta.pts+' pts</small></th>'
     +'<th class="r">Propinas<br><small style="font-weight:400;text-transform:none;color:var(--text3)">'+propMax+' pts</small></th>'
     +'<th class="r">Total</th><th class="r">Estrato</th><th class="r">Bono potencial</th><th class="r">Bono a pagar</th></tr></thead><tbody>';
+  if(!v2){
   if(!bs.length) h+='<tr><td colspan="11" style="color:var(--text3)">Ningún barbero trabajó en este mes.</td></tr>';
   bs.forEach(function(b){
     var p=b.puntos;
@@ -4987,8 +5000,11 @@ function _renderKpisInnerSinGuarda(){
       +'</tr>';
   });
   h+='</tbody></table></div>';
+  }
 
-  // ── Evaluación cualitativa ──
+  // ── Evaluación cualitativa (October model: stars) / conducta diaria (November model) ──
+  if(v2) h+=kpiConductaV2Html(k,periodo);
+  else {
   h+='<div style="font-size:13px;font-weight:700;margin-bottom:6px;color:var(--text)">Evaluación cualitativa — <span class="kpi-period-badge">'+periodo+'</span></div>';
   h+='<div style="font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.6">Asigna de 1 a '+r.conducta.estrellas_max+' estrellas en cada indicador. Cada cambio se guarda en el servidor al hacer clic.'
     +' <span id="kpiGuardadoEstado" style="color:var(--text3)"></span></div>';
@@ -5022,6 +5038,7 @@ function _renderKpisInnerSinGuarda(){
     h+='</div></div></div></div>';
   });
   h+='</div>';
+  }
 
   // ── Escala de bonos (from the rules in the server) ──
   h+='<div class="kpi-bonus-section"><div class="kpi-bonus-title">💰 Estratos y bonos</div>'
@@ -5038,7 +5055,8 @@ function _renderKpisInnerSinGuarda(){
 
   // ── Metodología (from the rules in the server) ──
   var pr=r.produccion, pp=r.propinas;
-  h+='<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--rl);padding:16px;font-size:12px;color:var(--text2);line-height:1.7">'
+  if(v2) h+=kpiMetodologiaV2Html(r);
+  else h+='<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--rl);padding:16px;font-size:12px;color:var(--text2);line-height:1.7">'
     +'<div style="font-weight:700;font-size:13px;margin-bottom:8px;color:var(--text)">📋 Metodología de cálculo ('+_escHtml(r.nombre)+')</div>'
     +'<b>Producción ('+prodMax+' pts):</b> servicios (hasta '+pr.pts_servicios+' pts, vs meta individual en servicios a ticket de referencia $'+fmt(pr.ticket_meta_ref)+') + facturación estimada (hasta '+pr.pts_facturacion+' pts, vs meta individual) + ticket promedio (hasta '+pr.pts_ticket+' pts, ref. $'+fmt(pr.ticket_ref)+'). La meta individual es la meta del local dividida entre los barberos que trabajaron en el mes.<br>'
     +'<b>Conducta ('+r.conducta.pts+' pts):</b> promedio ponderado de '+r.conducta.indicadores.length+' indicadores (1–'+r.conducta.estrellas_max+' ⭐ con su peso).<br>'
@@ -5048,6 +5066,7 @@ function _renderKpisInnerSinGuarda(){
 
   h+='</div>'; // kpi-page
   c.innerHTML=h;
+  if(v2) cdPintarPref();
 }
 
 // "Ajustar meta en Administración": opens Administración (drawn like a tab
