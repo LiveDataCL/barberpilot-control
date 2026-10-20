@@ -1266,6 +1266,7 @@
 <div class="toastel" id="toastel"></div>
 <div class="alerta-stack" id="alertaStack"></div>
 
+<script src="texto-seguro.js"></script>
 <script src="reportes-api.js"></script>
 <script>
 // ═══ DATOS ═══════════════════════════════════════════════
@@ -1311,7 +1312,7 @@ function cargarConfigDesdeServidor(){
           var cur=sel.value;
           sel.innerHTML='<option value="">Sin cambio</option><option value="any">⚡ Primer disponible</option>'
             +BB.filter(function(b){return b.active;}).map(function(b){
-              return '<option value="'+b.id+'">'+b.nombre+'</option>';
+              return '<option value="'+b.id+'">'+escHtml(b.nombre)+'</option>';
             }).join('');
           sel.value=cur;
         }
@@ -1970,7 +1971,7 @@ function _mostrarJornadaCargadaSinGuarda(fecha,recs,totales){
 
   var h=nota+'<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--rl);padding:14px;margin-bottom:14px">'
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
-    +'<strong style="font-size:15px">Jornada: '+fecha+'</strong>'
+    +'<strong style="font-size:15px">Jornada: '+escHtml(fecha)+'</strong>'
     +'<span style="font-size:12px;color:var(--text3)">'+recs.length+' servicios</span>'
     +'</div>'
     +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">'
@@ -1992,10 +1993,10 @@ function _mostrarJornadaCargadaSinGuarda(fecha,recs,totales){
   for(var i=0;i<recs.length;i++){
     var rec=recs[i];
     h+='<tr data-bid="'+(rec.bid||'')+'" style="border-bottom:1px solid var(--border)">'
-      +'<td style="padding:6px 7px;font-family:var(--mono)">'+rec.hora+'</td>'
-      +'<td style="padding:6px 7px;font-weight:500">'+rec.bnom+'</td>'
-      +'<td style="padding:6px 7px;color:var(--text2)">'+rec.snom+'</td>'
-      +'<td style="padding:6px 7px;text-transform:capitalize">'+rec.pago+'</td>'
+      +'<td style="padding:6px 7px;font-family:var(--mono)">'+escHtml(rec.hora)+'</td>'
+      +'<td style="padding:6px 7px;font-weight:500">'+escHtml(rec.bnom)+'</td>'
+      +'<td style="padding:6px 7px;color:var(--text2)">'+escHtml(rec.snom)+'</td>'
+      +'<td style="padding:6px 7px;text-transform:capitalize">'+escHtml(rec.pago)+'</td>'
       +'<td style="padding:6px 7px;text-align:right;font-family:var(--mono)">$'+fmt(rec.precio)+'</td>'
       +'<td style="padding:6px 7px;text-align:right;font-family:var(--mono);color:var(--ok);font-weight:600">$'+fmt(rec.bb)+'</td>'
       +'</tr>';
@@ -2032,11 +2033,11 @@ function abrirHistorico(){
       var tot=0;if(data)for(var j=0;j<data.length;j++)tot+=data[j].precio;
       var isCurrent=fd===fechaHoy;
       h+='<div class="hist-entry">'
-        +'<div><div class="hist-date">'+(isCurrent?'📅 Hoy — ':'')+fd+'</div>'
+        +'<div><div class="hist-date">'+(isCurrent?'📅 Hoy — ':'')+escHtml(fd)+'</div>'
         +'<div class="hist-meta">'+cnt+' servicios · $'+fmt(tot)+' facturados</div></div>'
         +'<div class="hist-actions">'
-        +(isCurrent?'<button class="bsm" onclick="verJornadaHist(\''+fd+'\')">Ver</button>':'<button class="bsm" onclick="verJornadaHist(\''+fd+'\')">Ver</button>')
-        +'<button class="bsm" onclick="descargarJornadaHist(\''+fd+'\')" style="color:var(--info)">JSON</button>'
+        +(isCurrent?'<button class="bsm" onclick="verJornadaHist(\''+escJsAttr(fd)+'\')">Ver</button>':'<button class="bsm" onclick="verJornadaHist(\''+escJsAttr(fd)+'\')">Ver</button>')
+        +'<button class="bsm" onclick="descargarJornadaHist(\''+escJsAttr(fd)+'\')" style="color:var(--info)">JSON</button>'
         +'</div>'
         +'</div>';
     }
@@ -2233,7 +2234,7 @@ function find(arr,id){for(var i=0;i<arr.length;i++)if(arr[i].id===id)return arr[
 function buildBarberFilters(){
   var h='';
   BB.filter(function(b){return b.active!==false;}).forEach(function(b){
-    h+='<button class="fb" onclick="filtrar(\''+b.id+'\',this)">'+b.nombre+'</button>';
+    h+='<button class="fb" onclick="filtrar(\''+escJsAttr(b.id)+'\',this)">'+escHtml(b.nombre)+'</button>';
   });
   var el=document.getElementById('barberFilterBtns');
   if(el) el.innerHTML=h;
@@ -2255,7 +2256,7 @@ function buildBarbers(){
     var b=BB[i];
     if(b.active===false) continue;
     h+='<button class="bbtn" data-id="'+b.id+'" onclick="selB(this)">'
-      +'<span class="bn">'+b.nombre+'</span>'
+      +'<span class="bn">'+escHtml(b.nombre)+'</span>'
       +'<span class="bc" id="cnt'+b.id+'">0 svc</span>'
       +'</button>';
   }
@@ -2264,7 +2265,7 @@ function buildBarbers(){
 function buildServices(){
   var el=document.getElementById('slist');if(!el)return;
   var aviso=catalogoAviso();
-  var h=aviso?'<div class="catalogo-aviso '+aviso.tipo+'" id="cobroCatalogoAviso">'+_escHtml(aviso.texto)+'</div>':'';
+  var h=aviso?'<div class="catalogo-aviso '+escHtml(aviso.tipo)+'" id="cobroCatalogoAviso">'+_escHtml(aviso.texto)+'</div>':'';
   if(CATALOGO.origen!=='cargando'&&CATALOGO.origen!=='sin_datos'&&SS.length===0){
     h+='<div class="catalogo-aviso info">No hay servicios activos en el catálogo.</div>';
   }
@@ -2302,7 +2303,7 @@ function buildProdBarbers(){
     var b=BB[i];
     if(b.active===false) continue;
     h+='<button class="bbtn" data-pid="'+b.id+'" onclick="selProdB(this)">'
-      +'<span class="bn">'+b.nombre+'</span>'
+      +'<span class="bn">'+escHtml(b.nombre)+'</span>'
       +'</button>';
   }
   document.getElementById('prodBgrid').innerHTML=h;
@@ -2643,17 +2644,17 @@ function renderReg(){
     var r=arr[i],bc=r.pago==='efectivo'?'be':r.pago==='debito'?'bd':'btr';
     h+='<tr>'
       +'<td style="font-family:var(--mono);color:var(--text3)">'+(arr.length-i)+'</td>'
-      +'<td style="font-family:var(--mono);color:var(--text2)">'+r.hora+'</td>'
-      +'<td style="font-weight:500">'+r.bnom+'</td>'
-      +'<td style="color:var(--text2);font-size:12px">'+r.snom+'</td>'
+      +'<td style="font-family:var(--mono);color:var(--text2)">'+escHtml(r.hora)+'</td>'
+      +'<td style="font-weight:500">'+escHtml(r.bnom)+'</td>'
+      +'<td style="color:var(--text2);font-size:12px">'+escHtml(r.snom)+'</td>'
       +'<td><span class="badge '+bc+'">'+_escHtml(etiquetaPago(r.pago))+'</span></td>'
       +'<td style="font-family:var(--mono);font-weight:600">$'+fmt(r.precio)+'</td>'
       +'<td style="font-family:var(--mono);font-weight:600;color:var(--ok)">'+pagoCeldaHtml(r.bb, r.propina||0)+'</td>'
-      +'<td><span style="font-size:12px;color:var(--text2);display:block;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(r.cliente_nombre||r.cliente_id||'')+'">'+( r.cliente_nombre||r.cliente_id||'—')+'</span></td>'
+      +'<td><span style="font-size:12px;color:var(--text2);display:block;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+escHtml(r.cliente_nombre||r.cliente_id||'')+'">'+escHtml(r.cliente_nombre||r.cliente_id||'—')+'</span></td>'
       +'<td style="white-space:nowrap">'
-      +'<button class="bsm" onclick="verTkt(\''+r.id+'\')">Ver</button>'
-      +'<button class="bsm" onclick="abrirEditPago(\''+r.id+'\',\''+r.pago+'\','+r.precio+',\''+escAttr(r.bnom)+' – '+escAttr(r.snom)+'\',\''+escAttr(r.snom)+'\')" title="Editar registro">✏</button>'
-      +(_panelRole==='admin'?'<button class="bsm dx" onclick="del(\''+r.id+'\')">✕</button>':'')
+      +'<button class="bsm" onclick="verTkt(\''+escJsAttr(r.id)+'\')">Ver</button>'
+      +'<button class="bsm" onclick="abrirEditPago(\''+escJsAttr(r.id)+'\',\''+escJsAttr(r.pago)+'\','+Number(r.precio)+',\''+escJsAttr(r.bnom)+' – '+escJsAttr(r.snom)+'\',\''+escJsAttr(r.snom)+'\')" title="Editar registro">✏</button>'
+      +(_panelRole==='admin'?'<button class="bsm dx" onclick="del(\''+escJsAttr(r.id)+'\')">✕</button>':'')
       +'</td></tr>';
   }
   h+='</tbody></table>';
@@ -2677,9 +2678,9 @@ function renderSum(){
     for(var j=0;j<br.length;j++){bt+=br[j].precio;bBB+=br[j].bb+(br[j].propina||0);bNeg+=br[j].neg;}
     var tk=br.length>0?Math.round(bt/br.length):0;
     var sc={};for(var j=0;j<br.length;j++)sc[br[j].snom]=(sc[br[j].snom]||0)+1;
-    var ss=Object.keys(sc).map(function(k){return k+' ('+sc[k]+')';}).join(', ')||'—';
+    var ss=Object.keys(sc).map(function(k){return escHtml(k)+' ('+sc[k]+')';}).join(', ')||'—';
     g+='<div class="bsc">'
-      +'<div class="bsch"><span style="font-weight:600;font-size:14px">'+b.nombre+'</span>'
+      +'<div class="bsch"><span style="font-weight:600;font-size:14px">'+escHtml(b.nombre)+'</span>'
       +'<span style="font-family:var(--mono);font-size:11px;opacity:.7">'+br.length+' svc</span></div>'
       +'<div class="bscb">'
       +'<div class="bscr"><span style="color:var(--text2)">Facturado</span><span style="font-family:var(--mono);font-weight:600">$'+fmt(bt)+'</span></div>'
@@ -2703,14 +2704,14 @@ function renderCierre(){
     var b=activeBB[i],br=[],tot=0,tBB=0,tNeg=0;
     for(var j=0;j<regs.length;j++)if(regs[j].bid===b.id)br.push(regs[j]);
     if(br.length===0){
-      h+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:12px;margin-bottom:11px;opacity:.4"><strong>'+b.nombre+'</strong> — Sin servicios hoy</div>';
+      h+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:12px;margin-bottom:11px;opacity:.4"><strong>'+escHtml(b.nombre)+'</strong> — Sin servicios hoy</div>';
       continue;
     }
     for(var j=0;j<br.length;j++){tot+=br[j].precio;tBB+=br[j].bb;tNeg+=br[j].neg;}
     h+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);margin-bottom:13px;overflow:hidden">'
       +'<div style="background:var(--text);color:#fff;padding:10px 15px;display:flex;justify-content:space-between;align-items:center">'
-      +'<strong>'+b.nombre+'</strong>'
-      +'<span style="font-family:var(--mono);font-size:11px;opacity:.7">'+br.length+' servicios · '+fecha+'</span>'
+      +'<strong>'+escHtml(b.nombre)+'</strong>'
+      +'<span style="font-family:var(--mono);font-size:11px;opacity:.7">'+br.length+' servicios · '+escHtml(fecha)+'</span>'
       +'</div><div style="padding:13px 15px">'
       +'<table style="width:100%;font-size:12px;border-collapse:collapse">'
       +'<thead><tr style="border-bottom:1px solid var(--border)">'
@@ -2725,8 +2726,8 @@ function renderCierre(){
       var r=br[j];
       h+='<tr style="border-bottom:1px solid var(--border)">'
         +'<td style="padding:5px 6px;color:var(--text3)">'+(j+1)+'</td>'
-        +'<td style="padding:5px 6px;font-family:var(--mono)">'+r.hora+'</td>'
-        +'<td style="padding:5px 6px">'+r.snom+'</td>'
+        +'<td style="padding:5px 6px;font-family:var(--mono)">'+escHtml(r.hora)+'</td>'
+        +'<td style="padding:5px 6px">'+escHtml(r.snom)+'</td>'
         +'<td style="padding:5px 6px;">'+_escHtml(etiquetaPago(r.pago))+'</td>'
         +'<td style="padding:5px 6px;text-align:right;font-family:var(--mono)">$'+fmt(r.precio)+'</td>'
         +'<td style="padding:5px 6px;text-align:right;font-family:var(--mono);color:var(--ok);font-weight:600">'+pagoCeldaHtml(r.bb, r.propina||0)+'</td>'
@@ -2738,9 +2739,9 @@ function renderCierre(){
       +'<span style="color:var(--ok)">A PAGAR: <span style="font-family:var(--mono)">$'+fmt(tBB)+'</span></span>'
       +'</div>'
       +'<div style="margin-top:20px;border-top:1px dashed var(--border2);padding-top:11px">'
-      +'<div style="font-size:11px;color:var(--text3)">Firma de conformidad — '+b.nombre+'</div>'
+      +'<div style="font-size:11px;color:var(--text3)">Firma de conformidad — '+escHtml(b.nombre)+'</div>'
       +'<div style="margin-top:20px;border-bottom:1px solid var(--text);width:200px"></div>'
-      +'<div style="font-size:10px;color:var(--text3);margin-top:3px">Firma · '+fecha+'</div>'
+      +'<div style="font-size:10px;color:var(--text3);margin-top:3px">Firma · '+escHtml(fecha)+'</div>'
       +'</div>'
       +'</div></div>';
   }
@@ -2794,7 +2795,7 @@ function renderAprobaciones(pend){
     var regs = byBarbero[bnom];
     h += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:14px;overflow:hidden">';
     h += '<div style="background:var(--surface2);padding:10px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)">';
-    h += '<div style="font-weight:600;font-size:14px">'+bnom+'</div>';
+    h += '<div style="font-weight:600;font-size:14px">'+escHtml(bnom)+'</div>';
     h += '<div style="font-size:12px;color:var(--text3)">'+regs.length+' pendiente'+(regs.length!==1?'s':'')+'</div>';
     h += '</div>';
 
@@ -2803,20 +2804,20 @@ function renderAprobaciones(pend){
       h += '<div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px" id="row_'+r.id+'">';
       var pagoColor = r.pago==='efectivo'?'#4db87a':r.pago==='debito'?'#5580d4':'#c9a84c';
       h += '<div style="flex:1">';
-      h += '<div style="font-size:14px;font-weight:600">'+r.snom+'</div>';
-      h += '<div style="font-size:12px;color:var(--text3);margin-top:3px">'+r.hora+' · <span style="color:'+pagoColor+'">'+_escHtml(etiquetaPago(r.pago))+'</span> · $'+Math.round(r.precio).toLocaleString('es-CL')+'</div>';
+      h += '<div style="font-size:14px;font-weight:600">'+escHtml(r.snom)+'</div>';
+      h += '<div style="font-size:12px;color:var(--text3);margin-top:3px">'+escHtml(r.hora)+' · <span style="color:'+pagoColor+'">'+_escHtml(etiquetaPago(r.pago))+'</span> · $'+Math.round(r.precio).toLocaleString('es-CL')+'</div>';
       // Foto comprobante si es transferencia
       if(r.pago === 'transferencia'){
         h += '<div style="margin-top:8px">';
-        h += '<button onclick="verComprobante(\'' + r.id + '\')" style="padding:4px 10px;background:rgba(201,168,76,.12);color:#c9a84c;border:1px solid rgba(201,168,76,.3);border-radius:6px;font-size:11px;cursor:pointer">📷 Ver comprobante</button>';
+        h += '<button onclick="verComprobante(\'' + escJsAttr(r.id) + '\')" style="padding:4px 10px;background:rgba(201,168,76,.12);color:#c9a84c;border:1px solid rgba(201,168,76,.3);border-radius:6px;font-size:11px;cursor:pointer">📷 Ver comprobante</button>';
         h += '</div>';
       }
       h += '</div>';
       h += '<div style="font-family:var(--mono);font-size:14px;font-weight:600;color:var(--ok);min-width:70px;text-align:right">$'+bb.toLocaleString('es-CL')+'</div>';
       if(_panelRole==='admin'){
         h += '<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">';
-        h += '<button onclick="aprobar(\'' + r.id + '\')" style="padding:8px 14px;background:rgba(77,184,122,.15);color:#4db87a;border:1px solid rgba(77,184,122,.3);border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">✓ OK</button>';
-        h += '<button onclick="rechazar(\'' + r.id + '\')" style="padding:8px 14px;background:rgba(224,85,85,.1);color:#e05555;border:1px solid rgba(224,85,85,.25);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">✗ No</button>';
+        h += '<button onclick="aprobar(\'' + escJsAttr(r.id) + '\')" style="padding:8px 14px;background:rgba(77,184,122,.15);color:#4db87a;border:1px solid rgba(77,184,122,.3);border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">✓ OK</button>';
+        h += '<button onclick="rechazar(\'' + escJsAttr(r.id) + '\')" style="padding:8px 14px;background:rgba(224,85,85,.1);color:#e05555;border:1px solid rgba(224,85,85,.25);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">✗ No</button>';
         h += '</div>';
       }
       h += '</div>';
@@ -2873,7 +2874,7 @@ function verComprobante(regId){
         +'<div style="font-weight:600;font-size:15px">📷 Comprobante de transferencia</div>'
         +'<button id="btnCerrarComp" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text2)">✕</button>'
         +'</div>'
-        +'<img src="'+src+'" style="width:100%;border-radius:8px;object-fit:contain;max-height:70vh">'
+        +'<img src="'+escHtml(src)+'" style="width:100%;border-radius:8px;object-fit:contain;max-height:70vh">'
         +'</div>';
       document.body.appendChild(modal);
       document.getElementById('btnCerrarComp').addEventListener('click', function(){ modal.remove(); });
@@ -2968,13 +2969,13 @@ function mkTktHtml(r){
     +'<div style="text-align:center;font-size:9px">Línea 1 Metro · Santiago</div>'
     +'<div style="border-top:1px dashed #000;margin:4px 0"></div>'
 
-    +'<div style="display:flex;justify-content:space-between;font-size:10px"><span>Fecha:</span><span>'+r.fecha+'</span></div>'
-    +'<div style="display:flex;justify-content:space-between;font-size:10px"><span>Hora:</span><span>'+r.hora+'</span></div>'
+    +'<div style="display:flex;justify-content:space-between;font-size:10px"><span>Fecha:</span><span>'+escHtml(r.fecha)+'</span></div>'
+    +'<div style="display:flex;justify-content:space-between;font-size:10px"><span>Hora:</span><span>'+escHtml(r.hora)+'</span></div>'
     +'<div style="border-top:1px dashed #000;margin:4px 0"></div>'
-    +'<div style="display:flex;justify-content:space-between;font-size:11px;font-weight:bold"><span>Barbero:</span><span>'+r.bnom+'</span></div>'
+    +'<div style="display:flex;justify-content:space-between;font-size:11px;font-weight:bold"><span>Barbero:</span><span>'+escHtml(r.bnom)+'</span></div>'
     +'<div style="border-top:1px dashed #000;margin:4px 0"></div>'
     +'<div style="font-size:10px;font-weight:bold;margin:2px 0">SERVICIO:</div>';
-  for(var i=0;i<lns.length;i++)h+='<div style="font-size:11px;font-weight:bold">'+lns[i]+'</div>';
+  for(var i=0;i<lns.length;i++)h+='<div style="font-size:11px;font-weight:bold">'+escHtml(lns[i])+'</div>';
   h+='<div style="border-top:1px dashed #000;margin:4px 0"></div>'
     +'<div style="display:flex;justify-content:space-between;font-size:10px"><span>Forma de pago:</span><span>'+_escHtml(etiquetaPago(r.pago))+'</span></div>'
     +'<div style="display:flex;justify-content:space-between;font-size:10px"><span>Comisión:</span><span>'+Math.round(r.com*100)+'%</span></div>'
@@ -2992,7 +2993,7 @@ function mkTktHtml(r){
     +'<span>'+r.totalServicios+' svc totales</span>'
     +'</div>'
     +'<div style="display:flex;justify-content:space-between;font-size:13px;font-weight:bold;margin-top:3px">'
-    +'<span>Acumulado '+r.bnom+':</span>'
+    +'<span>Acumulado '+escHtml(r.bnom)+':</span>'
     +'<span>$'+fmt(r.acumBB||0)+'</span>'
     +'</div>'
     +'<div style="display:flex;justify-content:space-between;font-size:10px">'
@@ -3065,15 +3066,15 @@ function printCierre58mm(){
       +'<div style="text-align:center;font-weight:bold;font-size:13px">SALON MEN SAÚL FINO</div>'
       +'<div style="text-align:center;font-size:9px">Galería Santiago Centro · Local 222</div>'
       +'<div style="border-top:1px dashed #000;margin:4px 0"></div>'
-      +'<div style="text-align:center;font-weight:bold;font-size:12px">'+b.nombre.toUpperCase()+'</div>'
-      +'<div style="text-align:center;font-size:9px">RESUMEN DE JORNADA · '+fecha+'</div>'
+      +'<div style="text-align:center;font-weight:bold;font-size:12px">'+escHtml(b.nombre.toUpperCase())+'</div>'
+      +'<div style="text-align:center;font-size:9px">RESUMEN DE JORNADA · '+escHtml(fecha)+'</div>'
       +'<div style="border-top:1px dashed #000;margin:4px 0"></div>';
 
     for(var j=0;j<br.length;j++){
       var r=br[j];
       h+='<div style="display:flex;justify-content:space-between;font-size:10px">'
-        +'<span>'+(j+1)+'. '+r.hora+'</span>'
-        +'<span>'+r.snom.substring(0,18)+'</span>'
+        +'<span>'+(j+1)+'. '+escHtml(r.hora)+'</span>'
+        +'<span>'+escHtml(r.snom.substring(0,18))+'</span>'
         +'</div>'
         +'<div style="display:flex;justify-content:space-between;font-size:9px;padding-left:10px">'
         +'<span>'+_escHtml(etiquetaPago(r.pago))+' · '+Math.round(r.com*100)+'%</span>'
@@ -3203,9 +3204,9 @@ function generarHTMLA4(fecha, recs, gastosParam){
     +'<div class="hdr-doc">'
     +'<div><div class="brand">Salon Men Saúl Fino</div>'
     +'<div class="brand-sub">Galería Santiago Centro · Local 222 · Línea 1 Metro</div></div>'
-    +'<div class="doc-meta"><strong>Resumen de Jornada</strong><br>'+fecha+'<br>Generado: '+new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'})+'</div>'
+    +'<div class="doc-meta"><strong>Resumen de Jornada</strong><br>'+escHtml(fecha)+'<br>Generado: '+new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'})+'</div>'
     +'</div>'
-    +'<div class="doc-title">Cierre de Jornada · '+fecha+'</div>'
+    +'<div class="doc-title">Cierre de Jornada · '+escHtml(fecha)+'</div>'
     +'<div class="kpis" style="grid-template-columns:repeat(7,1fr)">'
     +'<div class="kpi"><div class="kpi-lbl">Servicios</div><div class="kpi-val">'+cnt+'</div></div>'
     +'<div class="kpi"><div class="kpi-lbl">Ticket promedio</div><div class="kpi-val">$'+fmt(cnt>0?Math.round(tot/cnt):0)+'</div></div>'
@@ -3232,7 +3233,7 @@ function generarHTMLA4(fecha, recs, gastosParam){
     var minsB=minsEntre(regHorB.entrada||''  ,regHorB.salida||'');
     var prodHoraB=minsB>0?Math.round(bt/(minsB/60)):0;
     h+='<div class="bb-card">'
-      +'<div class="bb-head"><span>'+b.nombre+'</span><span style="font-size:9pt;opacity:.7">'+br.length+' svc</span></div>'
+      +'<div class="bb-head"><span>'+escHtml(b.nombre)+'</span><span style="font-size:9pt;opacity:.7">'+br.length+' svc</span></div>'
       +'<div class="bb-body">'
       +'<div class="bb-row"><span class="l">Facturado</span><span class="v">$'+fmt(bt)+'</span></div>'
       +'<div class="bb-row"><span class="l">Comisión</span><span class="v">$'+fmt(pagoBarbero(br).comision)+'</span></div>'
@@ -3264,7 +3265,7 @@ function generarHTMLA4(fecha, recs, gastosParam){
       var prodHora=mins>0?Math.round(bt/(mins/60)):0;
       var jornada=fmtJornada(mins);
 
-      h+='<div class="hor-card">'        +'<div class="hor-head"><span style="font-weight:700">'+b.nombre+'</span>'        +'<span style="font-size:9pt;opacity:.7">'+br.length+' svc</span></div>'        +'<div class="hor-body">'        +(reg.entrada?'<div class="hor-row"><span class="l">Entrada</span><span class="v">'+(reg.entrada||'—')+'</span></div>':'')        +(reg.salida?'<div class="hor-row"><span class="l">Salida</span><span class="v">'+(reg.salida||'—')+'</span></div>':'')        +(mins>0?'<div class="hor-row"><span class="l">Jornada</span><span class="v b">'+jornada+'</span></div>':'')        +'<div class="hor-row"><span class="l">Servicios</span><span class="v">'+br.length+'</span></div>'        +'<div class="hor-row"><span class="l">Ticket promedio</span><span class="v">$'+fmt(tk)+'</span></div>'        +(prodHora>0?'<div class="hor-row"><span class="l">Producción/hora</span><span class="v g">$'+fmt(prodHora)+'</span></div>':'')        +'<div class="hor-row"><span class="l">Facturado</span><span class="v">$'+fmt(bt)+'</span></div>'        +'<div class="hor-row"><span class="l">A cobrar</span><span class="v g">'+pagoCeldaHtml(pagoBarbero(br).comision, pagoBarbero(br).propina)+'</span></div>'        +'</div></div>';
+      h+='<div class="hor-card">'        +'<div class="hor-head"><span style="font-weight:700">'+escHtml(b.nombre)+'</span>'        +'<span style="font-size:9pt;opacity:.7">'+br.length+' svc</span></div>'        +'<div class="hor-body">'        +(reg.entrada?'<div class="hor-row"><span class="l">Entrada</span><span class="v">'+(reg.entrada||'—')+'</span></div>':'')        +(reg.salida?'<div class="hor-row"><span class="l">Salida</span><span class="v">'+(reg.salida||'—')+'</span></div>':'')        +(mins>0?'<div class="hor-row"><span class="l">Jornada</span><span class="v b">'+jornada+'</span></div>':'')        +'<div class="hor-row"><span class="l">Servicios</span><span class="v">'+br.length+'</span></div>'        +'<div class="hor-row"><span class="l">Ticket promedio</span><span class="v">$'+fmt(tk)+'</span></div>'        +(prodHora>0?'<div class="hor-row"><span class="l">Producción/hora</span><span class="v g">$'+fmt(prodHora)+'</span></div>':'')        +'<div class="hor-row"><span class="l">Facturado</span><span class="v">$'+fmt(bt)+'</span></div>'        +'<div class="hor-row"><span class="l">A cobrar</span><span class="v g">'+pagoCeldaHtml(pagoBarbero(br).comision, pagoBarbero(br).propina)+'</span></div>'        +'</div></div>';
     }
     h+='</div>';
   }
@@ -3281,9 +3282,9 @@ function generarHTMLA4(fecha, recs, gastosParam){
     var r=recs[i];
     h+='<tr>'
       +'<td style="color:#9c9a93">'+(recs.length-i)+'</td>'
-      +'<td style="font-family:monospace">'+r.hora+'</td>'
-      +'<td style="font-weight:500">'+r.bnom+'</td>'
-      +'<td>'+r.snom+'</td>'
+      +'<td style="font-family:monospace">'+escHtml(r.hora)+'</td>'
+      +'<td style="font-weight:500">'+escHtml(r.bnom)+'</td>'
+      +'<td>'+escHtml(r.snom)+'</td>'
       +'<td style="">'+_escHtml(etiquetaPago(r.pago))+'</td>'
       +'<td style="text-align:right;font-family:monospace;font-weight:600">$'+fmt(r.precio)+'</td>'
       +'<td style="text-align:right;font-family:monospace;font-weight:600;color:#1a6b3a">'+pagoCeldaHtml(r.bb, r.propina||0)+'</td>'
@@ -3306,10 +3307,10 @@ function generarHTMLA4(fecha, recs, gastosParam){
     for(var j=0;j<recs.length;j++)if(recs[j].bid===b.id)br.push(recs[j]);
     var pB=pagoBarbero(br);
     h+='<div class="firma-box">'
-      +'<div class="firma-name">'+b.nombre+'</div>'
+      +'<div class="firma-name">'+escHtml(b.nombre)+'</div>'
       +'<div class="firma-monto">'+(br.length===0?'Sin servicios':br.length+' servicios · Comisión $'+fmt(pB.comision)+' + propina $'+fmt(pB.propina)+' = recibe $'+fmt(pB.total))+'</div>'
       +'<div class="firma-line"></div>'
-      +'<div class="firma-label">Firma · '+fecha+'</div>'
+      +'<div class="firma-label">Firma · '+escHtml(fecha)+'</div>'
       +'</div>';
   }
   h+='</div>';
@@ -3661,7 +3662,7 @@ function renderCaja(){
     var pendClass=pendiente>0?'color:var(--err);font-weight:600':pendiente<0?'color:var(--warn);font-weight:600':'color:var(--ok);font-weight:600';
 
     h+='<tr style="border-bottom:1px solid var(--border)">'
-      +'<td style="padding:8px;font-weight:600">'+b.nombre+'<br><span style="font-size:10px;color:var(--text3);font-weight:400">'+bbRegs.length+' servicio'+(bbRegs.length!==1?'s':'')+'</span></td>'
+      +'<td style="padding:8px;font-weight:600">'+escHtml(b.nombre)+'<br><span style="font-size:10px;color:var(--text3);font-weight:400">'+bbRegs.length+' servicio'+(bbRegs.length!==1?'s':'')+'</span></td>'
       +'<td style="padding:8px;text-align:right;font-family:var(--mono);font-weight:700">$'+fmt(correspondeTotal)+'<br><span style="font-size:10px;color:#8b5e00;font-weight:400">comisión $'+fmt(corresponde)+' + propina $'+fmt(propinas)+'</span>'+'</td>'
       +'<td style="padding:5px 8px;text-align:center">'
       +'<div style="display:flex;flex-direction:column;gap:3px;align-items:center">'
@@ -3725,8 +3726,8 @@ function renderCaja(){
     for(var i=0;i<gastos.length;i++){
       var g=gastos[i];
       h+='<tr style="border-bottom:1px solid var(--border)">'
-        +'<td style="padding:6px 7px;font-family:var(--mono);color:var(--text3)">'+g.hora+'</td>'
-        +'<td style="padding:6px 7px">'+g.desc+'</td>'
+        +'<td style="padding:6px 7px;font-family:var(--mono);color:var(--text3)">'+escHtml(g.hora)+'</td>'
+        +'<td style="padding:6px 7px">'+escHtml(g.desc)+'</td>'
         +'<td style="padding:6px 7px;text-align:right;font-family:var(--mono);font-weight:600;color:var(--err)">− $'+fmt(g.monto)+'</td>'
         +'<td style="padding:6px 7px"><button class="bsm dx" data-gid="'+g.id+'" onclick="eliminarGasto(this.getAttribute(\'data-gid\'))">✕</button></td>'
         +'</tr>';
@@ -3786,7 +3787,7 @@ function renderResumenFinal(){
   var fecha = new Date().toLocaleDateString('es-CL');
 
   var h='<div class="caja-card" style="margin-bottom:14px">'
-    +'<div class="caja-head resumen">📊 Resumen de cierre — '+fecha+'</div>'
+    +'<div class="caja-head resumen">📊 Resumen de cierre — '+escHtml(fecha)+'</div>'
     +'<div class="caja-body">'
 
     // 4 KPIs
@@ -3936,7 +3937,7 @@ function printCaja(){
     var pend=corresponde-(liq.efectivo+liq.transferencia);
     totalPendiente+=pend;
     var pL=pagoBarbero(bbRegs);
-    lineasLiq+='<div style="display:flex;justify-content:space-between"><b>'+b.nombre+'</b><span>$'+fmt(corresponde)+'</span></div>'
+    lineasLiq+='<div style="display:flex;justify-content:space-between"><b>'+escHtml(b.nombre)+'</b><span>$'+fmt(corresponde)+'</span></div>'
       +'<div style="display:flex;justify-content:space-between;padding-left:10px"><span>Comisión:</span><span>$'+fmt(pL.comision)+'</span></div>'
       +'<div style="display:flex;justify-content:space-between;padding-left:10px"><span>Propina:</span><span>$'+fmt(pL.propina)+'</span></div>'
       +(liq.efectivo>0?'<div style="display:flex;justify-content:space-between;padding-left:10px"><span>Efectivo:</span><span>$'+fmt(liq.efectivo)+'</span></div>':'')
@@ -3954,8 +3955,8 @@ function printCaja(){
     +'<center><b>SALON MEN SAÚL FINO</b></center>'
     +'<center>Local 222 · Gal. Santiago Centro</center>'
     +'<hr style="border-top:1px dashed #000;margin:4px 0">'
-    +'<center><b>CIERRE DE CAJA · '+fecha+'</b></center>'
-    +'<center>'+hora+'</center>'
+    +'<center><b>CIERRE DE CAJA · '+escHtml(fecha)+'</b></center>'
+    +'<center>'+escHtml(hora)+'</center>'
     +'<hr style="border-top:1px dashed #000;margin:4px 0">'
     +'<b>COBROS DEL DÍA</b><br>'
     +'<div style="display:flex;justify-content:space-between"><span>Efectivo ('+cntE+' svc):</span><span>$'+fmt(totE)+'</span></div>'
@@ -3970,7 +3971,7 @@ function printCaja(){
     +(totalPendiente>0?'<div style="display:flex;justify-content:space-between"><b>POR TRANSFERIR:</b><b>$'+fmt(totalPendiente)+'</b></div>':'<div>✓ Barberos al día</div>')
     +(totalGastosPrint>0
       ?'<hr style="border-top:1px dashed #000;margin:4px 0"><b>GASTOS</b><br>'
-        +gastos.map(function(g){return '<div style="display:flex;justify-content:space-between"><span>'+g.hora+' '+g.desc.substring(0,16)+'</span><span>$'+fmt(g.monto)+'</span></div>';}).join('')
+        +gastos.map(function(g){return '<div style="display:flex;justify-content:space-between"><span>'+escHtml(g.hora)+' '+escHtml(g.desc.substring(0,16))+'</span><span>$'+fmt(g.monto)+'</span></div>';}).join('')
         +'<div style="display:flex;justify-content:space-between"><b>TOTAL GASTOS:</b><b>$'+fmt(totalGastosPrint)+'</b></div>'
       :'')
     +'<hr style="border-top:1px dashed #000;margin:4px 0">'
@@ -4135,7 +4136,7 @@ function printCajaA4(){
     totalPagoEf+=liq.efectivo; totalPagoTr+=liq.transferencia; totalPend+=pend;
     var pendStyle=pend===0?'color:#1a6b3a':pend>0?'color:#c0392b':'color:#8b5e00';
     bbRows+='<tr>'
-      +'<td style="padding:7px 10px;font-weight:600">'+b.nombre+'<br><span style="font-weight:400;font-size:11px;color:#9c9a93">'+br.length+' servicio'+(br.length!==1?'s':'')+'</span></td>'
+      +'<td style="padding:7px 10px;font-weight:600">'+escHtml(b.nombre)+'<br><span style="font-weight:400;font-size:11px;color:#9c9a93">'+br.length+' servicio'+(br.length!==1?'s':'')+'</span></td>'
       +'<td style="padding:7px 10px;text-align:right;font-family:monospace;font-weight:700">$'+fmt(cor)+'<br><span style="font-weight:400;font-size:9pt;color:#8b5e00">comisión $'+fmt(pagoBarbero(br).comision)+' + propina $'+fmt(pagoBarbero(br).propina)+'</span></td>'
       +'<td style="padding:7px 10px;text-align:right;font-family:monospace;color:#8b5e00">'+( liq.efectivo>0?'$'+fmt(liq.efectivo):'-')+'</td>'
       +'<td style="padding:7px 10px;text-align:right;font-family:monospace;color:#1a4b8b">'+( liq.transferencia>0?'$'+fmt(liq.transferencia):'-')+'</td>'
@@ -4153,7 +4154,7 @@ function printCajaA4(){
       +'<table style="width:100%;border-collapse:collapse;font-size:13px">'
       +'<thead><tr style="border-bottom:1px solid #e2e0d8"><th style="text-align:left;padding:5px 8px;font-size:10px;color:#9c9a93;text-transform:uppercase">Hora</th><th style="text-align:left;padding:5px 8px;font-size:10px;color:#9c9a93;text-transform:uppercase">Descripción</th><th style="text-align:right;padding:5px 8px;font-size:10px;color:#9c9a93;text-transform:uppercase">Monto</th></tr></thead><tbody>';
     for(var i=0;i<gastos.length;i++){
-      gastosHTML+='<tr style="border-bottom:1px solid #e2e0d8"><td style="padding:6px 8px;color:#5c5a54">'+gastos[i].hora+'</td><td style="padding:6px 8px">'+gastos[i].desc+'</td><td style="padding:6px 8px;text-align:right;font-family:monospace;color:#c0392b">−$'+fmt(gastos[i].monto)+'</td></tr>';
+      gastosHTML+='<tr style="border-bottom:1px solid #e2e0d8"><td style="padding:6px 8px;color:#5c5a54">'+escHtml(gastos[i].hora)+'</td><td style="padding:6px 8px">'+escHtml(gastos[i].desc)+'</td><td style="padding:6px 8px;text-align:right;font-family:monospace;color:#c0392b">−$'+fmt(gastos[i].monto)+'</td></tr>';
     }
     gastosHTML+='<tr><td colspan="2" style="padding:7px 8px;font-weight:700">Total gastos</td><td style="padding:7px 8px;text-align:right;font-family:monospace;font-weight:700;color:#c0392b">−$'+fmt(totalGastosPrint)+'</td></tr></tbody></table></div>';
   }
@@ -4191,9 +4192,9 @@ function printCajaA4(){
     +'<div class="page">'
     +'<div class="hdr">'
     +'<div><div class="brand">Salon Men Saúl Fino</div><div class="brand-sub">Galería Santiago Centro · Local 222 · Línea 1 Metro</div></div>'
-    +'<div class="doc-meta"><strong>Cierre de Caja</strong><br>'+fecha+'<br>'+hora+'</div>'
+    +'<div class="doc-meta"><strong>Cierre de Caja</strong><br>'+escHtml(fecha)+'<br>'+escHtml(hora)+'</div>'
     +'</div>'
-    +'<div class="doc-title">Cierre de jornada · '+fecha+'</div>'
+    +'<div class="doc-title">Cierre de jornada · '+escHtml(fecha)+'</div>'
     +'<div class="kpis">'
     +'<div class="kpi"><div class="kpi-l">Facturación total</div><div class="kpi-v" style="color:#8b5e00">$'+fmt(totalFact)+'</div></div>'
     +'<div class="kpi"><div class="kpi-l">Para el negocio</div><div class="kpi-v" style="color:#1a6b3a">$'+fmt(negocioTotal)+'</div></div>'
@@ -4220,7 +4221,7 @@ function printCajaA4(){
     +(AJUSTE_CAJA!==0?'<tr><td colspan="2" style="font-size:8pt;color:#9c9a93;padding-top:0">'+(AJUSTE_CAJA<0?'(Incluye $'+fmt(Math.abs(AJUSTE_CAJA))+' de ajuste pendiente de cierre anterior)':'(Incluye $'+fmt(AJUSTE_CAJA)+' de excedente de cierre anterior)')+'</td></tr>':'')
     +(totE>0?'<tr><td><strong style="color:#1a6b3a">💰 Cobros efectivo ('+cntE+' svc)</strong></td><td style="text-align:right;font-family:monospace;color:#1a6b3a;font-weight:700">+ $'+fmt(totE)+'</td></tr>':'')
     +'<tr><td><strong style="color:#c0392b">💸 Pago barberos en efectivo</strong></td><td style="text-align:right;font-family:monospace;color:#c0392b;font-weight:700">− $'+fmt(totalPagoEf)+'</td></tr>'
-    +(totalGastosPrint>0?gastos.map(function(g){return '<tr><td><strong style="color:#c0392b">💸 '+g.desc+'</strong></td><td style="text-align:right;font-family:monospace;color:#c0392b;font-weight:700">− $'+fmt(g.monto)+'</td></tr>';}).join(''):'')
+    +(totalGastosPrint>0?gastos.map(function(g){return '<tr><td><strong style="color:#c0392b">💸 '+escHtml(g.desc)+'</strong></td><td style="text-align:right;font-family:monospace;color:#c0392b;font-weight:700">− $'+fmt(g.monto)+'</td></tr>';}).join(''):'')
     +'<tr style="border-top:2px solid #1a1916"><td style="padding-top:8px;font-weight:700">Saldo físico en caja</td><td style="text-align:right;font-family:monospace;font-weight:700;padding-top:8px;'+(cajaFinal>=BASE_MINIMA?'background:#e8f5e9;color:#1a6b3a':'background:#fde8e8;color:#c0392b')+'">$'+fmt(cajaFinal)+'</td></tr>'
     +'<tr><td style="color:#9c9a93;font-size:9pt">Base que queda en caja (fija)</td><td style="text-align:right;font-family:monospace;color:#9c9a93;font-size:9pt">$'+fmt(BASE_MINIMA)+'</td></tr>'
     +'<tr><td style="font-weight:700;color:'+(cajaFinal-BASE_MINIMA>0?'#1a6b3a':cajaFinal-BASE_MINIMA<0?'#c0392b':'#1a1916')+'">'+(cajaFinal-BASE_MINIMA>0?'Retirar y depositar':cajaFinal-BASE_MINIMA<0?'Reponer en caja':'Caja en equilibrio')+'</td><td style="text-align:right;font-family:monospace;font-weight:700;color:'+(cajaFinal-BASE_MINIMA>0?'#1a6b3a':cajaFinal-BASE_MINIMA<0?'#c0392b':'#1a1916')+'">'+(cajaFinal-BASE_MINIMA<0?'− ':'')+'$'+fmt(Math.abs(cajaFinal-BASE_MINIMA))+'</td></tr>'
@@ -4234,7 +4235,7 @@ function printCajaA4(){
   html+=''
     +'<div class="footer">'
     +'<span>Salon Men Saúl Fino · Local 222 · Galería Santiago Centro</span>'
-    +'<span>Documento interno · Generado '+fecha+' '+hora+'</span>'
+    +'<span>Documento interno · Generado '+escHtml(fecha)+' '+escHtml(hora)+'</span>'
     +'</div>'
     +'</div></body></html>';
 
@@ -4250,9 +4251,9 @@ function printCajaA4(){
   var nombreArchivo=diaSemana+'_'+dia+mes+anio;
 
   // Agregar meta title y botón de descarga con nombre correcto al HTML
-  html=html.replace('<title>Cierre Caja</title>','<title>'+nombreArchivo+'</title>');
+  html=html.replace('<title>Cierre Caja</title>','<title>'+escHtml(nombreArchivo)+'</title>');
 
-  html=html.replace('</head>','<title>'+nombreArchivo+'</title></head>');
+  html=html.replace('</head>','<title>'+escHtml(nombreArchivo)+'</title></head>');
 
   var win=window.open('','_blank','width=900,height=700,toolbar=0,menubar=0,scrollbars=1');
   if(!win){ toast('Activa los pop-ups para abrir el A4'); return; }
@@ -4398,7 +4399,7 @@ function renderHorarios(){
     h+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden">'
       // Header barbero
       +'<div style="background:var(--text);color:#fff;padding:10px 16px;display:flex;justify-content:space-between;align-items:center">'
-      +'<span style="font-weight:700;font-size:14px">'+b.nombre+'</span>'
+      +'<span style="font-weight:700;font-size:14px">'+escHtml(b.nombre)+'</span>'
       +'<span style="font-family:var(--mono);font-size:11px;opacity:.65">'+svcCnt+' servicios hoy</span>'
       +'</div>'
       +'<div style="padding:14px 16px;display:grid;grid-template-columns:1fr 1fr 100px;gap:16px;align-items:center">'
@@ -4445,7 +4446,7 @@ function renderHorarios(){
   h+='</div>';
 
   // Historial de horarios guardados
-  h+='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:10px">Resumen del día · '+fecha+'</div>';
+  h+='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:10px">Resumen del día · '+escHtml(fecha)+'</div>';
   h+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden">'
     +'<table style="width:100%;border-collapse:collapse">'
     +'<thead><tr style="border-bottom:1px solid var(--border)">'
@@ -4467,7 +4468,7 @@ function renderHorarios(){
       if(mins>0){ var hh=Math.floor(mins/60),mm=mins%60; jornada=hh+'h'+(mm>0?' '+mm+'m':''); }
     }
     h+='<tr style="border-bottom:1px solid var(--border)">'
-      +'<td style="padding:9px 12px;font-weight:600">'+b.nombre+'</td>'
+      +'<td style="padding:9px 12px;font-weight:600">'+escHtml(b.nombre)+'</td>'
       +'<td style="padding:9px 12px;text-align:center;font-family:var(--mono);color:'+(reg.entrada?'var(--ok)':'var(--text3)')+'">'+( reg.entrada||'—')+'</td>'
       +'<td style="padding:9px 12px;text-align:center;font-family:var(--mono);color:'+(reg.salida?'var(--info)':'var(--text3)')+'">'+( reg.salida||'—')+'</td>'
       +'<td style="padding:9px 12px;text-align:center;font-family:var(--mono);font-weight:600">'+jornada+'</td>'
@@ -4510,7 +4511,7 @@ function renderIngresarHistorico(){
     +'<div style="font-size:11px;color:var(--text2);margin-bottom:4px">Barbero</div>'
     +'<select id="hBarbero" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--sans)">'
     +'<option value="">Seleccionar</option>'
-    +BB.filter(function(b){return b.active!==false;}).map(function(b){return '<option value="'+b.id+'">'+b.nombre+'</option>';}).join('')
+    +BB.filter(function(b){return b.active!==false;}).map(function(b){return '<option value="'+b.id+'">'+escHtml(b.nombre)+'</option>';}).join('')
     +'</select></div>'
 
     +'<div>'
@@ -4570,13 +4571,13 @@ function renderIngresarHistorico(){
     for(var i=0;i<histItems.length;i++){
       var r=histItems[i];
       h+='<tr style="border-bottom:1px solid var(--border)">'
-        +'<td style="padding:7px 10px;font-family:var(--mono)">'+r.hora+'</td>'
-        +'<td style="padding:7px 10px;font-weight:500">'+r.bnom+'</td>'
-        +'<td style="padding:7px 10px;color:var(--text2)">'+r.snom+'</td>'
+        +'<td style="padding:7px 10px;font-family:var(--mono)">'+escHtml(r.hora)+'</td>'
+        +'<td style="padding:7px 10px;font-weight:500">'+escHtml(r.bnom)+'</td>'
+        +'<td style="padding:7px 10px;color:var(--text2)">'+escHtml(r.snom)+'</td>'
         +'<td style="padding:7px 10px;">'+_escHtml(etiquetaPago(r.pago))+'</td>'
         +'<td style="padding:7px 10px;text-align:right;font-family:var(--mono);font-weight:600">$'+r.precio.toLocaleString('es-CL')+'</td>'
         +'<td style="padding:7px 10px;text-align:right;font-family:var(--mono);color:var(--ok);font-weight:600">$'+r.bb.toLocaleString('es-CL')+'</td>'
-        +'<td style="padding:7px 10px"><button class="bsm dx" onclick="eliminarItemHistorico('+i+')">✕</button></td>'
+        +'<td style="padding:7px 10px"><button class="bsm dx" onclick="eliminarItemHistorico('+Number(i)+')">✕</button></td>'
         +'</tr>';
     }
     h+='</tbody></table>';
@@ -4902,7 +4903,7 @@ function _kpiSelectorPeriodoHtml(){
     + '<span class="kpi-period-label">Período</span>'
     + '<select id="kpiPeriodSel" onchange="cambiarPeriodoKpi(this.value)">';
   generarPeriodos().forEach(function(p){
-    h += '<option value="'+p.val+'"'+(p.val===kpiPeriodo?' selected':'')+'>'+p.label+'</option>';
+    h += '<option value="'+p.val+'"'+(p.val===kpiPeriodo?' selected':'')+'>'+escHtml(p.label)+'</option>';
   });
   h += '</select>';
   h += '<span class="kpi-period-badge" id="kpiPeriodBadge">'+kpiPeriodo+'</span>';
@@ -5204,7 +5205,7 @@ function renderStaffMeta(){
 }
 function _dibujarStaffMeta(el, periodo, res){
     var sel='<select id="staffMetaPeriodo" class="staff-input" style="max-width:200px;margin-bottom:10px" onchange="staffMetaCambiarPeriodo(this.value)">';
-    generarPeriodos().forEach(function(p){ sel+='<option value="'+p.val+'"'+(p.val===periodo?' selected':'')+'>'+p.label+'</option>'; });
+    generarPeriodos().forEach(function(p){ sel+='<option value="'+p.val+'"'+(p.val===periodo?' selected':'')+'>'+escHtml(p.label)+'</option>'; });
     sel+='</select>';
     var m=res[0].json.meta, hist=res[1].json.historial;
     _staffMetaDatos={periodo:periodo, calculada:m.calculada, vigente:m.vigente};
@@ -5303,15 +5304,15 @@ function cargarAvatares(){
       + '<div id="av-wrap-'+b.id+'" style="width:72px;height:72px;border-radius:50%;'
       +   'background:var(--surface2);border:1.5px solid var(--border);margin:0 auto 8px;'
       +   'overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:28px">'
-      +   '<span>'+b.nombre[0]+'</span>'
+      +   '<span>'+escHtml(b.nombre[0])+'</span>'
       + '</div>'
-      + '<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px">'+b.nombre+'</div>'
+      + '<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px">'+escHtml(b.nombre)+'</div>'
       + '<label style="display:inline-block;padding:5px 12px;background:var(--surface2);border:1px solid var(--border);'
       +   'border-radius:20px;font-size:11px;color:var(--text2);cursor:pointer;transition:border-color .12s" '
       +   'onmouseover="this.style.borderColor=\'var(--text)\'" onmouseout="this.style.borderColor=\'var(--border)\'">'
       +   '📁 Subir foto'
       +   '<input type="file" accept="image/*" style="display:none" '
-      +     'onchange="subirAvatar(\''+b.id+'\',\''+b.nombre+'\',this)">'
+      +     'onchange="subirAvatar(\''+escJsAttr(b.id)+'\',\''+escJsAttr(b.nombre)+'\',this)">'
       + '</label>'
       + '</div>';
   });
@@ -5404,11 +5405,11 @@ function mostrarAlerta15(data){
   card.innerHTML =
     '<div class="alerta-card-top">'
     + '<span class="alerta-ico">'+(esAgenda?'📅':'⏰')+'</span>'
-    + '<span class="alerta-bnom">'+(data.bnom||data.barber_id||'Barbero')+'</span>'
+    + '<span class="alerta-bnom">'+escHtml(data.bnom||data.barber_id||'Barbero')+'</span>'
     + '<button class="alerta-close" onclick="this.closest(\'.alerta-card\').remove()">×</button>'
     + '</div>'
     + '<div class="alerta-main">'+escHtml(data.client_name||'Cliente')+' — '+escHtml(data.service||'')+'</div>'
-    + '<div class="alerta-meta">En ~'+min+' min'+(esAgenda?hora:turno)+'</div>';
+    + '<div class="alerta-meta">En ~'+escHtml(min)+' min'+escHtml(esAgenda?hora:turno)+'</div>';
   stack.prepend(card);
   // Auto-dismiss after 60s
   setTimeout(function(){ if(card.parentNode) card.remove(); }, 60000);
@@ -5416,9 +5417,8 @@ function mostrarAlerta15(data){
   console.log('[15MIN]', data);
 }
 
-function escHtml(s){
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
+// escHtml and escJsAttr live in texto-seguro.js (shared by every page);
+// _escHtml and escAttr below are the same escHtml under their old names.
 
 function iniciarSSE(){
   if(!API_URL || !staffGetToken()) return;
@@ -5503,11 +5503,7 @@ function _telEsPlaceholder(tel){
   return tel.replace(/\s/g,'')===TELEFONO_PLACEHOLDER;
 }
 
-function _escHtml(s){
-  return String(s).replace(/[&<>"']/g,function(c){
-    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
-  });
-}
+function _escHtml(s){ return escHtml(s); }
 
 var _clienteLookupTimers={};
 
@@ -5570,7 +5566,7 @@ function _bloquearClienteEncontrado(prefix,nombre,tel){
   }
   if(badge){
     badge.innerHTML='✓ Cliente existente: '+_escHtml(nombre)+' · '
-      +'<a href="#" onclick="_liberarClienteEncontrado(\''+prefix+'\');return false" style="color:inherit;text-decoration:underline">¿No es él/ella?</a>';
+      +'<a href="#" onclick="_liberarClienteEncontrado(\''+escJsAttr(prefix)+'\');return false" style="color:inherit;text-decoration:underline">¿No es él/ella?</a>';
     badge.style.color='var(--ok)';
   }
 }
@@ -5842,7 +5838,7 @@ function salaMostrarMemoria(clienteId, mj){
   if(mj.cliente&&mj.cliente.cumple_dia&&mj.cliente.cumple_mes){
     h+='<div style="margin-bottom:10px">'
       +'<div style="color:var(--text3);font-size:11px;margin-bottom:2px">Cumpleaños</div>'
-      +'<div>🎂 '+mj.cliente.cumple_dia+' de '+(SALA_MESES[mj.cliente.cumple_mes]||'')+'</div>'
+      +'<div>🎂 '+escHtml(mj.cliente.cumple_dia)+' de '+escHtml(SALA_MESES[mj.cliente.cumple_mes]||'')+'</div>'
       +'</div>';
   }
   h+='<div style="color:var(--text3);font-size:11px;margin-bottom:4px">Notas</div>';
@@ -5862,7 +5858,7 @@ function _renderSalaMemoriaNotas(notas){
     h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)">'
       +'<div style="font-size:12px"><div>'+_escHtml(n.texto)+'</div>'
       +'<div style="color:var(--text3);font-size:10px;margin-top:2px">'+_escHtml(n.creado_por)+' · '+_escHtml((n.creado_en||'').slice(0,10))+'</div></div>'
-      +'<button onclick="salaEliminarNota('+n.id+')" style="padding:2px 7px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;color:var(--err);flex-shrink:0">✕</button>'
+      +'<button onclick="salaEliminarNota('+Number(n.id)+')" style="padding:2px 7px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;color:var(--err);flex-shrink:0">✕</button>'
       +'</div>';
   });
   return h;
@@ -6207,7 +6203,7 @@ function renderSala(){
         // initials badge
         h+='<div style="width:34px;height:34px;border-radius:50%;background:'+clr.accent+';color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;letter-spacing:-.5px;flex-shrink:0;'+(isAbsent?'filter:grayscale(1)':'')+'">'+clr.initials+'</div>';
         h+='<div>';
-        h+='<div style="font-weight:800;font-size:15px;color:'+clr.text+';letter-spacing:-.02em">'+b.nombre+'</div>';
+        h+='<div style="font-weight:800;font-size:15px;color:'+clr.text+';letter-spacing:-.02em">'+escHtml(b.nombre)+'</div>';
         if(isAbsent){
           h+='<div style="font-size:10px;font-weight:700;color:#991b1b;letter-spacing:.06em">AUSENTE</div>';
         } else {
@@ -6220,9 +6216,9 @@ function renderSala(){
         // toggle button
         if(_panelRole==='admin'){
           if(!isAbsent){
-            h+='<button onclick="toggleBarberAvailability(\''+b.barber_id+'\',false)" title="Marcar como ausente temporalmente" style="padding:4px 10px;font-size:11px;font-weight:600;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;color:var(--err);font-family:var(--sans);white-space:nowrap">⏸ Salió</button>';
+            h+='<button onclick="toggleBarberAvailability(\''+escJsAttr(b.barber_id)+'\',false)" title="Marcar como ausente temporalmente" style="padding:4px 10px;font-size:11px;font-weight:600;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;color:var(--err);font-family:var(--sans);white-space:nowrap">⏸ Salió</button>';
           } else {
-            h+='<button onclick="toggleBarberAvailability(\''+b.barber_id+'\',true)" title="Marcar como disponible" style="padding:4px 10px;font-size:11px;font-weight:700;background:#16a34a;border:none;border-radius:var(--r);cursor:pointer;color:#fff;font-family:var(--sans);white-space:nowrap">▶ Regresó</button>';
+            h+='<button onclick="toggleBarberAvailability(\''+escJsAttr(b.barber_id)+'\',true)" title="Marcar como disponible" style="padding:4px 10px;font-size:11px;font-weight:700;background:#16a34a;border:none;border-radius:var(--r);cursor:pointer;color:#fff;font-family:var(--sans);white-space:nowrap">▶ Regresó</button>';
           }
         }
         h+='</div>';
@@ -6237,11 +6233,11 @@ function renderSala(){
           _salaEditorData[sv.queue_id]={client_name:sv.client_name,phone:sv.phone||'',service:sv.service,precio:SALA_PRECIOS[sv.service]||0,cliente_id:sv.cliente_id||null,productosAdjuntos:sv.productos_adjuntos||[]};
           h+='<div style="margin-bottom:8px">';
           h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">';
-          h+='<div style="font-weight:500">'+sv.client_name+'</div>';
+          h+='<div style="font-weight:500">'+escHtml(sv.client_name)+'</div>';
           h+='<div style="display:flex;gap:4px;align-items:center">';
-          h+='<button onclick="salaAbrirEditor('+sv.queue_id+')" style="padding:2px 8px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;font-family:var(--sans)">✏ Editar</button>';
+          h+='<button onclick="salaAbrirEditor('+Number(sv.queue_id)+')" style="padding:2px 8px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;font-family:var(--sans)">✏ Editar</button>';
           h+=salaWaHref(sv.phone, sv.client_name, b.nombre, true);
-          h+='<button onclick="salaEliminarEntrada('+sv.queue_id+')" style="padding:2px 7px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;color:var(--err)">✕</button>';
+          h+='<button onclick="salaEliminarEntrada('+Number(sv.queue_id)+')" style="padding:2px 7px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;color:var(--err)">✕</button>';
           h+='</div>';
           h+='</div>';
           // Texto combinado servicio + producto(s) adjunto(s) — reemplaza el
@@ -6250,19 +6246,19 @@ function renderSala(){
           var _svcLabel=sv.service+((sv.productos_adjuntos&&sv.productos_adjuntos.length)
             ?' + '+sv.productos_adjuntos.map(function(p){return (p.cantidad>1?p.cantidad+'x ':'')+p.nombre;}).join(' + ')
             :'');
-          h+='<div style="font-size:12px;color:var(--text2)">'+_svcLabel+' · desde '+desde+'</div>';
+          h+='<div style="font-size:12px;color:var(--text2)">'+escHtml(_svcLabel)+' · desde '+desde+'</div>';
           h+='</div>';
           h+='<div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap">';
           h+='<input id="prc-'+sv.queue_id+'" type="number" min="0" step="1000" ';
           h+='value="'+(_salaEditorData[sv.queue_id]&&_salaEditorData[sv.queue_id].precio?_salaEditorData[sv.queue_id].precio:(SALA_PRECIOS[sv.service]||''))+'" ';
           h+='style="width:84px;padding:6px 8px;border:1.5px solid var(--border2);border-radius:var(--r);font-size:12px;font-family:var(--mono);background:var(--surface)" title="Precio"/>';
           var _sp=_pagoSelections[sv.queue_id]||'efectivo';
-          h+='<select id="pago-'+sv.queue_id+'" onchange="salaGuardarPago('+sv.queue_id+',this.value)" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface);font-family:var(--sans)">';
+          h+='<select id="pago-'+Number(sv.queue_id)+'" onchange="salaGuardarPago('+Number(sv.queue_id)+',this.value)" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface);font-family:var(--sans)">';
           h+=opcionesPagoHtml(_sp,false);
           h+='</select>';
           h+='<input id="prop-'+sv.queue_id+'" type="number" placeholder="Propina" min="0" step="500" ';
           h+='style="width:78px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;font-family:var(--mono);background:var(--surface)"/>';
-          h+='<button onclick="salaCerrarServicio('+sv.queue_id+',\''+bid+'\',document.getElementById(\'pago-'+sv.queue_id+'\').value,parseInt(document.getElementById(\'prop-'+sv.queue_id+'\').value)||0,parseInt(document.getElementById(\'prc-'+sv.queue_id+'\').value)||0)" ';
+          h+='<button onclick="salaCerrarServicio('+Number(sv.queue_id)+',\''+escJsAttr(bid)+'\',document.getElementById(\'pago-'+Number(sv.queue_id)+'\').value,parseInt(document.getElementById(\'prop-'+Number(sv.queue_id)+'\').value)||0,parseInt(document.getElementById(\'prc-'+Number(sv.queue_id)+'\').value)||0)" ';
           h+='style="padding:6px 12px;background:var(--ok);color:#fff;border:none;border-radius:var(--r);font-size:12px;font-weight:600;cursor:pointer">💳 Cerrar</button>';
           h+='</div>';
           h+='<div style="height:1px;background:var(--border);margin-bottom:10px"></div>';
@@ -6275,20 +6271,20 @@ function renderSala(){
           b.enEspera.forEach(function(e,i){
             _salaEditorData[e.queue_id]={client_name:e.client_name,phone:e.phone||'',service:e.service,precio:SALA_PRECIOS[e.service]||0,cliente_id:e.cliente_id||null,productosAdjuntos:e.productos_adjuntos||[]};
             h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border)">';
-            h+='<div style="font-size:13px"><span style="color:var(--text3);font-family:var(--mono);font-size:11px">'+(i+1)+'. </span>'+e.client_name+'</div>';
+            h+='<div style="font-size:13px"><span style="color:var(--text3);font-family:var(--mono);font-size:11px">'+(i+1)+'. </span>'+escHtml(e.client_name)+'</div>';
             h+='<div style="display:flex;align-items:center;gap:4px">';
             var _esperaLabel=e.service+((e.productos_adjuntos&&e.productos_adjuntos.length)
               ?' + '+e.productos_adjuntos.map(function(p){return (p.cantidad>1?p.cantidad+'x ':'')+p.nombre;}).join(' + ')
               :'');
-            h+='<div style="font-size:11px;color:var(--text2)">'+_esperaLabel+'</div>';
-            h+='<button onclick="salaAbrirEditor('+e.queue_id+')" style="padding:2px 7px;font-size:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer">✏</button>';
+            h+='<div style="font-size:11px;color:var(--text2)">'+escHtml(_esperaLabel)+'</div>';
+            h+='<button onclick="salaAbrirEditor('+Number(e.queue_id)+')" style="padding:2px 7px;font-size:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer">✏</button>';
             h+=salaWaHref(e.phone, e.client_name, b.nombre, false);
-            h+='<button onclick="salaEliminarEntrada('+e.queue_id+')" style="padding:2px 6px;font-size:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;color:var(--err)">✕</button>';
+            h+='<button onclick="salaEliminarEntrada('+Number(e.queue_id)+')" style="padding:2px 6px;font-size:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;color:var(--err)">✕</button>';
             h+='</div>';
             h+='</div>';
           });
           if(!enSvc&&b.enEspera[0]){
-            h+='<button onclick="salaIniciarSiguiente('+b.enEspera[0].queue_id+')" ';
+            h+='<button onclick="salaIniciarSiguiente('+Number(b.enEspera[0].queue_id)+')" ';
             h+='style="margin-top:10px;width:100%;padding:7px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-size:12px;font-weight:600;cursor:pointer">▶ Iniciar siguiente</button>';
           }
         } else if(!enSvc){
@@ -6310,14 +6306,14 @@ function renderSala(){
           var espera=Math.round((Date.now()-new Date(e.checkin_at).getTime())/60000);
           h+='<div style="display:flex;align-items:center;justify-content:space-between;padding:'+(i>0?'10':'6')+'px 0 6px;'+(i>0?'border-top:1px solid var(--border)':'')+'">';
           h+='<div>';
-          h+='<div style="font-weight:600;font-size:13px">'+e.client_name+'</div>';
-          h+='<div style="font-size:11px;color:var(--text2)">'+e.service+' · hace '+espera+' min</div>';
+          h+='<div style="font-weight:600;font-size:13px">'+escHtml(e.client_name)+'</div>';
+          h+='<div style="font-size:11px;color:var(--text2)">'+escHtml(e.service)+' · hace '+espera+' min</div>';
           h+='</div>';
           h+='<div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end">';
           BB.filter(function(b){return b.active!==false;}).forEach(function(b){
             var clr=salaBarberColor(b.id);
-            h+='<button onclick="salaAsignarDePool('+e.queue_id+',\''+b.id+'\')" ';
-            h+='style="padding:4px 9px;font-size:11px;font-weight:700;background:'+clr.accent+';color:#fff;border:none;border-radius:var(--r);cursor:pointer;white-space:nowrap">▶ '+b.nombre.split(' ')[0]+'</button>';
+            h+='<button onclick="salaAsignarDePool('+Number(e.queue_id)+',\''+escJsAttr(b.id)+'\')" ';
+            h+='style="padding:4px 9px;font-size:11px;font-weight:700;background:'+clr.accent+';color:#fff;border:none;border-radius:var(--r);cursor:pointer;white-space:nowrap">▶ '+escHtml(b.nombre.split(' ')[0])+'</button>';
           });
           h+='</div></div>';
         });
@@ -6326,7 +6322,7 @@ function renderSala(){
       if(!h) h='<div class="empty" style="grid-column:1/-1"><div class="empty-ico">✓</div><div>Cola vacía</div></div>';
       document.getElementById('salaGrid').innerHTML=h;
     }).catch(function(e){
-      document.getElementById('salaGrid').innerHTML='<div class="empty" style="grid-column:1/-1"><div class="empty-ico">⚠</div><div>Error: '+e.message+'</div></div>';
+      document.getElementById('salaGrid').innerHTML='<div class="empty" style="grid-column:1/-1"><div class="empty-ico">⚠</div><div>Error: '+escHtml(e.message)+'</div></div>';
     });
 }
 
@@ -6418,8 +6414,8 @@ function renderSillas(){
         '<div style="font-size:36px;line-height:1">✂</div>'+
         '<div>'+
         '<div class="silla-next-label">Próximo turno en rotación</div>'+
-        '<div class="silla-next-name">'+next.nombre+'</div>'+
-        '<div class="silla-next-reason">'+motivo+(resto?' · También libre: '+resto:'')+'</div>'+
+        '<div class="silla-next-name">'+escHtml(next.nombre)+'</div>'+
+        '<div class="silla-next-reason">'+escHtml(motivo)+(resto?' · También libre: '+escHtml(resto):'')+'</div>'+
         '</div></div>';
     } else {
       var todosOcupados=BB.every(function(b){ return queue.barberos[b.id]&&queue.barberos[b.id].enServicio; });
@@ -6454,13 +6450,13 @@ function renderSillas(){
         var restanteTxt=(remainMin==null)?'—':(remainMin<=0?'Terminando':'~'+remainMin+'min');
         h+='<div class="silla-card ocupada">';
         h+='<div class="silla-head ocupada">';
-        h+='<div><div class="silla-nombre">'+b.nombre+'</div>';
+        h+='<div><div class="silla-nombre">'+escHtml(b.nombre)+'</div>';
         h+='<div class="silla-status-lbl" style="opacity:.65">En corte</div></div>';
         h+='<div style="font-size:11px;opacity:.6">'+nEspera+' en espera</div>';
         h+='</div>';
         h+='<div class="silla-body">';
-        h+='<div class="silla-client">'+sv.client_name+'</div>';
-        h+='<div class="silla-svc">'+sv.service+'</div>';
+        h+='<div class="silla-client">'+escHtml(sv.client_name)+'</div>';
+        h+='<div class="silla-svc">'+escHtml(sv.service)+'</div>';
         h+='<div class="silla-stats">';
         h+='<div class="silla-stat">';
         h+='<div class="silla-stat-label">Transcurrido</div>';
@@ -6472,7 +6468,7 @@ function renderSillas(){
         h+='</div>';
         h+='</div>';
         h+='<div class="silla-desde">En silla desde las '+desde+'</div>';
-        if(sv.service_start) h+='<input type="hidden" id="sstart-'+b.id+'" value="'+sv.service_start+'">';
+        if(sv.service_start) h+='<input type="hidden" id="sstart-'+escHtml(b.id)+'" value="'+escHtml(sv.service_start)+'">';
         h+='</div></div>';
       } else if(esPresente && !bd.ausente){
         // Libre y presente
@@ -6480,14 +6476,14 @@ function renderSillas(){
         if(nEspera>0 && bd.queue_wait_min!=null) esperaLbl+=' · ~'+bd.queue_wait_min+'min';
         h+='<div class="silla-card libre">';
         h+='<div class="silla-head libre">';
-        h+='<div><div class="silla-nombre" style="color:var(--ok)">'+b.nombre+'</div>';
+        h+='<div><div class="silla-nombre" style="color:var(--ok)">'+escHtml(b.nombre)+'</div>';
         h+='<div class="silla-status-lbl" style="color:var(--ok)">Libre</div></div>';
         h+='<div style="font-size:11px;color:var(--text3)">'+esperaLbl+'</div>';
         h+='</div>';
         h+='<div class="silla-body">';
         h+='<div style="font-size:28px;margin:6px 0;color:var(--ok)">✓</div>';
         h+='<div style="font-size:13px;color:var(--text2)">Sin cliente activo</div>';
-        if(lastSvc[b.id]) h+='<div style="font-size:11px;color:var(--text3);margin-top:8px">Último servicio: '+lastSvc[b.id].slice(0,5)+'</div>';
+        if(lastSvc[b.id]) h+='<div style="font-size:11px;color:var(--text3);margin-top:8px">Último servicio: '+escHtml(lastSvc[b.id].slice(0,5))+'</div>';
         h+='</div></div>';
       } else {
         // Ausente: marcado manualmente, ya salió, o no ha llegado
@@ -6499,13 +6495,13 @@ function renderSillas(){
         var labelAusente=bd.ausente?'Ausente':( seWas ? 'Fuera de turno' : 'Sin registrar llegada' );
         h+='<div class="silla-card ausente">';
         h+='<div class="silla-head ausente">';
-        h+='<div><div class="silla-nombre">'+b.nombre+'</div>';
-        h+='<div class="silla-status-lbl">'+labelAusente+'</div></div>';
+        h+='<div><div class="silla-nombre">'+escHtml(b.nombre)+'</div>';
+        h+='<div class="silla-status-lbl">'+escHtml(labelAusente)+'</div></div>';
         h+='</div>';
         h+='<div class="silla-body">';
         h+='<div style="font-size:28px;margin:6px 0;color:#9a6e0a">'+(bd.ausente?'⏸':'—')+'</div>';
-        h+='<div style="font-size:12px;color:var(--text2);font-weight:600">'+motivoAusente+'</div>';
-        if(lastSvc[b.id]) h+='<div style="font-size:11px;color:var(--text3);margin-top:8px">Último servicio hoy: '+lastSvc[b.id].slice(0,5)+'</div>';
+        h+='<div style="font-size:12px;color:var(--text2);font-weight:600">'+escHtml(motivoAusente)+'</div>';
+        if(lastSvc[b.id]) h+='<div style="font-size:11px;color:var(--text3);margin-top:8px">Último servicio hoy: '+escHtml(lastSvc[b.id].slice(0,5))+'</div>';
         h+='</div></div>';
       }
     });
@@ -6516,7 +6512,7 @@ function renderSillas(){
     _sillasTimerInterval=setInterval(sillasTickTimers,1000);
     sillasTickTimers();
   }).catch(function(e){
-    document.getElementById('sillasGrid').innerHTML='<div class="empty" style="grid-column:1/-1"><div class="empty-ico">⚠</div><div>Error: '+e.message+'</div></div>';
+    document.getElementById('sillasGrid').innerHTML='<div class="empty" style="grid-column:1/-1"><div class="empty-ico">⚠</div><div>Error: '+escHtml(e.message)+'</div></div>';
   });
 }
 
@@ -6553,7 +6549,7 @@ function buscarClienteCRM(){
     .then(function(j){
       var clientes=j.clientes||[];
       if(!clientes.length){
-        el.innerHTML='<div style="font-size:12px;color:var(--text3);padding:8px 0">Sin resultados para "'+q+'"</div>';
+        el.innerHTML='<div style="font-size:12px;color:var(--text3);padding:8px 0">Sin resultados para "'+escHtml(q)+'"</div>';
         return;
       }
       var h='<table class="rt" style="width:100%">';
@@ -6561,18 +6557,18 @@ function buscarClienteCRM(){
       clientes.slice(0,15).forEach(function(c){
         var ultima=c.ultima_visita?c.ultima_visita.slice(0,10):'—';
         h+='<tr>';
-        h+='<td style="font-weight:500">'+c.nombre+'</td>';
-        h+='<td style="font-family:var(--mono);font-size:12px">'+(c.telefono||'—')+'</td>';
+        h+='<td style="font-weight:500">'+escHtml(c.nombre)+'</td>';
+        h+='<td style="font-family:var(--mono);font-size:12px">'+escHtml(c.telefono||'—')+'</td>';
         h+='<td style="text-align:center">'+(c.visitas||0)+'</td>';
         h+='<td style="font-size:12px;color:var(--text2)">'+ultima+'</td>';
-        h+='<td><button onclick="salaPrecargarCliente(\''+c.nombre.replace(/'/g,"\\'")+'\',' + '\''+( c.telefono||'').replace(/'/g,"\\'")+'\')"\n';
+        h+='<td><button onclick="salaPrecargarCliente(\''+escJsAttr(c.nombre)+'\',' + '\''+escJsAttr(c.telefono||'')+'\')"\n';
         h+='style="padding:4px 10px;font-size:11px;font-weight:600;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer">✚ Check-in</button></td>';
         h+='</tr>';
       });
       h+='</tbody></table>';
       el.innerHTML=h;
     }).catch(function(e){
-      el.innerHTML='<div style="font-size:12px;color:var(--err)">Error: '+e.message+'</div>';
+      el.innerHTML='<div style="font-size:12px;color:var(--err)">Error: '+escHtml(e.message)+'</div>';
     });
 }
 
@@ -6702,7 +6698,7 @@ function salaRenderProductosAdjuntos(){
       +'<span>'+(p.cantidad>1?p.cantidad+'x ':'')+escAttr(p.nombre)+'</span>'
       +'<span style="display:flex;align-items:center;gap:8px">'
       +'<b>$'+fmt(p.precio*p.cantidad)+'</b>'
-      +'<button onclick="salaQuitarProductoAdjunto(\''+p.producto_id+'\')" style="background:none;border:none;color:var(--err);cursor:pointer;font-size:13px;padding:0 2px">✕</button>'
+      +'<button onclick="salaQuitarProductoAdjunto(\''+escJsAttr(p.producto_id)+'\')" style="background:none;border:none;color:var(--err);cursor:pointer;font-size:13px;padding:0 2px">✕</button>'
       +'</span></div>';
   }
   el.innerHTML=h;
@@ -7121,7 +7117,7 @@ function renderStaffPanel(){
   renderSeguro('staffMeta', renderStaffMeta, renderStaffMeta);
 }
 
-function escAttr(s){return(s||'').toString().replace(/&/g,'&amp;').replace(/"/g,'&quot;');}
+function escAttr(s){ return escHtml(s); }
 
 function renderStaffBB(){
   var h='';
@@ -7141,9 +7137,9 @@ function renderStaffBB(){
         +'<span class="staff-status-label '+(isActive?'active':'inactive')+'">'+(isActive?'Activo':'Inactivo')+'</span></span>';
     if(token){
       if(isActive){
-        h+='<button class="staff-action-btn deactivate" onclick="staffDeactivate(\''+escAttr(b.id)+'\',\''+escAttr(b.nombre)+'\')">Desactivar</button>';
+        h+='<button class="staff-action-btn deactivate" onclick="staffDeactivate(\''+escJsAttr(b.id)+'\',\''+escJsAttr(b.nombre)+'\')">Desactivar</button>';
       } else {
-        h+='<button class="staff-action-btn reactivate" onclick="staffReactivate(\''+escAttr(b.id)+'\',\''+escAttr(b.nombre)+'\')">Reactivar</button>';
+        h+='<button class="staff-action-btn reactivate" onclick="staffReactivate(\''+escJsAttr(b.id)+'\',\''+escJsAttr(b.nombre)+'\')">Reactivar</button>';
       }
     }
     h+='</div></div>';
@@ -7295,7 +7291,7 @@ function renderStaffSS(){
   if(addBtn){addBtn.disabled=!puede||_svcForm.abierto;addBtn.title=motivo;}
   var h='';
   var aviso=catalogoAviso();
-  if(aviso) h+='<div class="catalogo-aviso '+aviso.tipo+'" id="staffSSAviso">'+_escHtml(aviso.texto)+'</div>';
+  if(aviso) h+='<div class="catalogo-aviso '+escHtml(aviso.tipo)+'" id="staffSSAviso">'+_escHtml(aviso.texto)+'</div>';
   else if(!puede) h+='<div class="catalogo-aviso info" id="staffSSAviso">'+_escHtml(motivo)+'</div>';
 
   if(_svcForm.abierto&&puede){
@@ -7316,18 +7312,18 @@ function renderStaffSS(){
     var s=lista[i], id=escAttr(s.servicio_id);
     var arriba=puede&&i>0, abajo=puede&&i<lista.length-1;
     var precioEditable=s.activo&&s.precio_activo!=null;
-    h+='<div class="staff-row'+(s.activo?'':' svc-inactiva')+'" data-servicio-id="'+id+'">'
+    h+='<div class="staff-row'+(s.activo?'':' svc-inactiva')+'" data-servicio-id="'+escHtml(id)+'">'
       +'<div style="display:flex;flex-direction:column;gap:2px;margin-right:4px">'
-      +'<button '+(arriba?'style="'+btnBase+'"':'disabled style="'+btnDis+'"')+' onclick="staffMoverSvc(\''+id+'\',-1)" title="Subir">▲</button>'
-      +'<button '+(abajo?'style="'+btnBase+'"':'disabled style="'+btnDis+'"')+' onclick="staffMoverSvc(\''+id+'\',1)" title="Bajar">▼</button>'
+      +'<button '+(arriba?'style="'+btnBase+'"':'disabled style="'+btnDis+'"')+' onclick="staffMoverSvc(\''+escJsAttr(id)+'\',-1)" title="Subir">▲</button>'
+      +'<button '+(abajo?'style="'+btnBase+'"':'disabled style="'+btnDis+'"')+' onclick="staffMoverSvc(\''+escJsAttr(id)+'\',1)" title="Bajar">▼</button>'
       +'</div>'
-      +'<input class="staff-input svc-nombre" type="text" value="'+escAttr(s.nombre)+'" placeholder="Nombre"'+(puede?'':' disabled')+' onchange="staffRenombrarSvc(\''+id+'\',this.value)" style="flex:2">'
+      +'<input class="staff-input svc-nombre" type="text" value="'+escAttr(s.nombre)+'" placeholder="Nombre"'+(puede?'':' disabled')+' onchange="staffRenombrarSvc(\''+escJsAttr(id)+'\',this.value)" style="flex:2">'
       +(precioEditable
-        ?'<input class="staff-input svc-precio" type="text" inputmode="numeric" value="'+s.precio_activo+'" placeholder="Precio"'+(puede?'':' disabled')+' onchange="staffSaveSvcPrecio(\''+id+'\',this.value)" style="max-width:100px">'
+        ?'<input class="staff-input svc-precio" type="text" inputmode="numeric" value="'+s.precio_activo+'" placeholder="Precio"'+(puede?'':' disabled')+' onchange="staffSaveSvcPrecio(\''+escJsAttr(id)+'\',this.value)" style="max-width:100px">'
         :'<span class="svc-precio-fijo">'+(s.precio_activo!=null?_fmtCLP(s.precio_activo):'sin precio')+'</span>')
       +'<span class="svc-duracion">'+(s.duracion_min?s.duracion_min+' min':'')+'</span>'
       +(s.activo?'':'<span class="svc-badge">Inactivo</span>')
-      +'<button class="staff-action-btn '+(s.activo?'deactivate':'reactivate')+' svc-toggle"'+(puede?'':' disabled')+' onclick="staffCambiarEstadoSvc(\''+id+'\')">'+(s.activo?'Desactivar':'Reactivar')+'</button>'
+      +'<button class="staff-action-btn '+(s.activo?'deactivate':'reactivate')+' svc-toggle"'+(puede?'':' disabled')+' onclick="staffCambiarEstadoSvc(\''+escJsAttr(id)+'\')">'+(s.activo?'Desactivar':'Reactivar')+'</button>'
       +'</div>';
   }
   el.innerHTML=h;
@@ -7455,13 +7451,13 @@ function renderStaffProds(){
     var p=PRODUCTOS[i];
     var isActive=p.activo!==false;
     h+='<div class="staff-row'+(isActive?'':' inactive')+'">'
-      +'<input class="staff-input" type="text" value="'+escAttr(p.nombre)+'" placeholder="Nombre" onblur="staffSaveProdNombre(\''+p.id+'\',this.value)" style="flex:2">'
-      +'<input class="staff-input" type="number" min="0" value="'+p.precio+'" placeholder="Precio" onblur="staffSaveProdPrecio(\''+p.id+'\',this.value)" style="max-width:100px">';
+      +'<input class="staff-input" type="text" value="'+escAttr(p.nombre)+'" placeholder="Nombre" onblur="staffSaveProdNombre(\''+escJsAttr(p.id)+'\',this.value)" style="flex:2">'
+      +'<input class="staff-input" type="number" min="0" value="'+p.precio+'" placeholder="Precio" onblur="staffSaveProdPrecio(\''+escJsAttr(p.id)+'\',this.value)" style="max-width:100px">';
     if(jwt){
       if(isActive){
-        h+='<button class="staff-action-btn deactivate" onclick="staffDeactivateProd(\''+p.id+'\',\''+escAttr(p.nombre)+'\')">Desactivar</button>';
+        h+='<button class="staff-action-btn deactivate" onclick="staffDeactivateProd(\''+escJsAttr(p.id)+'\',\''+escJsAttr(p.nombre)+'\')">Desactivar</button>';
       } else {
-        h+='<button class="staff-action-btn reactivate" onclick="staffReactivateProd(\''+p.id+'\',\''+escAttr(p.nombre)+'\')">Reactivar</button>';
+        h+='<button class="staff-action-btn reactivate" onclick="staffReactivateProd(\''+escJsAttr(p.id)+'\',\''+escJsAttr(p.nombre)+'\')">Reactivar</button>';
       }
     }
     h+='</div>';
@@ -7616,7 +7612,7 @@ function renderStaffBebidas(){
   for(var i=0;i<BEBIDAS_DISPONIBLES.length;i++){
     h+='<div class="staff-row">'
       +'<div style="flex:1;padding:8px 10px;font-size:13px">'+_escHtml(BEBIDAS_DISPONIBLES[i])+'</div>'
-      +'<button class="staff-del-btn" onclick="staffDelBebida('+i+')" title="Eliminar">&times;</button>'
+      +'<button class="staff-del-btn" onclick="staffDelBebida('+Number(i)+')" title="Eliminar">&times;</button>'
       +'</div>';
   }
   el.innerHTML=h||'<div style="font-size:12px;color:var(--text3);padding:8px 0">Sin amenities configurados.</div>';
@@ -7797,7 +7793,7 @@ function buildClientesBarberoFilters(){
   // since it's a separate variable, not DOM state.
   var h='<button class="fb'+(_clientesBarberoSel===''?' on':'')+'" onclick="clientesSetBarbero(\'\',this)">Todos</button>';
   BB.forEach(function(b){
-    h+='<button class="fb'+(_clientesBarberoSel===b.id?' on':'')+'" onclick="clientesSetBarbero(\''+escAttr(b.id)+'\',this)">'+escAttr(b.nombre)+(b.active===false?' <span style="opacity:.5">(inactivo)</span>':'')+'</button>';
+    h+='<button class="fb'+(_clientesBarberoSel===b.id?' on':'')+'" onclick="clientesSetBarbero(\''+escJsAttr(b.id)+'\',this)">'+escAttr(b.nombre)+(b.active===false?' <span style="opacity:.5">(inactivo)</span>':'')+'</button>';
   });
   el.innerHTML=h;
 }
@@ -7918,7 +7914,7 @@ function renderClientesTable(list){
     return;
   }
   var sortTh=function(col,label,alignRight){
-    return '<th style="cursor:pointer;user-select:none'+(alignRight?';text-align:right':'')+'" onclick="clientesSortClick(\''+col+'\')" title="Ordenar por '+label+'">'+label+clientesSortIndicator(col)+'</th>';
+    return '<th style="cursor:pointer;user-select:none'+(alignRight?';text-align:right':'')+'" onclick="clientesSortClick(\''+escJsAttr(col)+'\')" title="Ordenar por '+escHtml(label)+'">'+escHtml(label)+clientesSortIndicator(col)+'</th>';
   };
   var h='<table class="rt"><thead><tr>'
     +sortTh('nombre','Nombre')+sortTh('telefono','Teléfono')+sortTh('confianza_identidad','Confianza')+sortTh('ultimo_barbero','Último barbero')
@@ -8079,11 +8075,11 @@ function mostrarAlertaProximidad(a, hi){
     +'<div style="flex:1">'
     +'<div class="alerta-bnom">🔔 Hora de llegada</div>'
     +'<div class="alerta-main">'+escHtml(a.client_name||'Cliente')+' — '+escHtml(a.svc_nom||'')+'</div>'
-    +'<div class="alerta-meta">'+hi+(a.bnom?' · '+escHtml(a.bnom):'')+'</div>'
+    +'<div class="alerta-meta">'+escHtml(hi)+(a.bnom?' · '+escHtml(a.bnom):'')+'</div>'
     +'</div>'
-    +'<button class="alerta-close" onclick="proximidadDismiss(\''+a.id+'\')">✕</button>'
+    +'<button class="alerta-close" onclick="proximidadDismiss(\''+escJsAttr(a.id)+'\')">✕</button>'
     +'</div>'
-    +'<button onclick="showTabById(\'pAgenda\');proximidadDismiss(\''+a.id+'\')" '
+    +'<button onclick="showTabById(\'pAgenda\');proximidadDismiss(\''+escJsAttr(a.id)+'\')" '
     +'style="margin-top:8px;width:100%;padding:7px;background:#f5a623;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.04em;font-family:var(--sans)">'
     +'📅 VER EN AGENDA</button>';
   stack.appendChild(div);
@@ -8219,7 +8215,7 @@ function waRenderConversaciones(list){
     var unread=waIsUnread(c);
     var preview=(c.ultimo_mensaje||'').replace(/\n/g,' ');
     if(preview.length>60) preview=preview.slice(0,60)+'…';
-    h+='<div onclick="waOpenConversacion(\''+String(c.identificador).replace(/'/g,"\\'")+'\')" '
+    h+='<div onclick="waOpenConversacion(\''+escJsAttr(c.identificador)+'\')" '
       +'style="padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;background:'+(isOpen?'var(--surface)':'transparent')+'">'
       +'<div style="display:flex;justify-content:space-between;align-items:baseline;gap:6px">'
       +'<div style="display:flex;align-items:center;gap:6px;overflow:hidden">'
@@ -8342,7 +8338,7 @@ function abrirPlantillaModal(){
   var sel=document.getElementById('waPlantillaSelect');
   var h='<option value="">Selecciona una plantilla…</option>';
   Object.keys(WA_PLANTILLAS).forEach(function(key){
-    h+='<option value="'+key+'">'+WA_PLANTILLAS[key].label+'</option>';
+    h+='<option value="'+escHtml(key)+'">'+escHtml(WA_PLANTILLAS[key].label)+'</option>';
   });
   sel.innerHTML=h;
   document.getElementById('waPlantillaCampos').innerHTML='';
@@ -8429,7 +8425,7 @@ function waToggleEmojiPicker(e){
   var opening=(picker.style.display==='none'||!picker.style.display);
   if(opening && !picker.dataset.built){
     picker.innerHTML=WA_EMOJIS.map(function(em){
-      return '<button type="button" onclick="waInsertEmoji(\''+em+'\')" style="border:none;background:none;font-size:18px;cursor:pointer;padding:4px;border-radius:4px;line-height:1" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'none\'">'+em+'</button>';
+      return '<button type="button" onclick="waInsertEmoji(\''+escJsAttr(em)+'\')" style="border:none;background:none;font-size:18px;cursor:pointer;padding:4px;border-radius:4px;line-height:1" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'none\'">'+em+'</button>';
     }).join('');
     picker.dataset.built='1';
   }

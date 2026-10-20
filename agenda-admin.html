@@ -475,6 +475,7 @@ button{cursor:pointer}
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
+<script src="texto-seguro.js"></script>
 <script>
 'use strict';
 
@@ -509,7 +510,7 @@ function renderPills(){
   var pb=document.getElementById('pillsBar'); if(!pb) return;
   pb.innerHTML='<span class="pill on" data-bid="todos" onclick="setFilter(\'todos\')">Todos</span>'
     +BARBERS.map(function(b){
-      return '<span class="pill" data-bid="'+b.id+'" onclick="setFilter(\''+b.id+'\')">'+b.name+'</span>';
+      return '<span class="pill" data-bid="'+escHtml(b.id)+'" onclick="setFilter(\''+escJsAttr(b.id)+'\')">'+escHtml(b.name)+'</span>';
     }).join('');
   pb.querySelectorAll('.pill').forEach(function(p){p.classList.toggle('on',p.dataset.bid===filter);});
 }
@@ -733,8 +734,8 @@ function renderDay() {
 
     cHtml+=`<div class="b-col" style="${hidden?'display:none':''}">`;
     cHtml+=`<div class="b-col-hdr">
-      <div class="b-av ${b.id}">${b.name[0]}</div>
-      <div><div class="b-nm">${b.name}</div><div class="b-cnt">${active.length} cita${active.length!==1?'s':''}</div></div>
+      <div class="b-av ${escHtml(b.id)}">${escHtml(b.name[0])}</div>
+      <div><div class="b-nm">${escHtml(b.name)}</div><div class="b-cnt">${active.length} cita${active.length!==1?'s':''}</div></div>
     </div>`;
     cHtml+=`<div class="b-col-body" style="height:${totalPx}px;position:relative;overflow:visible">`;
 
@@ -744,7 +745,7 @@ function renderDay() {
       const isOcc=occ.has(sm);
       const hrb=(s+1)%2===0?'':' hr-bound';
       const slH=fromMin(sm), slHF=fromMin(sm+SLOT_M);
-      cHtml+=`<div class="srow${hrb}${isOcc?' occupied':''}" style="top:${topPx}px"${!isOcc?` onclick="openBlk('${b.id}','${ds()}','${slH}','${slHF}')"`:''} title="${slH}"></div>`;
+      cHtml+=`<div class="srow${hrb}${isOcc?' occupied':''}" style="top:${topPx}px"${!isOcc?` onclick="openBlk('${escJsAttr(b.id)}','${escJsAttr(ds())}','${escJsAttr(slH)}','${escJsAttr(slHF)}')"`:''} title="${escHtml(slH)}"></div>`;
     }
 
     // Block overlays (z-index:2)
@@ -761,16 +762,16 @@ function renderDay() {
         const hfLbl = (bl.hora_fin||'').slice(0,5);
         const showSub = hP >= 44;
         const showTime = hP >= 58;
-        cHtml+=`<div class="blk-overlay servicio" style="top:${sP}px;height:${hP}px" onclick="openSvcEdit(${bl.id})">
+        cHtml+=`<div class="blk-overlay servicio" style="top:${sP}px;height:${hP}px" onclick="openSvcEdit(${Number(bl.id)})">
           <div class="blk-svc-row">
-            <div class="blk-lbl">✂️ ${svcLbl}</div>
+            <div class="blk-lbl">✂️ ${escHtml(svcLbl)}</div>
             <div class="blk-edit-btn" title="Editar">✏</div>
           </div>
-          ${showSub?`<div class="blk-sub">${clienteLbl}</div>`:''}
-          ${showTime?`<div class="blk-time-lbl">${hiLbl}–${hfLbl}</div>`:''}
+          ${showSub?`<div class="blk-sub">${escHtml(clienteLbl)}</div>`:''}
+          ${showTime?`<div class="blk-time-lbl">${escHtml(hiLbl)}–${escHtml(hfLbl)}</div>`:''}
         </div>`;
       } else {
-        cHtml+=`<div class="blk-overlay" style="top:${sP}px;height:${hP}px"><div class="blk-lbl">🚫 ${bl.motivo||'Bloqueado'}</div></div>`;
+        cHtml+=`<div class="blk-overlay" style="top:${sP}px;height:${hP}px"><div class="blk-lbl">🚫 ${escHtml(bl.motivo||'Bloqueado')}</div></div>`;
       }
     });
 
@@ -784,10 +785,10 @@ function renderDay() {
       if(tP<0||tP>=totalPx)return;
       const short=hP<44;
       const estado=a.estado||'pendiente';
-      cHtml+=`<div class="apt-card ${estado}" style="top:${tP+3}px;height:${Math.max(hP-6,24)}px" onclick="openApt('${a.id}')">
-        <div class="apt-nm">${a.client_name||'Sin nombre'}</div>
-        ${!short?`<div class="apt-svc">${a.svc_nom||a.service||''}</div>`:''}
-        ${!short?`<div class="apt-hr">${hi}–${hf}</div>`:''}
+      cHtml+=`<div class="apt-card ${escHtml(estado)}" style="top:${tP+3}px;height:${Math.max(hP-6,24)}px" onclick="openApt('${escJsAttr(a.id)}')">
+        <div class="apt-nm">${escHtml(a.client_name||'Sin nombre')}</div>
+        ${!short?`<div class="apt-svc">${escHtml(a.svc_nom||a.service||'')}</div>`:''}
+        ${!short?`<div class="apt-hr">${escHtml(hi)}–${escHtml(hf)}</div>`:''}
       </div>`;
     });
 
@@ -843,7 +844,7 @@ function renderWeek() {
   h+='</tr></thead><tbody>';
 
   visBs.forEach(b=>{
-    h+=`<tr><td class="wk-blbl"><div style="display:flex;align-items:center;gap:8px"><div class="b-av ${b.id}" style="width:26px;height:26px;font-size:11px;border-radius:7px">${b.name[0]}</div>${b.name}</div></td>`;
+    h+=`<tr><td class="wk-blbl"><div style="display:flex;align-items:center;gap:8px"><div class="b-av ${escHtml(b.id)}" style="width:26px;height:26px;font-size:11px;border-radius:7px">${escHtml(b.name[0])}</div>${escHtml(b.name)}</div></td>`;
     days.forEach(d=>{
       const ds2=fmtD(d), sc=sched(d), isT=ds2===todayStr;
       if(!sc){h+=`<td class="wk-cell closed${isT?' today':''}">—</td>`;return;}
@@ -852,7 +853,7 @@ function renderWeek() {
       const n=da.length;
       const rev=da.filter(a=>a.estado==='confirmado').reduce((s,a)=>s+(a.precio_base||a.precio||0),0);
       const load=n>=8?'heavy':n>=4?'med':n>0?'light':'none';
-      h+=`<td class="wk-cell${isT?' today':''}" onclick="goDayB('${ds2}','${b.id}')">
+      h+=`<td class="wk-cell${isT?' today':''}" onclick="goDayB('${escJsAttr(ds2)}','${escJsAttr(b.id)}')">
         <div class="wk-load-bar"><div class="wk-load-fill ${load}"></div></div>
         <span class="wk-n">${n}</span>
         <div class="wk-rev">${rev?peso(rev):'—'}</div>
@@ -891,17 +892,17 @@ function openApt(id) {
         <div class="checkin-banner-ttl">¿Llegó el cliente?</div>
         <div class="checkin-banner-sub">Un clic lo pasa a la Cola en Tiempo Real</div>
       </div>
-      <button class="btn-checkin" id="chkInBtn" onclick="checkInFromApt('${a.id}')">▶ LLEGÓ</button>
+      <button class="btn-checkin" id="chkInBtn" onclick="checkInFromApt('${escJsAttr(a.id)}')">▶ LLEGÓ</button>
     </div>`:''}
-    <div class="mrow"><span class="mlbl">Cliente</span><span class="mval">${a.client_name||'—'}</span></div>
-    <div class="mrow"><span class="mlbl">Teléfono</span><span class="mval">${a.client_phone||'—'}</span></div>
-    <div class="mrow"><span class="mlbl">Email</span><span class="mval">${a.client_email||'—'}</span></div>
-    <div class="mrow"><span class="mlbl">Servicio</span><span class="mval">${a.svc_nom||a.service||'—'}</span></div>
-    <div class="mrow"><span class="mlbl">Maestro</span><span class="mval">${B_MAP[a.bid]||a.bid||'—'}</span></div>
-    <div class="mrow"><span class="mlbl">Horario</span><span class="mval">${hi} – ${hf}</span></div>
+    <div class="mrow"><span class="mlbl">Cliente</span><span class="mval">${escHtml(a.client_name||'—')}</span></div>
+    <div class="mrow"><span class="mlbl">Teléfono</span><span class="mval">${escHtml(a.client_phone||'—')}</span></div>
+    <div class="mrow"><span class="mlbl">Email</span><span class="mval">${escHtml(a.client_email||'—')}</span></div>
+    <div class="mrow"><span class="mlbl">Servicio</span><span class="mval">${escHtml(a.svc_nom||a.service||'—')}</span></div>
+    <div class="mrow"><span class="mlbl">Maestro</span><span class="mval">${escHtml(B_MAP[a.bid]||a.bid||'—')}</span></div>
+    <div class="mrow"><span class="mlbl">Horario</span><span class="mval">${escHtml(hi)} – ${escHtml(hf)}</span></div>
     <div class="mrow"><span class="mlbl">Precio</span><span class="mval">${(a.precio_base||a.precio)?peso(a.precio_base||a.precio):'—'}</span></div>
-    <div class="mrow"><span class="mlbl">Estado</span><span class="mval"><span class="ebadge ${est}">${est.toUpperCase()}</span></span></div>
-    ${a.notas?`<div class="mrow"><span class="mlbl">Notas</span><span class="mval">${a.notas}</span></div>`:''}
+    <div class="mrow"><span class="mlbl">Estado</span><span class="mval"><span class="ebadge ${escHtml(est)}">${escHtml(est.toUpperCase())}</span></span></div>
+    ${a.notas?`<div class="mrow"><span class="mlbl">Notas</span><span class="mval">${escHtml(a.notas)}</span></div>`:''}
   `;
 
   const foot=document.getElementById('aptFoot');
@@ -980,9 +981,9 @@ function openRas(aptId, curBid) {
   rasId=aptId; rasNewBid=null;
   document.getElementById('rasBtn').disabled=true;
   document.getElementById('rasPick').innerHTML=BARBERS.map(b=>
-    `<div class="bpick-btn${b.id===curBid?' on':''}" data-bid="${b.id}" onclick="pickRas('${b.id}')">
-      <div class="b-av ${b.id}" style="width:28px;height:28px;font-size:11px;margin:0 auto 6px;border-radius:8px">${b.name[0]}</div>
-      ${b.name}${b.id===curBid?' <small style="opacity:.55">(actual)</small>':''}
+    `<div class="bpick-btn${b.id===curBid?' on':''}" data-bid="${escHtml(b.id)}" onclick="pickRas('${escJsAttr(b.id)}')">
+      <div class="b-av ${escHtml(b.id)}" style="width:28px;height:28px;font-size:11px;margin:0 auto 6px;border-radius:8px">${escHtml(b.name[0])}</div>
+      ${escHtml(b.name)}${b.id===curBid?' <small style="opacity:.55">(actual)</small>':''}
     </div>`
   ).join('');
   document.getElementById('rasOv').classList.add('on');
@@ -1024,7 +1025,7 @@ function setBlkTipo(tipo) {
 
 function openBlk(bid, dateStr, hi, hf) {
   _editBlkId = null;
-  document.getElementById('bkBid').innerHTML=BARBERS.map(b=>`<option value="${b.id}"${b.id===bid?' selected':''}>${b.name}</option>`).join('');
+  document.getElementById('bkBid').innerHTML=BARBERS.map(b=>`<option value="${escHtml(b.id)}"${b.id===bid?' selected':''}>${escHtml(b.name)}</option>`).join('');
   document.getElementById('bkFecha').value=dateStr;
   document.getElementById('bkIni').value=hi;
   document.getElementById('bkFin').value=hf;
@@ -1044,7 +1045,7 @@ function openSvcEdit(id) {
   const bl = _svcBlkMap[String(id)];
   if (!bl) { showToast('No se pudo cargar el servicio','err'); return; }
   _editBlkId = id;
-  document.getElementById('bkBid').innerHTML=BARBERS.map(b=>`<option value="${b.id}"${b.id===bl.bid?' selected':''}>${b.name}</option>`).join('');
+  document.getElementById('bkBid').innerHTML=BARBERS.map(b=>`<option value="${escHtml(b.id)}"${b.id===bl.bid?' selected':''}>${escHtml(b.name)}</option>`).join('');
   document.getElementById('bkFecha').value=(bl.fecha||'').slice(0,10);
   document.getElementById('bkIni').value=(bl.hora_inicio||'').slice(0,5);
   document.getElementById('bkFin').value=(bl.hora_fin||'').slice(0,5);

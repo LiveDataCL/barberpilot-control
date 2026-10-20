@@ -278,6 +278,7 @@ table.data-table .total-row td{background:var(--text)!important;color:#fff!impor
 
 <div class="toast" id="toast"></div>
 
+<script src="texto-seguro.js"></script>
 <script src="reportes-api.js"></script>
 <script>
 // ═══════════════════════════════════════════════════════════
@@ -313,7 +314,7 @@ function renderBarberoFiltros(){
   cont.innerHTML='<span class="ctrl-label">Barbero</span>'
     +'<button class="pf'+(cur==='todos'?' on':'')+'" onclick="setBarbero(\'todos\',this)">Todos</button>'
     +ACTIVE_BARBERS.map(function(n){
-      return '<button class="pf'+(cur===n?' on':'')+'" onclick="setBarbero(\''+n+'\',this)">'+n+'</button>';
+      return '<button class="pf'+(cur===n?' on':'')+'" onclick="setBarbero(\''+escJsAttr(n)+'\',this)">'+escHtml(n)+'</button>';
     }).join('');
 }
 function cargarBarberosKPI(){
@@ -421,7 +422,7 @@ function showNotice(type, msg, id){
   nb.innerHTML = '<div class="main no-print" style="padding-top:14px;padding-bottom:0">'
     +'<div class="notice '+type+'">'
     +'<span class="notice-icon">'+(type==='info'?'ℹ️':(type==='warn'||type==='err')?'⚠️':'✓')+'</span>'
-    +'<span>'+msg+'</span>'
+    +'<span>'+escHtml(msg)+'</span>'
     +'<span class="notice-close" onclick="document.getElementById(\'noticeBar\').innerHTML=\'\'">✕</span>'
     +'</div></div>';
 }
@@ -695,9 +696,9 @@ function renderChips(){
   wrap.style.display='flex';
   wrap.innerHTML=jornadas.map(function(j){
     return '<div class="chip">'
-      +'<span class="chip-date">'+j.fecha+'</span>'
+      +'<span class="chip-date">'+escHtml(j.fecha)+'</span>'
       +'<span class="chip-cnt">('+j.registros.length+')</span>'
-      +'<span class="chip-del" onclick="quitarJornada(\''+j.fecha+'\')">✕</span>'
+      +'<span class="chip-del" onclick="quitarJornada(\''+escJsAttr(j.fecha)+'\')">✕</span>'
       +'</div>';
   }).join('');
 }
@@ -775,8 +776,8 @@ function buildHTML(js, regs){
     h+='<th>Fecha</th><th>Hora</th><th>Descripción</th><th class="r">Monto</th>';
     h+='</tr></thead><tbody>';
     gastosFiltrados.forEach(function(g){
-      h+='<tr><td class="mono">'+g.fecha+'</td><td class="mono">'+(g.hora||'—')+'</td>'
-        +'<td>'+(g.desc_gasto||'—')+'</td>'
+      h+='<tr><td class="mono">'+escHtml(g.fecha)+'</td><td class="mono">'+escHtml(g.hora||'—')+'</td>'
+        +'<td>'+escHtml(g.desc_gasto||'—')+'</td>'
         +'<td class="r err mono">$'+fmt(g.monto)+'</td></tr>';
     });
     h+='<tr class="total-row"><td colspan="3">TOTAL GASTOS</td>'
@@ -812,7 +813,7 @@ function buildHTML(js, regs){
     var pct=maxBBTot>0?Math.round(d.tot/maxBBTot*100):0;
     var c=BB_COLORS[b]||DEFAULT_COLOR;
     h+='<div class="bb-card">'
-      +'<div class="bb-head '+c.head+'"><span class="bb-name">'+b+'</span><span class="bb-cnt">'+d.cnt+' svc</span></div>'
+      +'<div class="bb-head '+c.head+'"><span class="bb-name">'+escHtml(b)+'</span><span class="bb-cnt">'+d.cnt+' svc</span></div>'
       +'<div class="bb-body">'
       +'<div class="bb-row"><span class="l">Facturado</span><span class="v">$'+fmt(d.tot)+'</span></div>'
       +'<div class="bb-row"><span class="l">Comisión</span><span class="v">$'+fmt(d.tCom)+'</span></div>'
@@ -836,7 +837,7 @@ function buildHTML(js, regs){
     var pct=maxSvc>0?Math.round(s.cnt/maxSvc*100):0;
     h+='<div class="svc-rank-item">'
       +'<span class="svc-rank-num">'+(i+1)+'</span>'
-      +'<span class="svc-rank-name">'+s.nom+'</span>'
+      +'<span class="svc-rank-name">'+escHtml(s.nom)+'</span>'
       +'<div class="svc-rank-bar"><div class="svc-rank-fill" style="width:'+pct+'%"></div></div>'
       +'<span class="svc-rank-cnt">'+s.cnt+'</span>'
       +'<span class="svc-rank-val">$'+fmt(s.tot)+'</span>'
@@ -851,7 +852,7 @@ function buildHTML(js, regs){
   h+='<div class="table-wrap"><table class="data-table"><thead><tr>';
   h+='<th>Fecha</th><th class="r">Svc</th><th class="r">Facturado</th>';
   var bbs=Object.keys(porBB);
-  bbs.forEach(function(b){ h+='<th class="r">'+b+'<br><span style="font-weight:400;text-transform:none">comisión</span></th>'; });
+  bbs.forEach(function(b){ h+='<th class="r">'+escHtml(b)+'<br><span style="font-weight:400;text-transform:none">comisión</span></th>'; });
   h+='<th class="r">Negocio</th><th class="r">Gastos</th><th class="r">Utilidad</th><th>Top servicio</th>';
   h+='</tr></thead><tbody>';
 
@@ -867,7 +868,7 @@ function buildHTML(js, regs){
     var topSvc='—',maxC=0;
     Object.keys(svcRank).forEach(function(k){if(svcRank[k]>maxC){maxC=svcRank[k];topSvc=k;}});
     h+='<tr class="'+(isBest?'best-row':'')+'">'
-      +'<td style="font-weight:600">'+d.fecha+(isBest?' ⭐':'')+'</td>'
+      +'<td style="font-weight:600">'+escHtml(d.fecha)+(isBest?' ⭐':'')+'</td>'
       +'<td class="r mono">'+d.cnt+'</td>'
       +'<td class="r warn mono">$'+fmt(d.tot)+'</td>';
     bbs.forEach(function(b){ var p=pagoBarbero(bbTots[b]||[]); h+='<td class="r mono ok">'+pagoCeldaHtml(p.comision, p.propina)+'</td>'; });
@@ -876,7 +877,7 @@ function buildHTML(js, regs){
     h+='<td class="r info mono">$'+fmt(d.tNeg)+'</td>'
       +'<td class="r err mono">'+(gastoDia>0?'$'+fmt(gastoDia):'—')+'</td>'
       +'<td class="r mono '+(utilDia>=0?'ok':'err')+'">'+(utilDia>=0?'':'−')+'$'+fmt(Math.abs(utilDia))+'</td>'
-      +'<td style="font-size:11px;color:var(--text2)">'+topSvc+'</td>'
+      +'<td style="font-size:11px;color:var(--text2)">'+escHtml(topSvc)+'</td>'
       +'</tr>';
   });
   // Total
@@ -907,9 +908,9 @@ function buildHTML(js, regs){
 
 function kpiCard(lbl, val, cls, sub){
   return '<div class="kpi">'
-    +'<div class="kpi-lbl">'+lbl+'</div>'
-    +'<div class="kpi-val'+(cls?' '+cls:'')+'">'+val+'</div>'
-    +(sub?'<div class="kpi-sub">'+sub+'</div>':'')
+    +'<div class="kpi-lbl">'+escHtml(lbl)+'</div>'
+    +'<div class="kpi-val'+(cls?' '+escHtml(cls):'')+'">'+escHtml(val)+'</div>'
+    +(sub?'<div class="kpi-sub">'+escHtml(sub)+'</div>':'')
     +'</div>';
 }
 
@@ -923,7 +924,7 @@ function buildPagoList(pp){
   return '<div class="pago-list">'+items.map(function(it){
     var pct=total>0?Math.round(it.val/total*100):0;
     return '<div class="pago-item">'
-      +'<span class="pago-label">'+it.label+'</span>'
+      +'<span class="pago-label">'+escHtml(it.label)+'</span>'
       +'<div class="pago-bar-wrap"><div class="pago-bar-fill" style="width:'+pct+'%;background:'+it.color+'"></div></div>'
       +'<span class="pago-val" style="color:'+it.color+'">$'+fmt(it.val)+'</span>'
       +'<span class="pago-pct">'+pct+'%</span>'
