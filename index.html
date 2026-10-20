@@ -1046,6 +1046,7 @@
             <button class="staff-add-btn" onclick="staffRefreshFromAPI()" style="font-size:11px">↺ Actualizar</button>
           </div>
           <div id="staffBB"></div>
+          <div id="staffOrden" style="margin-top:14px"></div>
 
           <!-- Agregar barbero -->
           <div class="staff-add-card" id="staffAddCard" style="display:none">
@@ -5914,7 +5915,7 @@ function _resolverPrimerDisponible(callback){
     libres.sort(function(a,b){
       var ta=lastSvc[a.id]||'00:00:00';
       var tb=lastSvc[b.id]||'00:00:00';
-      return ta<tb?-1:ta>tb?1:0;
+      return ta<tb?-1:ta>tb?1:_desempateTurno(a,b);
     });
 
     var winner=libres[0]||null;
@@ -5966,6 +5967,55 @@ function salaIniciarSiguiente(queue_id){
       if(j.ok){toast('✂️ Servicio iniciado');renderSala();}
       else toast('Error: '+(j.error||''));
     }).catch(function(e){toast('Error: '+e.message);});
+}
+
+// ONE block for a client in service — client row (✏ Editar, WhatsApp, ✕), service and attached products, price (from the
+// catalog), payment method (from the server list), tip and 💳 Cerrar — used by Sala de Espera AND by Sillas, so both screens
+// close a service the same way (salaCerrarServicio → POST /queue/control/registrar, where the server computes the commission).
+// ctx ('sala' | 'sillas') only keeps the element ids unique when both screens are drawn.
+function salaServicioActivoHtml(sv,barberNombre,bid,ctx,desde){
+  var q=Number(sv.queue_id), h='';
+  _salaEditorData[sv.queue_id]={client_name:sv.client_name,phone:sv.phone||'',service:sv.service,precio:SALA_PRECIOS[sv.service]||0,cliente_id:sv.cliente_id||null,productosAdjuntos:sv.productos_adjuntos||[]};
+  h+='<div style="margin-bottom:8px">';
+  h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">';
+  h+='<div style="font-weight:500">'+escHtml(sv.client_name)+'</div>';
+  h+='<div style="display:flex;gap:4px;align-items:center">';
+  h+='<button onclick="salaAbrirEditor('+q+')" style="padding:2px 8px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;font-family:var(--sans)">✏ Editar</button>';
+  h+=salaWaHref(sv.phone, sv.client_name, barberNombre, true);
+  h+='<button onclick="salaEliminarEntrada('+q+')" style="padding:2px 7px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;color:var(--err)">✕</button>';
+  h+='</div>';
+  h+='</div>';
+  var _svcLabel=sv.service+((sv.productos_adjuntos&&sv.productos_adjuntos.length)
+    ?' + '+sv.productos_adjuntos.map(function(p){return (p.cantidad>1?p.cantidad+'x ':'')+p.nombre;}).join(' + ')
+    :'');
+  h+='<div style="font-size:12px;color:var(--text2)">'+escHtml(_svcLabel)+' · desde '+desde+'</div>';
+  h+='</div>';
+  h+='<div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap">';
+  h+='<input id="prc-'+ctx+'-'+q+'" type="number" min="0" step="1000" ';
+  h+='value="'+(_salaEditorData[sv.queue_id]&&_salaEditorData[sv.queue_id].precio?_salaEditorData[sv.queue_id].precio:(SALA_PRECIOS[sv.service]||''))+'" ';
+  h+='style="width:84px;padding:6px 8px;border:1.5px solid var(--border2);border-radius:var(--r);font-size:12px;font-family:var(--mono);background:var(--surface)" title="Precio"/>';
+  var _sp=_pagoSelections[sv.queue_id]||'efectivo';
+  h+='<select id="pago-'+ctx+'-'+q+'" onchange="salaGuardarPago('+q+',this.value)" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface);font-family:var(--sans)">';
+  h+=opcionesPagoHtml(_sp,false);
+  h+='</select>';
+  h+='<input id="prop-'+ctx+'-'+q+'" type="number" placeholder="Propina" min="0" step="500" ';
+  h+='style="width:78px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;font-family:var(--mono);background:var(--surface)"/>';
+  h+='<button onclick="salaCerrarDesdeForm(\''+ctx+'\','+q+',\''+escJsAttr(bid)+'\')" ';
+  h+='style="padding:6px 12px;background:var(--ok);color:#fff;border:none;border-radius:var(--r);font-size:12px;font-weight:600;cursor:pointer">💳 Cerrar</button>';
+  h+='</div>';
+  h+='<div style="height:1px;background:var(--border);margin-bottom:10px"></div>';
+  return h;
+}
+function salaCerrarDesdeForm(ctx,queue_id,bid){
+  var g=function(p){ return document.getElementById(p+'-'+ctx+'-'+queue_id); };
+  if(!g('pago')||!g('prop')||!g('prc')){ toast('No se pudo leer el formulario de cierre: actualiza la pantalla'); return; }
+  salaCerrarServicio(queue_id,bid,g('pago').value,parseInt(g('prop').value)||0,parseInt(g('prc').value)||0);
+}
+// A change to the queue (close, edit, delete) must show on both screens.
+function _refrescarSalaYSillas(){
+  renderSala();
+  var ps=document.getElementById('pSillas');
+  if(ps&&ps.classList.contains('on')) renderSillas();
 }
 
 function salaCerrarServicio(queue_id,bid,pago,propina,precio){
@@ -6068,10 +6118,10 @@ function salaCerrarServicio(queue_id,bid,pago,propina,precio){
           acumBB:acumBB,acumFact:acumFact,acumProp:(j.propina||0)+pagoBarbero(mismos).propina
         };
         printTicket62(r2);
-        setTimeout(function(){cargarRegistrosDia();renderSala();},500);
+        setTimeout(function(){cargarRegistrosDia();_refrescarSalaYSillas();},500);
       } else if(j.error==='already_closed'){
         toast('ℹ Ya cerrado por el barbero — sin duplicado');
-        renderSala();
+        _refrescarSalaYSillas();
       } else toast('Error: '+(j.error||''));
     }).catch(function(e){toast('Error: '+e.message);});
 }
@@ -6082,7 +6132,7 @@ function salaEliminarEntrada(queue_id){
   fetch(API_URL+'/queue/'+queue_id,{method:'DELETE',headers:getAuthHeaders()})
     .then(function(r){return r.json();})
     .then(function(j){
-      if(j.ok){toast('Entrada eliminada de la cola');renderSala();}
+      if(j.ok){toast('Entrada eliminada de la cola');_refrescarSalaYSillas();}
       else toast('Error: '+(j.error||''));
     }).catch(function(e){toast('Error: '+e.message);});
 }
@@ -6185,38 +6235,7 @@ function renderSala(){
           var sv=b.enServicio;
           var desde=sv.service_start?new Date(sv.service_start).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'}):'—';
           h+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:5px">EN SERVICIO</div>';
-          _salaEditorData[sv.queue_id]={client_name:sv.client_name,phone:sv.phone||'',service:sv.service,precio:SALA_PRECIOS[sv.service]||0,cliente_id:sv.cliente_id||null,productosAdjuntos:sv.productos_adjuntos||[]};
-          h+='<div style="margin-bottom:8px">';
-          h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">';
-          h+='<div style="font-weight:500">'+escHtml(sv.client_name)+'</div>';
-          h+='<div style="display:flex;gap:4px;align-items:center">';
-          h+='<button onclick="salaAbrirEditor('+Number(sv.queue_id)+')" style="padding:2px 8px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;font-family:var(--sans)">✏ Editar</button>';
-          h+=salaWaHref(sv.phone, sv.client_name, b.nombre, true);
-          h+='<button onclick="salaEliminarEntrada('+Number(sv.queue_id)+')" style="padding:2px 7px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;color:var(--err)">✕</button>';
-          h+='</div>';
-          h+='</div>';
-          // Texto combinado servicio + producto(s) adjunto(s) — reemplaza el
-          // badge separado que existía antes; ya no hace falta repetir la
-          // misma información dos veces en la tarjeta.
-          var _svcLabel=sv.service+((sv.productos_adjuntos&&sv.productos_adjuntos.length)
-            ?' + '+sv.productos_adjuntos.map(function(p){return (p.cantidad>1?p.cantidad+'x ':'')+p.nombre;}).join(' + ')
-            :'');
-          h+='<div style="font-size:12px;color:var(--text2)">'+escHtml(_svcLabel)+' · desde '+desde+'</div>';
-          h+='</div>';
-          h+='<div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap">';
-          h+='<input id="prc-'+sv.queue_id+'" type="number" min="0" step="1000" ';
-          h+='value="'+(_salaEditorData[sv.queue_id]&&_salaEditorData[sv.queue_id].precio?_salaEditorData[sv.queue_id].precio:(SALA_PRECIOS[sv.service]||''))+'" ';
-          h+='style="width:84px;padding:6px 8px;border:1.5px solid var(--border2);border-radius:var(--r);font-size:12px;font-family:var(--mono);background:var(--surface)" title="Precio"/>';
-          var _sp=_pagoSelections[sv.queue_id]||'efectivo';
-          h+='<select id="pago-'+Number(sv.queue_id)+'" onchange="salaGuardarPago('+Number(sv.queue_id)+',this.value)" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface);font-family:var(--sans)">';
-          h+=opcionesPagoHtml(_sp,false);
-          h+='</select>';
-          h+='<input id="prop-'+sv.queue_id+'" type="number" placeholder="Propina" min="0" step="500" ';
-          h+='style="width:78px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;font-family:var(--mono);background:var(--surface)"/>';
-          h+='<button onclick="salaCerrarServicio('+Number(sv.queue_id)+',\''+escJsAttr(bid)+'\',document.getElementById(\'pago-'+Number(sv.queue_id)+'\').value,parseInt(document.getElementById(\'prop-'+Number(sv.queue_id)+'\').value)||0,parseInt(document.getElementById(\'prc-'+Number(sv.queue_id)+'\').value)||0)" ';
-          h+='style="padding:6px 12px;background:var(--ok);color:#fff;border:none;border-radius:var(--r);font-size:12px;font-weight:600;cursor:pointer">💳 Cerrar</button>';
-          h+='</div>';
-          h+='<div style="height:1px;background:var(--border);margin-bottom:10px"></div>';
+          h+=salaServicioActivoHtml(sv,b.nombre,bid,'sala',desde);
         } else {
           h+='<div style="font-size:11px;color:var(--text3);margin-bottom:10px;font-style:italic">Sin servicio activo</div>';
         }
@@ -6349,7 +6368,7 @@ function renderSillas(){
       // Tiebreaker: quien llegó primero al trabajo va primero
       var ea=(horMap[a.id]&&horMap[a.id].entrada)||'99:99';
       var eb=(horMap[b.id]&&horMap[b.id].entrada)||'99:99';
-      return ea<eb?-1:ea>eb?1:0;
+      return ea<eb?-1:ea>eb?1:_desempateTurno(a,b);
     });
 
     // Banner próximo turno
@@ -6424,6 +6443,8 @@ function renderSillas(){
         h+='</div>';
         h+='<div class="silla-desde">En silla desde las '+desde+'</div>';
         if(sv.service_start) h+='<input type="hidden" id="sstart-'+escHtml(b.id)+'" value="'+escHtml(sv.service_start)+'">';
+        // Same closing block as Sala de Espera (one shared function): price, payment, tip, products via ✏ Editar, 💳 Cerrar
+        h+='<div style="text-align:left;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">'+salaServicioActivoHtml(sv,b.nombre,b.id,'sillas',desde)+'</div>';
         h+='</div></div>';
       } else if(esPresente && !bd.ausente){
         // Libre y presente
@@ -6568,7 +6589,7 @@ function salaAbrirEditor(queue_id){
 
 function salaCerrarEditor(){
   document.getElementById('salaEditorOverlay').style.display='none';
-  renderSala();
+  _refrescarSalaYSillas();
 }
 
 // ═══ PRODUCTOS ADJUNTOS (Sala de espera → editor de ticket) ═══════════════
@@ -6917,6 +6938,8 @@ function staffRefreshFromAPI(){
         BB.push({id:s.bid,nombre:s.name,active:s.active});
       }
     });
+    var _pos2={}; j.staff.forEach(function(s){ if(s.orden!=null) _pos2[s.bid]=s.orden; });
+    _ordenarBBPorPosicion(_pos2);
     saveStaffConfig(); // triggers buildBarbers, buildSalaBidOptions, buildBarberFilters
     renderStaffBB();
   })
@@ -6931,12 +6954,27 @@ function staffRefreshFromAPI(){
 // entry, cierre de caja, reports). Only ever ADDS or UPDATES a name; never
 // removes an entry BB already knows about, and never falls back to a
 // hardcoded name list.
+// The display order of barbers comes from the server (Administración → Orden de barberos). It only decides how the
+// barbers are LISTED; the rotation ("próximo turno") never reads it (see _desempateTurno).
+function _ordenarBBPorPosicion(pos){ // pos: bid → position; barbers not in it keep their relative order, after the others
+  var dec=BB.map(function(b,i){ return {b:b,i:i,p:(pos[b.id]!=null?pos[b.id]:1e6+i)}; });
+  dec.sort(function(x,y){ return (x.p-y.p)||(x.i-y.i); });
+  BB.length=0; dec.forEach(function(d){ BB.push(d.b); });
+}
+// Last tie-break of the rotation: the barber's id (b2 before b10), never the display order.
+function _desempateTurno(a,b){
+  var na=parseInt(String(a.id).replace(/\D/g,''),10), nb=parseInt(String(b.id).replace(/\D/g,''),10);
+  if(isFinite(na)&&isFinite(nb)&&na!==nb) return na-nb;
+  return a.id<b.id?-1:a.id>b.id?1:0;
+}
 function _mergeBarberosLive(list){
+  var _pos={}; list.forEach(function(b,i){ _pos[b.bid]=i; });
   list.forEach(function(b){
     var existing=BB.find(function(x){return x.id===b.bid;});
     if(existing){ existing.nombre=b.nombre; existing.active=true; }
     else BB.push({id:b.bid,nombre:b.nombre,active:true});
   });
+  _ordenarBBPorPosicion(_pos);
 }
 function cargarBarberosDesdeAPI(){
   if(!API_URL){ if(BB.length===0) _barberosLoadFailed(); return; }
@@ -7064,6 +7102,7 @@ function renderStaffPanel(){
   // Each section draws on its own: a failure in one shows its own Spanish
   // message with "Reintentar" (renderSeguro, also logged to the console)
   // and never leaves the sections after it blank.
+  renderSeguro('staffOrden', renderStaffOrden, renderStaffOrden);
   renderSeguro('staffCOM', renderStaffCOM, renderStaffCOM);
   renderSeguro('staffSS', renderStaffSS, renderStaffSS);
   renderSeguro('staffProds', renderStaffProds, renderStaffProds);
@@ -7099,6 +7138,56 @@ function renderStaffBB(){
     h+='</div></div>';
   }
   var el=document.getElementById('staffBB');if(el)el.innerHTML=h;
+}
+// ── Administración: Orden de barberos (▲▼, stored on the server) ──
+// Display order only: cobro buttons, Sillas, Sala filters, KPI, KPI dashboard and the App follow it. The "next turn"
+// rotation never uses it. The list is the server's own (every barber, active or not); each move is saved at once.
+var _ordenBarberos=null, _ordenGuardando=false;
+function renderStaffOrden(){
+  var el=document.getElementById('staffOrden');
+  if(!el) return;
+  if(!API_URL){ el.innerHTML=''; return; }
+  if(_panelRole!=='admin'){ el.innerHTML=''; return; }
+  fetchConReintentos(API_URL+'/api/v2/staff/orden').then(function(r){
+    if(!r.ok){ _ordenBarberos=null; el.innerHTML=avisoDatosHtml('No se pudo cargar el orden de barberos ('+r.motivo+').'); return; }
+    _ordenBarberos=r.json.barberos; _dibujarStaffOrden(r.json.disponible!==false);
+  });
+}
+function _dibujarStaffOrden(disponible){
+  var el=document.getElementById('staffOrden'); if(!el||!_ordenBarberos) return;
+  var btn='padding:2px 6px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;line-height:1;font-family:var(--sans)';
+  var dis=btn+';opacity:.3;cursor:default';
+  var h='<div class="staff-section-hdr"><span>Orden de barberos</span></div>'
+    +'<div class="staff-note" style="margin:-4px 0 8px">Así se muestran los barberos en cobro, Sillas, Sala de espera, KPI y la app. No cambia a quién le toca el próximo turno.</div>';
+  if(disponible===false) h+=avisoDatosHtml('El cambio de orden no está disponible en el servidor; no se puede reordenar por ahora.');
+  _ordenBarberos.forEach(function(b,i){
+    var sube=disponible!==false&&!_ordenGuardando&&i>0, baja=disponible!==false&&!_ordenGuardando&&i<_ordenBarberos.length-1;
+    h+='<div class="staff-row'+(b.activo?'':' svc-inactiva')+'" data-bid="'+escAttr(b.bid)+'">'
+      +'<div style="display:flex;flex-direction:column;gap:2px;margin-right:4px">'
+      +'<button '+(sube?'style="'+btn+'"':'disabled style="'+dis+'"')+' onclick="staffMoverBarbero(\''+escJsAttr(b.bid)+'\',-1)" title="Subir">▲</button>'
+      +'<button '+(baja?'style="'+btn+'"':'disabled style="'+dis+'"')+' onclick="staffMoverBarbero(\''+escJsAttr(b.bid)+'\',1)" title="Bajar">▼</button></div>'
+      +'<span style="flex:1;font-weight:600">'+escAttr(b.nombre)+'</span>'
+      +'<span class="staff-barber-bid">'+escAttr(b.bid)+'</span>'
+      +(b.activo?'':'<span class="svc-badge">Inactivo</span>')+'</div>';
+  });
+  h+='<div class="staff-note" id="staffOrdenMsg" style="margin-top:6px"></div>';
+  el.innerHTML=h;
+}
+function staffMoverBarbero(bid,dir){
+  if(_ordenGuardando||!_ordenBarberos) return;
+  var ids=_ordenBarberos.map(function(b){return b.bid;});
+  var i=ids.indexOf(bid), j=i+dir;
+  if(i<0||j<0||j>=ids.length) return;
+  var t=ids[i]; ids[i]=ids[j]; ids[j]=t;
+  _ordenGuardando=true; _dibujarStaffOrden(true);
+  fetch(API_URL+'/api/v2/staff/orden',{method:'PATCH',headers:getJsonAuthHeaders(),body:JSON.stringify({orden:ids})}).then(function(r){
+    return r.json().then(function(j){ return {ok:r.ok&&j&&j.ok, j:j, status:r.status}; },function(){ return {ok:false,status:r.status,j:null}; });
+  },function(){ return {ok:false,status:0,j:null}; }).then(function(r){
+    _ordenGuardando=false;
+    if(r.ok){ toast('✓ Orden guardado'); var pos={}; r.j.orden.forEach(function(b,k){ pos[b]=k; }); _ordenarBBPorPosicion(pos); saveStaffConfig(); }
+    else toast('⚠ No se guardó el orden: '+((r.j&&r.j.detalle)||(r.status===0?'sin conexión con el servidor':'el servidor respondió '+r.status)));
+    renderStaffOrden();
+  });
 }
 function staffSaveBB(id,val){
   val=(val||'').trim();if(!val)return;
@@ -7856,6 +7945,61 @@ function clientesWaButtons(c){
     +'<a class="bsm" href="'+escHtml(uRe)+'" target="_blank" rel="noopener" style="'+est+'" title="Abrir WhatsApp Web con el pedido de reseña en Google escrito">⭐ Reseña Google</a>';
 }
 
+// ── Clientes → "Enviar a la cola" ──
+// A real check-in (same server function as Sala de Espera): the client goes into the queue now. Only the client's id,
+// the service and the barber are sent; the server takes the name and phone from the client record. "Cualquiera" uses
+// the existing rotation. Only clients with a real client record (cliente_real_id) can be sent.
+function clientesColaButton(c){
+  if(!c.cliente_real_id) return '';
+  return '<button class="bsm" data-cid="'+escAttr(c.cliente_real_id)+'" data-nombre="'+escAttr(c.nombre)+'" data-tel="'+escAttr(c.telefono||'')+'" '
+    +'onclick="clienteEnviarACola(this.dataset.cid,this.dataset.nombre,this.dataset.tel)" title="Agregar a este cliente a la cola ahora">📥 Enviar a la cola</button>';
+}
+var _colaEnviando=false;
+function clienteEnviarACola(cid,nombre,tel){
+  var prev=document.getElementById('clienteColaOverlay'); if(prev) prev.remove();
+  if(!SS.length){ toast('El catálogo de servicios todavía no cargó: intenta de nuevo en unos segundos'); return; }
+  var ov=document.createElement('div'); ov.id='clienteColaOverlay';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px';
+  var card=document.createElement('div');
+  card.style.cssText='background:var(--surface);border-radius:var(--rl);padding:20px 22px;max-width:420px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.3)';
+  var optsSvc=SS.map(function(x){ return '<option value="'+escAttr(x.nombre)+'">'+escHtml(x.nombre)+'</option>'; }).join('');
+  var optsBB=BB.filter(function(b){return b.active!==false;}).map(function(b){ return '<option value="'+escAttr(b.id)+'">'+escHtml(b.nombre)+'</option>'; }).join('');
+  var campo='width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--sans);background:var(--surface)';
+  card.innerHTML='<div style="font-weight:700;font-size:15px;margin-bottom:2px">Enviar a la cola</div>'
+    +'<div style="font-size:13px;color:var(--text2);margin-bottom:12px">'+escHtml(nombre)+(tel?' · <span style="font-family:var(--mono)">'+escHtml(tel)+'</span>':'')+'</div>'
+    +'<label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text3)">Servicio</label>'
+    +'<select id="colaSvc" style="'+campo+';margin:4px 0 12px">'+optsSvc+'</select>'
+    +'<label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text3)">Barbero</label>'
+    +'<select id="colaBid" style="'+campo+';margin:4px 0 6px"><option value="any">Cualquiera (según la rotación)</option>'+optsBB+'</select>'
+    +'<div id="colaMsg" style="font-size:12px;color:var(--err);min-height:16px;margin-bottom:8px"></div>'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end">'
+    +'<button id="colaCancelar" style="padding:8px 14px;background:var(--surface);border:1.5px solid var(--text);border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer">Cancelar</button>'
+    +'<button id="colaEnviar" style="padding:8px 14px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer">Enviar a la cola</button></div>';
+  ov.appendChild(card); document.body.appendChild(ov);
+  document.getElementById('colaCancelar').onclick=function(){ ov.remove(); };
+  document.getElementById('colaEnviar').onclick=function(){
+    if(_colaEnviando) return;
+    _colaEnviando=true;
+    var btn=document.getElementById('colaEnviar'); btn.disabled=true;
+    var msg=document.getElementById('colaMsg'); msg.textContent='';
+    fetch(API_URL+'/api/v2/cola/desde-cliente',{method:'POST',headers:getJsonAuthHeaders(),
+      body:JSON.stringify({cliente_id:cid,service:document.getElementById('colaSvc').value,bid:document.getElementById('colaBid').value})
+    }).then(function(r){
+      return r.json().then(function(j){ return {ok:r.ok&&j&&j.ok,j:j,status:r.status}; },function(){ return {ok:false,j:null,status:r.status}; });
+    },function(){ return {ok:false,j:null,status:0}; }).then(function(r){
+      _colaEnviando=false;
+      if(r.ok){
+        ov.remove();
+        toast('✓ '+((r.j.cliente&&r.j.cliente.nombre)||nombre)+' está en la cola'+(r.j.resolved_barber_name?' con '+r.j.resolved_barber_name:'')+(r.j.status==='IN_SERVICE'?' (ya en silla)':' · posición #'+r.j.queue_position));
+        var ps=document.getElementById('pSala'); if(ps&&ps.classList.contains('on')) renderSala();
+      } else {
+        btn.disabled=false;
+        msg.textContent=(r.j&&(r.j.detalle||r.j.error))||(r.status===0?'Sin conexión con el servidor.':'El servidor respondió '+r.status+'.');
+      }
+    });
+  };
+}
+
 function renderClientesTable(list){
   var content=document.getElementById('clientesContent');if(!content)return;
   if(!list.length){
@@ -7888,7 +8032,7 @@ function renderClientesTable(list){
       +'<td style="text-align:right;font-family:var(--mono)'+(c.dias_desde_ultima>30?';color:var(--warn);font-weight:600':'')+'">'+c.dias_desde_ultima+'</td>'
       +'<td>'+(c.riesgo_fuga?'<span class="badge btr">⚠ En riesgo</span>':'')+'</td>'
       +'<td style="text-align:right;font-family:var(--mono);font-weight:600">$'+fmt(c.gasto_total)+'</td>'
-      +'<td style="white-space:nowrap">'+clientesWaButtons(c)+'</td>'
+      +'<td style="white-space:nowrap">'+clientesColaButton(c)+clientesWaButtons(c)+'</td>'
       +'</tr>';
   }
   h+='</tbody></table>';
