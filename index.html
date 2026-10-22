@@ -378,35 +378,46 @@
   .xsm{font-size:9px;color:#555;text-align:center}
   .xfirma{margin-top:16px;border-top:1px solid #000;padding-top:3px;font-size:9px;text-align:center}
 
-  /* SILLAS */
-  .silla-card{background:var(--surface);border:2px solid var(--border);border-radius:var(--rl);overflow:hidden;transition:border-color .15s}
-  .silla-card.libre{border-color:#b8e5c8}
-  .silla-card.ocupada{border-color:var(--text)}
-  .silla-card.ausente{border-color:#d4a843;background:rgba(212,168,67,.06)}
-  .silla-head{padding:13px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
-  .silla-head.libre{background:#e6f4ea}
-  .silla-head.ocupada{background:var(--text);color:#fff}
-  .silla-head.ausente{background:#d4a843;color:#0a0908}
-  .silla-nombre{font-weight:700;font-size:15px;letter-spacing:.01em}
-  .silla-status-lbl{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-top:2px}
-  .silla-body{padding:14px 16px}
-  .silla-timer{font-family:var(--mono);font-size:30px;font-weight:700;letter-spacing:.02em;margin:0;line-height:1}
-  .silla-timer.warn{color:var(--warn)}
-  .silla-timer.alert{color:var(--err)}
-  .silla-client{font-size:15px;font-weight:600;margin-bottom:3px}
-  .silla-svc{font-size:12px;color:var(--text2)}
-  .silla-desde{font-size:11px;color:var(--text3);margin-top:8px}
-  .silla-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}
-  .silla-stat{background:var(--soft);border-radius:var(--r);padding:10px 12px}
-  .silla-stat-label{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:4px}
-  .silla-restante{font-family:var(--mono);font-size:30px;font-weight:700;letter-spacing:.02em;line-height:1;color:var(--warn)}
-  .silla-stat-restante{background:rgba(201,168,76,.14)}
-  .silla-stat-restante.urgente{background:rgba(192,57,43,.10)}
-  .silla-stat-restante.urgente .silla-restante{color:var(--err)}
-  .silla-next-banner{background:var(--text);color:#fff;border-radius:var(--rl);padding:18px 22px;margin-bottom:18px;display:flex;align-items:center;gap:18px}
-  .silla-next-name{font-size:24px;font-weight:700;letter-spacing:.01em}
-  .silla-next-label{font-size:10px;letter-spacing:.1em;text-transform:uppercase;opacity:.55;margin-bottom:3px}
-  .silla-next-reason{font-size:12px;opacity:.6;margin-top:5px}
+  /* SILLAS — tablero compacto: todas las sillas en una vista (sin scroll vertical a 1366×768, también con 9 barberos).
+     Riel de color a la izquierda, tiempo restante a la derecha, barra al borde inferior; "💳 Cerrar" abre un globo sobre la tarjeta. */
+  #sillasGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;align-items:stretch}
+  .ss{display:flex;flex-wrap:wrap;align-items:center;gap:3px 16px;padding:7px 12px;margin-bottom:10px;border-radius:var(--r);background:var(--text);border:1px solid var(--text);font-size:12.5px;color:rgba(255,255,255,.75)}
+  .ss b{color:#fff}
+  .ss-warn{color:#f0c36a;font-weight:600}
+  .ss-act{margin-left:auto;font-size:11px;opacity:.7}
+  .ss-btn{font-size:11px;padding:3px 10px;border:1px solid rgba(255,255,255,.4);border-radius:var(--r);background:transparent;color:#fff;cursor:pointer;font-family:var(--sans)}
+  .sc{position:relative;background:var(--surface);border:1.5px solid var(--border);border-left:5px solid var(--border);border-radius:var(--rl);padding:9px 11px;display:flex;flex-direction:column;gap:5px;min-width:0}
+  .sc-top{display:flex;align-items:baseline;flex-wrap:wrap;gap:2px 8px;min-width:0}
+  /* the barber's name is ALWAYS shown in full: it wraps onto a second line instead of being cut */
+  .sc-name{font-weight:700;font-size:14px;line-height:1.15;overflow-wrap:anywhere}
+  .sc-chip{font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);white-space:nowrap}
+  .sc-esp{font-size:10.5px;color:var(--text3);white-space:nowrap}
+  .sc-next{font-size:10.5px;font-weight:700;color:var(--ok);white-space:nowrap}
+  .sc-sub{font-size:11.5px;color:var(--text2)}
+  .sc-lib{border-color:#b8e5c8;border-left-color:var(--ok);background:#f3faf5}
+  .sc-lib .sc-name{color:var(--ok)}
+  .sc-aus{border-color:#d4a843;border-left-color:#d4a843;background:rgba(212,168,67,.08)}
+  .sc-ocu{border-color:var(--text);border-left-color:var(--text);display:grid;grid-template-columns:minmax(0,1fr) auto;
+    grid-template-areas:"top rem" "meta rem" "cli cli" "foot foot" "bar bar";column-gap:10px;row-gap:5px;padding-bottom:0}
+  .sc-ocu .sc-top{grid-area:top}
+  .sc-meta{grid-area:meta;display:flex;gap:8px;align-items:baseline}
+  .sc-cli{grid-area:cli;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sc-main{grid-area:rem;display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:3px}
+  .sc-rem{font-family:var(--mono);font-size:28px;font-weight:700;line-height:1;color:var(--warn)}
+  .sc-fin{font-size:12px;color:var(--text2);text-align:right}
+  .sc-foot{grid-area:foot;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;color:var(--text3)}
+  .sc-t{font-family:var(--mono)}
+  .sc-cerrar{padding:4px 10px;background:var(--ok);color:#fff;border:none;border-radius:var(--r);font-size:12px;font-weight:600;cursor:pointer}
+  .sc-bar{grid-area:bar;height:6px;margin:2px -11px 0;background:var(--soft);overflow:hidden;border-radius:0 0 calc(var(--rl) - 2px) calc(var(--rl) - 2px)}
+  .sc-bar>i{display:block;height:100%;width:0;background:var(--ok);transition:width 1s linear}
+  .sc-late{border-color:var(--err);border-left-color:var(--err)}
+  .sc-late .sc-rem{color:var(--err)}
+  .sc-late .sc-bar>i{background:var(--err)}
+  .sc-late .sc-fin{color:var(--err);font-weight:600}
+  /* closing block: collapsed; "💳 Cerrar" opens it as a popover over the card, so no neighbouring card ever moves or grows */
+  .sc-cierre{display:none;position:absolute;left:-5px;right:-1.5px;top:calc(100% + 4px);z-index:30;background:var(--surface);border:1.5px solid var(--text);border-radius:var(--rl);box-shadow:0 8px 24px rgba(0,0,0,.18);padding:10px 11px}
+  .sc.abierto .sc-cierre{display:block}
+  .sc.up .sc-cierre{top:auto;bottom:calc(100% + 4px)}
   /* ── Staff panel ── */
   .staff-section-hdr{display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border)}
   .staff-note{font-size:11px;font-weight:400;color:var(--text3)}
@@ -743,7 +754,7 @@
       <!-- ── Cola en tiempo real ── -->
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3)">Cola en tiempo real</div>
-        <button onclick="renderSala()" style="font-size:11px;padding:4px 11px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);cursor:pointer;font-family:var(--sans)">↺ Actualizar</button>
+        <div style="display:flex;align-items:center;gap:10px"><span id="salaAct" style="font-size:11px;color:var(--text3)"></span><button onclick="salaRecargar()" style="font-size:11px;padding:4px 11px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);cursor:pointer;font-family:var(--sans)">↺ Actualizar</button></div>
       </div>
       <div id="salaGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px">
         <div class="empty" style="grid-column:1/-1"><div class="empty-ico">⟳</div><div>Cargando cola…</div></div>
@@ -770,11 +781,7 @@
     <!-- ── SILLAS ── -->
     <div class="pane" id="pSillas">
       <div id="sillasNextTurn"></div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3)">Estado de sillas · En tiempo real</div>
-        <button onclick="renderSillas()" style="font-size:11px;padding:4px 11px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);cursor:pointer;font-family:var(--sans)">↺ Actualizar</button>
-      </div>
-      <div id="sillasGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div id="sillasGrid">
         <div class="empty" style="grid-column:1/-1"><div class="empty-ico">⟳</div><div>Cargando sillas…</div></div>
       </div>
     </div>
@@ -2337,6 +2344,7 @@ function init(){
   }, 30000);
   cargarPendientes(); // al abrir
   iniciarSSE(); // alertas 15 min en tiempo real
+  eventosCambioIniciar(); // aviso "cambio" para Sala y Sillas (sesión de panel)
 
   // ── Outbox auto-sync ────────────────────────────────────
   drainOutbox();                                       // on page load
@@ -3068,19 +3076,15 @@ function _alAbrirPestana(id){
   if(id==='pHorarios'){ renderHorarios(); cargarHorariosDesdeRailway(renderHorarios); }
   if(id==='pHistorico')renderIngresarHistorico();
   if(id==='pSala'){
-    renderSala();
+    salaEntrar();
     salaCargarIndiceClientes();
-    if(_salaInterval) clearInterval(_salaInterval);
-    _salaInterval = setInterval(renderSala, 20000);
   } else {
-    if(_salaInterval){ clearInterval(_salaInterval); _salaInterval = null; }
+    refrescoDetener('sala');
   }
   if(id==='pSillas'){
-    renderSillas();
-    if(_sillasInterval) clearInterval(_sillasInterval);
-    _sillasInterval = setInterval(renderSillas, 30000);
+    sillasEntrar();
   } else {
-    if(_sillasInterval){ clearInterval(_sillasInterval); _sillasInterval = null; }
+    refrescoDetener('sillas');
     if(_sillasTimerInterval){ clearInterval(_sillasTimerInterval); _sillasTimerInterval = null; }
   }
   if(id==='pAprob'){
@@ -5595,14 +5599,18 @@ function iniciarSSE(){
   _sseConn.addEventListener('alerta_15min', function(e){
     try{ mostrarAlerta15(JSON.parse(e.data)); }catch(ex){}
   });
+  if(!sessionStorage.getItem('panelJwt')){   // without a panel session the same stream carries the change notice
+    _sseConn.addEventListener('cambio', function(){ eventoCambio(); });
+    _sseConn.onopen = function(){ _evt.conectado=true; refrescoEtiquetas(); };
+  }
   _sseConn.onerror = function(){
     // EventSource reconnects automatically; no action needed
+    if(!sessionStorage.getItem('panelJwt')){ _evt.conectado=false; refrescoEtiquetas(); }
   };
 }
 
 // ═══ SALA DE ESPERA ══════════════════════════════════════
 
-var _salaInterval   = null;
 var _salaEditorData = {}; // { queue_id: { client_name, phone, service, cliente_id } }
 var _pagoSelections = {}; // { queue_id: 'efectivo'|'debito'|'transferencia' }
 
@@ -6191,9 +6199,18 @@ function salaIniciarSiguiente(queue_id){
 // catalog), payment method (from the server list), tip and 💳 Cerrar — used by Sala de Espera AND by Sillas, so both screens
 // close a service the same way (salaCerrarServicio → POST /queue/control/registrar, where the server computes the commission).
 // ctx ('sala' | 'sillas') only keeps the element ids unique when both screens are drawn.
-function salaServicioActivoHtml(sv,barberNombre,bid,ctx,desde){
+function salaServicioActivoHtml(sv,barberNombre,bid,ctx,desde,soloCierre){
   var q=Number(sv.queue_id), h='';
   _salaEditorData[sv.queue_id]={client_name:sv.client_name,phone:sv.phone||'',service:sv.service,precio:SALA_PRECIOS[sv.service]||0,cliente_id:sv.cliente_id||null,productosAdjuntos:sv.productos_adjuntos||[]};
+  if(soloCierre){
+    // Sillas: the card already shows client and service; here only the actions and the closing form
+    h+='<div style="display:flex;gap:4px;align-items:center;margin-bottom:8px">';
+    h+='<button onclick="salaAbrirEditor('+q+')" style="padding:2px 8px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;font-family:var(--sans)">✏ Editar</button>';
+    h+=salaWaHref(sv.phone, sv.client_name, barberNombre, true);
+    h+='<button onclick="salaEliminarEntrada('+q+')" style="padding:2px 7px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;color:var(--err)">✕</button>';
+    if(sv.productos_adjuntos&&sv.productos_adjuntos.length) h+='<span style="font-size:11px;color:var(--text2)">+ '+escHtml(sv.productos_adjuntos.map(function(p){return (p.cantidad>1?p.cantidad+'x ':'')+p.nombre;}).join(' + '))+'</span>';
+    h+='</div>';
+  } else {
   h+='<div style="margin-bottom:8px">';
   h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">';
   h+='<div style="font-weight:500">'+escHtml(sv.client_name)+'</div>';
@@ -6208,6 +6225,7 @@ function salaServicioActivoHtml(sv,barberNombre,bid,ctx,desde){
     :'');
   h+='<div style="font-size:12px;color:var(--text2)">'+escHtml(_svcLabel)+' · desde '+desde+'</div>';
   h+='</div>';
+  }
   h+='<div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap">';
   h+='<input id="prc-'+ctx+'-'+q+'" type="number" min="0" step="1000" ';
   h+='value="'+(_salaEditorData[sv.queue_id]&&_salaEditorData[sv.queue_id].precio?_salaEditorData[sv.queue_id].precio:(SALA_PRECIOS[sv.service]||''))+'" ';
@@ -6392,6 +6410,7 @@ function salaWaHref(phone, name, barberNombre, enServicio){
 }
 
 function renderSala(){
+  _refPend.sala=false;
   if(!API_URL){
     document.getElementById('salaGrid').innerHTML='<div class="empty" style="grid-column:1/-1"><div class="empty-ico">⚙</div><div>Conecta Railway en ⚙ Config</div></div>';
     return;
@@ -6515,6 +6534,7 @@ function renderSala(){
       borrPodar(borrEnServicio(j));
       document.getElementById('salaGrid').innerHTML=h;
       borrRestaurar();
+      salaMarcarActualizado();
     }).catch(function(e){
       document.getElementById('salaGrid').innerHTML='<div class="empty" style="grid-column:1/-1"><div class="empty-ico">⚠</div><div>Error: '+escHtml(e.message)+'</div></div>';
     });
@@ -6534,10 +6554,250 @@ function salaAsignarDePool(queue_id, bid){
 }
 
 // ═══ SILLAS (estado de sillas + rotación) ════════════════
-var _sillasInterval     = null;
 var _sillasTimerInterval = null;
 
+// ── SILLAS: tablero compacto (todas las sillas en una vista) ──────────────────────────────────────
+// Durations come ONLY from the service catalog (CATALOGO.servicios[].duracion_min); there is no duration in this file.
+var _sillasTimerInterval=_sillasTimerInterval||null;
+var _sillasAbierto=null;   // queue_id whose closing block is open
+
+// Minutes of a service by its catalog name; null when the service is not in the catalog or has no duration.
+function sillasDuracionMin(nombre){
+  var n=String(nombre==null?'':nombre).trim().toLowerCase();
+  if(!n) return null;
+  var l=(CATALOGO&&CATALOGO.servicios)||[];
+  for(var i=0;i<l.length;i++){
+    if(String(l[i].nombre==null?'':l[i].nombre).trim().toLowerCase()===n){
+      var d=Number(l[i].duracion_min);
+      return (d>0)?d:null;
+    }
+  }
+  return null;
+}
+
+// State of one busy chair at "ahora" (ms). Pure: used by the screen and by the tests.
+function sillasEstadoOcupada(startMs,durMin,ahora){
+  var el=startMs?Math.max(0,Math.floor((ahora-startMs)/1000)):0;
+  if(!startMs||!(durMin>0)) return {elapsedSec:el,estimado:false};
+  var finMs=startMs+durMin*60000, resta=finMs-ahora;
+  return {
+    elapsedSec:el, estimado:true, finMs:finMs,
+    restanteMin:Math.max(0,Math.ceil(resta/60000)),
+    tarde:resta<0, tardeMin:resta<0?Math.ceil(-resta/60000):0,
+    pct:Math.min(100,Math.max(0,(ahora-startMs)/(durMin*60000)*100))
+  };
+}
+function sillasHora(ms){ return new Date(ms).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit',hour12:false}); }
+
+// "Próxima silla libre": when the first chair can take a new client, counting the queue waiting in Sala.
+//  sillas: [{ocupada:bool, finMs:number|null (busy chair: estimated finish), espera:[service names waiting for THAT barber]}]
+//  pool:   [service names waiting with no barber assigned yet, in arrival order]
+// A free chair is free now; a busy one at its estimated finish; each client waiting for a barber adds his catalog duration to that chair;
+// pool clients take the earliest chair, one after another. Unknown duration -> that chair becomes "sin estimación" (null) and the result is partial.
+// Returns {min:number|null, parcial:bool}; min=0 means a chair is free right now.
+function sillasProximaLibre(sillas,pool,ahora){
+  var t=[], parcial=false;
+  sillas.forEach(function(s){
+    var libreEn=s.ocupada?(s.finMs==null?null:Math.max(ahora,s.finMs)):ahora;
+    (s.espera||[]).forEach(function(svc){
+      if(libreEn==null) return;
+      var d=sillasDuracionMin(svc);
+      libreEn=(d==null)?null:libreEn+d*60000;
+    });
+    if(libreEn==null) parcial=true;
+    t.push(libreEn);
+  });
+  (pool||[]).forEach(function(svc){
+    var idx=-1;
+    for(var i=0;i<t.length;i++){ if(t[i]!=null&&(idx<0||t[i]<t[idx])) idx=i; }
+    if(idx<0) return;
+    var d=sillasDuracionMin(svc);
+    if(d==null){ t[idx]=null; parcial=true; } else t[idx]+=d*60000;
+  });
+  var conocidos=t.filter(function(x){return x!=null;});
+  if(!conocidos.length) return {min:null,parcial:true};
+  return {min:Math.max(0,Math.ceil((Math.min.apply(null,conocidos)-ahora)/60000)),parcial:parcial};
+}
+
+function sillasToggleCierre(q){
+  _sillasAbierto=(String(_sillasAbierto)===String(q))?null:q;
+  sillasAplicarAbierto();
+  if(_sillasAbierto==null) setTimeout(refrescoPendienteAplicar,0);   // closed: a refresh that was waiting runs now
+}
+function sillasAplicarAbierto(){
+  document.querySelectorAll('#sillasGrid .sc').forEach(function(c){
+    var on=_sillasAbierto!=null&&String(c.getAttribute('data-q'))===String(_sillasAbierto);
+    c.classList.toggle('abierto',on); c.classList.remove('up');
+    if(on){
+      var pop=c.querySelector('.sc-cierre');
+      if(pop&&c.getBoundingClientRect().bottom+pop.offsetHeight+8>window.innerHeight) c.classList.add('up');
+    }
+  });
+}
+
+// ═══ TABLEROS (Sala, Sillas): refrescos que NO pisan lo que se escribe ═══════════════════════════════════════
+// 1. Nunca se redibuja un tablero mientras se edita (globo de cierre o editor abierto, un campo con foco o con cambios sin guardar):
+//    el refresco queda PENDIENTE y se aplica al guardar/cerrar/soltar el campo.
+// 2. Solo se refresca cuando hay algo nuevo: Sala mira un marcador liviano (GET /queue/control/marca) y recarga solo si cambió;
+//    Sillas hace una recarga completa de respaldo. Los dos reaccionan al instante al aviso "cambio" de /events; si el flujo se cae,
+//    las revisiones periódicas siguen funcionando.
+// 3. Los intervalos NO están en este archivo: los entrega el servidor (tenant_config, junto al marcador). null = sin revisión periódica.
+var _refresco={sala_seg:null,sillas_seg:null};
+var _refTimers={sala:null,sillas:null,salaSeg:null,sillasSeg:null};
+var _refPend={sala:false,sillas:false};
+var _marcaSala=null;
+var _evt={ctl:null,conectado:false,intento:0,timer:null,deb:null};
+var _REF_REINTENTO_MS=30000;   // solo el reintento tras no poder leer la configuración; los intervalos de refresco son configuración
+var _REF_ESPERA_MARCA_MS=8000; // tiempo máximo de espera de una lectura del marcador
+
+function tabActiva(id){ var p=document.getElementById(id); return !!(p&&p.classList.contains('on')); }
+
+// ¿Se está editando algo de este tablero ahora mismo? (globo de cierre abierto, editor de servicio/cliente abierto, o un campo con foco).
+// Lo ya escrito pero sin guardar NO bloquea el refresco: queda guardado como borrador y se vuelve a poner tras redibujar (abajo).
+function tableroEditando(paneId){
+  var p=document.getElementById(paneId); if(!p) return false;
+  if(paneId==='pSillas'&&_sillasAbierto!=null) return true;
+  var ed=document.getElementById('salaEditorOverlay'); if(ed&&ed.style.display==='flex') return true;
+  var a=document.activeElement; if(a&&p.contains(a)&&/^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName)) return true;
+  return false;
+}
+
+// Lee el marcador (y los intervalos). Resuelve null si no se pudo leer (servidor caído, 5xx, demora): quien llama recarga completo.
+function refrescoMarca(){
+  if(!API_URL) return Promise.resolve(null);
+  var leer=fetch(API_URL+'/queue/control/marca',{headers:getAuthHeaders()})
+    .then(function(r){ return r.json().then(function(j){ return (r.ok&&j&&j.ok)?j:null; },function(){ return null; }); })
+    .catch(function(){ return null; });
+  var tope=new Promise(function(res){ setTimeout(function(){ res(null); },_REF_ESPERA_MARCA_MS); });
+  return Promise.race([leer,tope]).then(function(j){ if(j) refrescoAplicar(j.refresco); return j; });
+}
+function refrescoAplicar(r){
+  if(!r) return;
+  _refresco.sala_seg=r.sala_seg; _refresco.sillas_seg=r.sillas_seg;
+  refrescoProgramar('sala'); refrescoProgramar('sillas');
+}
+function refrescoProgramar(cual){
+  var seg=_refresco[cual+'_seg'];
+  if(!tabActiva(cual==='sala'?'pSala':'pSillas')){ refrescoDetener(cual); return; }
+  if(_refTimers[cual]&&_refTimers[cual+'Seg']===seg) return;   // mismo intervalo: no se toca
+  if(_refTimers[cual]) clearInterval(_refTimers[cual]);
+  _refTimers[cual]=null; _refTimers[cual+'Seg']=seg;
+  if(seg>0) _refTimers[cual]=setInterval(cual==='sala'?salaVerificar:sillasRefrescar,seg*1000);
+  refrescoEtiquetas();
+}
+function refrescoDetener(cual){
+  if(_refTimers[cual]) clearInterval(_refTimers[cual]);
+  _refTimers[cual]=null; _refTimers[cual+'Seg']=null; _refPend[cual]=false;
+}
+function refrescoTitulo(cual){
+  var seg=_refresco[cual+'_seg'];
+  return 'Hora de la última carga. '+(seg>0?'Se revisa sola cada '+seg+' s':'Sin revisión periódica (configuración)')
+    +(_evt.conectado?' y al instante con los avisos del servidor':'; avisos en vivo no conectados')
+    +'. Nunca se recarga mientras editas. ↺ fuerza una carga.';
+}
+function refrescoEtiquetas(){
+  var s=document.getElementById('ssAct'); if(s) s.title=refrescoTitulo('sillas');
+  var a=document.getElementById('salaAct'); if(a) a.title=refrescoTitulo('sala');
+}
+
+// Aplica los refrescos que quedaron pendientes por estar editando, en cuanto se deja de editar.
+function refrescoPendienteAplicar(){
+  if(_refPend.sillas&&tabActiva('pSillas')&&!tableroEditando('pSillas')) sillasRefrescar();
+  if(_refPend.sala&&tabActiva('pSala')&&!tableroEditando('pSala')) salaRefrescar();
+}
+document.addEventListener('focusout',function(){ setTimeout(refrescoPendienteAplicar,300); });
+
+// ── Sala ──
+function salaEntrar(){
+  _refPend.sala=false;
+  if(!API_URL){ renderSala(); return; }
+  // el marcador se lee ANTES de cargar: lo que se dibuja nunca es más viejo que el marcador guardado
+  refrescoMarca().then(function(j){
+    if(j) _marcaSala=j.marca;
+    renderSala();
+    if(!j) setTimeout(function(){ if(tabActiva('pSala')) refrescoMarca(); },_REF_REINTENTO_MS);
+  });
+}
+function salaRecargar(){   // botón ↺: carga explícita
+  _refPend.sala=false;
+  refrescoMarca().then(function(j){ if(j) _marcaSala=j.marca; renderSala(); });
+}
+function salaVerificar(){
+  if(!API_URL||!tabActiva('pSala')) return;
+  refrescoMarca().then(function(j){
+    if(!tabActiva('pSala')) return;
+    if(j&&j.marca===_marcaSala) return;   // nada nuevo: ni petición completa ni redibujo
+    if(j) _marcaSala=j.marca;
+    salaRefrescar();                       // cambió, o no se pudo leer el marcador: recarga (en espera si se está editando)
+  });
+}
+function salaRefrescar(){
+  if(!tabActiva('pSala')) return;
+  if(tableroEditando('pSala')){ _refPend.sala=true; return; }
+  _refPend.sala=false; renderSala();
+}
+function salaMarcarActualizado(){
+  var a=document.getElementById('salaAct'); if(a) a.textContent='actualizado '+sillasHora(Date.now());
+  refrescoEtiquetas();
+}
+
+// ── Sillas ──
+function sillasEntrar(){
+  _refPend.sillas=false;
+  refrescoMarca();      // trae los intervalos; no espera: el tablero se dibuja de inmediato
+  sillasCargar();
+}
+function sillasRefrescar(){
+  if(!API_URL||!tabActiva('pSillas')) return;
+  if(tableroEditando('pSillas')){ _refPend.sillas=true; return; }
+  _refPend.sillas=false;
+  refrescoMarca();
+  sillasCargar();
+}
+
+// ── Aviso en vivo de /events (evento "cambio"): se reacciona al instante; si el flujo se cae, las revisiones periódicas siguen ──
+function eventoCambio(){
+  clearTimeout(_evt.deb);
+  _evt.deb=setTimeout(function(){
+    if(tabActiva('pSala')) salaVerificar();
+    if(tabActiva('pSillas')) sillasRefrescar();
+  },400);
+}
+function eventoProcesar(bloque){
+  var ev='', dato='';
+  bloque.split('\n').forEach(function(l){ if(l.indexOf('event:')===0) ev=l.slice(6).trim(); else if(l.indexOf('data:')===0) dato+=l.slice(5).trim(); });
+  if(ev==='cambio') eventoCambio();
+}
+// Con sesión de panel el flujo se abre con fetch (EventSource no puede enviar el encabezado Authorization).
+function eventosCambioIniciar(){
+  if(!API_URL||_evt.ctl||!sessionStorage.getItem('panelJwt')||typeof AbortController==='undefined') return;
+  var ctl=new AbortController(); _evt.ctl=ctl;
+  fetch(API_URL+'/events',{headers:getAuthHeaders(),signal:ctl.signal}).then(function(r){
+    if(!r.ok||!r.body) throw new Error('events '+r.status);
+    _evt.conectado=true; _evt.intento=0; refrescoEtiquetas();
+    var rd=r.body.getReader(), dec=new TextDecoder(), buf='';
+    var leer=function(){
+      return rd.read().then(function(x){
+        if(x.done) throw new Error('fin');
+        buf+=dec.decode(x.value,{stream:true});
+        var partes=buf.split('\n\n'); buf=partes.pop();
+        partes.forEach(eventoProcesar);
+        return leer();
+      });
+    };
+    return leer();
+  }).catch(function(){}).then(function(){
+    _evt.conectado=false; _evt.ctl=null; refrescoEtiquetas();
+    var espera=Math.min(60000,5000*Math.pow(2,Math.min(_evt.intento++,4)));   // reintento con espera creciente (5 s … 60 s)
+    _evt.timer=setTimeout(eventosCambioIniciar,espera);
+  });
+}
+
+// Entering the tab and ↺ Actualizar: reload the catalog first (a duration edited on another screen counts at once), then draw.
+function sillasCargar(){ catalogoCargar().then(renderSillas,renderSillas); }
+
 function renderSillas(){
+  _refPend.sillas=false;
   if(!API_URL){
     document.getElementById('sillasGrid').innerHTML='<div class="empty" style="grid-column:1/-1"><div class="empty-ico">⚙</div><div>Conecta Railway en ⚙ Config</div></div>';
     return;
@@ -6550,7 +6810,7 @@ function renderSillas(){
     var queue=res[0]; var regRes=res[1]; var horData=res[2];
     if(!queue.ok) throw new Error(queue.error||'Error cola');
     // Without today's sales the rotation order is unknown: the chairs are
-    // still shown, but no "next turn" is recommended (see the banner below).
+    // still shown, but no "next turn" is recommended (see the strip below).
     var registros=regRes.ok?regRes.registros:[];
 
     // Horarios keyed by bid → determine presence
@@ -6576,7 +6836,7 @@ function renderSillas(){
       }
     });
 
-    // Barberos libres Y presentes Y no ausentes → rotation candidates
+    // Barberos libres Y presentes Y no ausentes → rotation candidates (UNCHANGED rule)
     var libres=BB.filter(function(b){
       var bd=queue.barberos[b.id]||{};
       return !bd.enServicio && !bd.ausente && presente(b.id);
@@ -6591,96 +6851,82 @@ function renderSillas(){
       return ea<eb?-1:ea>eb?1:_desempateTurno(a,b);
     });
 
-    // Banner próximo turno
-    var bannerEl=document.getElementById('sillasNextTurn');
-    if(!regRes.ok){
-      bannerEl.innerHTML=avisoDatosHtml('No se pudo calcular el próximo turno: no se cargaron las ventas de hoy ('+regRes.motivo+'). '
-        +'Las sillas se muestran, pero el orden de rotación no. Presiona «Actualizar» para reintentar.');
-    } else if(libres.length>0){
-      var next=libres[0];
-      var resto=libres.slice(1).map(function(b){return b.nombre;}).join(', ');
-      var llegadaNext=horMap[next.id]&&horMap[next.id].entrada?horMap[next.id].entrada.slice(0,5):'';
-      var motivo=lastSvc[next.id]
-        ?'Terminó su último servicio a las '+lastSvc[next.id].slice(0,5)
-        :'Primer turno del día'+(llegadaNext?' · llegó '+llegadaNext:'');
-      bannerEl.innerHTML=
-        '<div class="silla-next-banner">'+
-        '<div style="font-size:36px;line-height:1">✂</div>'+
-        '<div>'+
-        '<div class="silla-next-label">Próximo turno en rotación</div>'+
-        '<div class="silla-next-name">'+escHtml(next.nombre)+'</div>'+
-        '<div class="silla-next-reason">'+escHtml(motivo)+(resto?' · También libre: '+escHtml(resto):'')+'</div>'+
-        '</div></div>';
-    } else {
-      var todosOcupados=BB.every(function(b){ return queue.barberos[b.id]&&queue.barberos[b.id].enServicio; });
-      bannerEl.innerHTML=
-        '<div class="silla-next-banner" style="background:'+(todosOcupados?'var(--warn)':'var(--text3)')+'">'+
-        '<div style="font-size:36px;line-height:1">'+(todosOcupados?'⏳':'—')+'</div>'+
-        '<div>'+
-        '<div class="silla-next-label">Próximo turno en rotación</div>'+
-        '<div class="silla-next-name">'+(todosOcupados?'Todos ocupados':'Sin barberos presentes')+'</div>'+
-        '<div class="silla-next-reason">'+(todosOcupados?'El primero en liberar su silla toma el siguiente turno':'No hay barberos disponibles en este momento')+'</div>'+
-        '</div></div>';
-    }
-
-    // Tarjetas de silla — ausentes primero para mayor visibilidad
-    var h='';
+    var ahora=Date.now();
     var activeBB=BB.filter(function(b){return b.active!==false;});
-    var ausentesBB=activeBB.filter(function(b){return queue.barberos[b.id]&&queue.barberos[b.id].ausente;});
-    var presentesBB=activeBB.filter(function(b){return !(queue.barberos[b.id]&&queue.barberos[b.id].ausente);});
-    ausentesBB.concat(presentesBB).forEach(function(b){
+
+    // Resumen: una franja delgada arriba
+    var nOcupados=activeBB.filter(function(b){return queue.barberos[b.id]&&queue.barberos[b.id].enServicio;}).length;
+    var nEspera=queue.totalEspera!=null?queue.totalEspera:0;
+    var chairs=[];
+    activeBB.forEach(function(b){
+      var bd=queue.barberos[b.id]||{}; var sv=bd.enServicio||null;
+      if(!sv&&!(presente(b.id)&&!bd.ausente)) return;   // absent / not arrived: not a chair that can take a client
+      var st=0, dur=null;
+      if(sv){ st=sv.service_start?new Date(sv.service_start).getTime():0; dur=sillasDuracionMin(sv.service); }
+      var e=sv?sillasEstadoOcupada(st,dur,ahora):null;
+      chairs.push({ocupada:!!sv,finMs:(e&&e.estimado)?e.finMs:null,espera:(bd.enEspera||[]).map(function(x){return x.service;})});
+    });
+    var pl=sillasProximaLibre(chairs,(queue.pool||[]).map(function(x){return x.service;}),ahora);
+    var plTxt=pl.min==null?'sin estimación':(pl.min===0?'ahora':'~'+pl.min+' min')+(pl.parcial?'*':'');
+    var plTitulo=pl.parcial?'Hay sillas o servicios sin duración en el catálogo: la estimación es parcial.':'Primera silla en liberarse según la duración del catálogo, contando la cola en Sala.';
+    var proximo='', proximoTitulo='';
+    if(!regRes.ok){
+      proximo='<span class="ss-warn">no disponible</span>';
+      proximoTitulo='No se cargaron las ventas de hoy ('+regRes.motivo+'): las sillas se muestran, pero no el orden de rotación. Presiona «Actualizar» para reintentar.';
+    } else if(libres.length>0){
+      var llegadaNext=horMap[libres[0].id]&&horMap[libres[0].id].entrada?horMap[libres[0].id].entrada.slice(0,5):'';
+      proximo='<b>'+escHtml(libres[0].nombre)+'</b>';
+      proximoTitulo=(lastSvc[libres[0].id]?'Terminó su último servicio a las '+lastSvc[libres[0].id].slice(0,5):'Primer turno del día'+(llegadaNext?' · llegó '+llegadaNext:''))
+        +(libres.length>1?' · También libre: '+libres.slice(1).map(function(b){return b.nombre;}).join(', '):'');
+    } else {
+      var todosOcupados=activeBB.length>0&&activeBB.every(function(b){ return queue.barberos[b.id]&&queue.barberos[b.id].enServicio; });
+      proximo='<span class="ss-warn">'+(todosOcupados?'todos ocupados':'sin barberos presentes')+'</span>';
+      proximoTitulo=todosOcupados?'El primero en liberar su silla toma el siguiente turno':'No hay barberos disponibles en este momento';
+    }
+    document.getElementById('sillasNextTurn').innerHTML=
+      '<div class="ss">'+
+      '<span class="ss-i" title="'+escHtml(proximoTitulo)+'">Próximo turno: '+proximo+'</span>'+
+      '<span class="ss-i">Libres <b>'+libres.length+'</b></span>'+
+      '<span class="ss-i">Ocupados <b>'+nOcupados+'</b></span>'+
+      '<span class="ss-i">En espera <b>'+nEspera+'</b></span>'+
+      '<span class="ss-i" id="ssProxLibre" title="'+escHtml(plTitulo)+'">Próxima silla libre: <b>'+plTxt+'</b></span>'+
+      '<span class="ss-act" id="ssAct" title="'+escHtml(refrescoTitulo('sillas'))+'">actualizado '+sillasHora(ahora)+'</span>'+
+      '<button class="ss-btn" onclick="sillasCargar()">↺ Actualizar</button>'+
+      '</div>';
+
+    // Tarjetas: orden de pantalla de los barberos (el mismo de todo el panel); la posición de una silla no cambia con su estado
+    var nextId=(regRes.ok&&libres.length>0)?libres[0].id:null;
+    var h='';
+    activeBB.forEach(function(b){
       var bd=queue.barberos[b.id]||{};
       var sv=bd.enServicio||null;
-      var nEspera=(bd.enEspera||[]).length;
+      var nEsp=(bd.enEspera||[]).length;
       var esPresente=presente(b.id);
       var seWas=yaSeWas(b.id);
 
       if(sv){
-        // En corte
-        var desde=sv.service_start
-          ?new Date(sv.service_start).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'}):'—';
-        var remainMin=bd.remaining_min;
-        var restanteUrgente=(remainMin!=null && remainMin<=0);
-        var restanteTxt=(remainMin==null)?'—':(remainMin<=0?'Terminando':'~'+remainMin+'min');
-        h+='<div class="silla-card ocupada">';
-        h+='<div class="silla-head ocupada">';
-        h+='<div><div class="silla-nombre">'+escHtml(b.nombre)+'</div>';
-        h+='<div class="silla-status-lbl" style="opacity:.65">En corte</div></div>';
-        h+='<div style="font-size:11px;opacity:.6">'+nEspera+' en espera</div>';
+        // Ocupada
+        var stMs=sv.service_start?new Date(sv.service_start).getTime():0;
+        var dur=sillasDuracionMin(sv.service);
+        var desde=stMs?sillasHora(stMs):'—';
+        h+='<div class="sc sc-ocu" id="sc-'+escHtml(b.id)+'" data-q="'+Number(sv.queue_id)+'" data-start="'+stMs+'" data-dur="'+(dur||'')+'">';
+        h+='<div class="sc-top"><span class="sc-name">'+escHtml(b.nombre)+'</span></div>';
+        h+='<div class="sc-meta"><span class="sc-chip">Ocupado</span><span class="sc-esp">'+nEsp+' en espera</span></div>';
+        h+='<div class="sc-cli" title="'+escHtml(sv.client_name+' · '+sv.service)+'"><b>'+escHtml(sv.client_name)+'</b> · '+escHtml(sv.service)+'</div>';
+        h+='<div class="sc-main"><div class="sc-rem">—</div><div class="sc-fin">sin estimación</div></div>';
+        h+='<div class="sc-bar"><i></i></div>';
+        h+='<div class="sc-foot"><span>⏱ <span class="sc-t" id="stimer-'+escHtml(b.id)+'">—</span> · desde '+desde+'</span>';
+        h+='<button class="sc-cerrar" onclick="sillasToggleCierre('+Number(sv.queue_id)+')">💳 Cerrar</button></div>';
+        // The closing block (price, payment, tip, products) is the shared one from Sala, collapsed until "💳 Cerrar"
+        h+='<div class="sc-cierre">'+salaServicioActivoHtml(sv,b.nombre,b.id,'sillas',desde,true)+'</div>';
         h+='</div>';
-        h+='<div class="silla-body">';
-        h+='<div class="silla-client">'+escHtml(sv.client_name)+'</div>';
-        h+='<div class="silla-svc">'+escHtml(sv.service)+'</div>';
-        h+='<div class="silla-stats">';
-        h+='<div class="silla-stat">';
-        h+='<div class="silla-stat-label">Transcurrido</div>';
-        h+='<div class="silla-timer" id="stimer-'+b.id+'">—</div>';
-        h+='</div>';
-        h+='<div class="silla-stat silla-stat-restante'+(restanteUrgente?' urgente':'')+'">';
-        h+='<div class="silla-stat-label">Restante</div>';
-        h+='<div class="silla-restante">'+restanteTxt+'</div>';
-        h+='</div>';
-        h+='</div>';
-        h+='<div class="silla-desde">En silla desde las '+desde+'</div>';
-        if(sv.service_start) h+='<input type="hidden" id="sstart-'+escHtml(b.id)+'" value="'+escHtml(sv.service_start)+'">';
-        // Same closing block as Sala de Espera (one shared function): price, payment, tip, products via ✏ Editar, 💳 Cerrar
-        h+='<div style="text-align:left;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">'+salaServicioActivoHtml(sv,b.nombre,b.id,'sillas',desde)+'</div>';
-        h+='</div></div>';
       } else if(esPresente && !bd.ausente){
         // Libre y presente
-        var esperaLbl=nEspera+' en espera';
-        if(nEspera>0 && bd.queue_wait_min!=null) esperaLbl+=' · ~'+bd.queue_wait_min+'min';
-        h+='<div class="silla-card libre">';
-        h+='<div class="silla-head libre">';
-        h+='<div><div class="silla-nombre" style="color:var(--ok)">'+escHtml(b.nombre)+'</div>';
-        h+='<div class="silla-status-lbl" style="color:var(--ok)">Libre</div></div>';
-        h+='<div style="font-size:11px;color:var(--text3)">'+esperaLbl+'</div>';
+        var esperaLbl=nEsp>0?nEsp+' en espera'+(bd.queue_wait_min!=null?' · ~'+bd.queue_wait_min+' min':''):'';
+        h+='<div class="sc sc-lib">';
+        h+='<div class="sc-top"><span class="sc-name">'+escHtml(b.nombre)+'</span><span class="sc-chip">Libre</span>'+(b.id===nextId?'<span class="sc-next" title="Próximo turno en rotación">▶ siguiente</span>':'')+'<span class="sc-esp">'+escHtml(esperaLbl)+'</span></div>';
+        h+='<div class="sc-sub">'+(lastSvc[b.id]?'Último servicio '+escHtml(lastSvc[b.id].slice(0,5)):'Sin servicios hoy')+'</div>';
         h+='</div>';
-        h+='<div class="silla-body">';
-        h+='<div style="font-size:28px;margin:6px 0;color:var(--ok)">✓</div>';
-        h+='<div style="font-size:13px;color:var(--text2)">Sin cliente activo</div>';
-        if(lastSvc[b.id]) h+='<div style="font-size:11px;color:var(--text3);margin-top:8px">Último servicio: '+escHtml(lastSvc[b.id].slice(0,5))+'</div>';
-        h+='</div></div>';
       } else {
         // Ausente: marcado manualmente, ya salió, o no ha llegado
         var motivoAusente=bd.ausente
@@ -6688,22 +6934,17 @@ function renderSillas(){
           :seWas
             ?'Salió a las '+(horMap[b.id].salida||'')
             :'No ha llegado';
-        var labelAusente=bd.ausente?'Ausente':( seWas ? 'Fuera de turno' : 'Sin registrar llegada' );
-        h+='<div class="silla-card ausente">';
-        h+='<div class="silla-head ausente">';
-        h+='<div><div class="silla-nombre">'+escHtml(b.nombre)+'</div>';
-        h+='<div class="silla-status-lbl">'+escHtml(labelAusente)+'</div></div>';
+        var labelAusente=bd.ausente?'Ausente':( seWas ? 'Fuera de turno' : 'Sin llegada' );
+        h+='<div class="sc sc-aus">';
+        h+='<div class="sc-top"><span class="sc-name">'+escHtml(b.nombre)+'</span><span class="sc-chip">'+escHtml(labelAusente)+'</span></div>';
+        h+='<div class="sc-sub">'+escHtml(motivoAusente)+(lastSvc[b.id]?' · último '+escHtml(lastSvc[b.id].slice(0,5)):'')+'</div>';
         h+='</div>';
-        h+='<div class="silla-body">';
-        h+='<div style="font-size:28px;margin:6px 0;color:#9a6e0a">'+(bd.ausente?'⏸':'—')+'</div>';
-        h+='<div style="font-size:12px;color:var(--text2);font-weight:600">'+escHtml(motivoAusente)+'</div>';
-        if(lastSvc[b.id]) h+='<div style="font-size:11px;color:var(--text3);margin-top:8px">Último servicio hoy: '+escHtml(lastSvc[b.id].slice(0,5))+'</div>';
-        h+='</div></div>';
       }
     });
     borrPodar(borrEnServicio(queue));
     document.getElementById('sillasGrid').innerHTML=h||'<div class="empty" style="grid-column:1/-1"><div>Sin datos de barberos</div></div>';
     borrRestaurar();
+    sillasAplicarAbierto();
 
     // Iniciar cronómetros por segundo
     if(_sillasTimerInterval) clearInterval(_sillasTimerInterval);
@@ -6714,17 +6955,25 @@ function renderSillas(){
   });
 }
 
+// Every second: elapsed time, remaining time, estimated finish clock and the progress bar (red once overdue).
 function sillasTickTimers(){
-  BB.forEach(function(b){
-    var inp=document.getElementById('sstart-'+b.id);
-    var el=document.getElementById('stimer-'+b.id);
-    if(!inp||!el) return;
-    var diff=Math.floor((Date.now()-new Date(inp.value))/1000);
-    if(diff<0) diff=0;
-    var mins=Math.floor(diff/60);
-    var secs=diff%60;
-    el.textContent=mins+':'+(secs<10?'0':'')+secs;
-    el.className='silla-timer'+(mins>=45?' alert':mins>=30?' warn':'');
+  var ahora=Date.now();
+  document.querySelectorAll('#sillasGrid .sc-ocu').forEach(function(c){
+    var st=Number(c.getAttribute('data-start'))||0, dur=Number(c.getAttribute('data-dur'))||0;
+    var e=sillasEstadoOcupada(st,dur,ahora);
+    var t=c.querySelector('.sc-t'), rem=c.querySelector('.sc-rem'), fin=c.querySelector('.sc-fin'), bar=c.querySelector('.sc-bar>i');
+    if(t){ var m=Math.floor(e.elapsedSec/60), s=e.elapsedSec%60; t.textContent=m+':'+(s<10?'0':'')+s; }
+    if(!e.estimado){
+      if(rem) rem.textContent='—';
+      if(fin) fin.textContent='sin estimación';
+      if(bar) bar.style.width='0';
+      c.classList.remove('sc-late');
+      return;
+    }
+    if(rem) rem.textContent=e.tarde?'+'+e.tardeMin+' min':'~'+e.restanteMin+' min';
+    if(fin) fin.textContent=(e.tarde?'debió terminar ':'termina ~')+sillasHora(e.finMs);
+    if(bar) bar.style.width=e.pct.toFixed(1)+'%';
+    c.classList.toggle('sc-late',e.tarde);
   });
 }
 
@@ -6811,6 +7060,7 @@ function salaAbrirEditor(queue_id){
 
 function salaCerrarEditor(){
   document.getElementById('salaEditorOverlay').style.display='none';
+  _sillasAbierto=null;   // the closing popover of Sillas closes with the editor (the card may have changed)
   _refrescarSalaYSillas();
 }
 
@@ -7087,6 +7337,7 @@ function panelApplySession(){
   cargarRegistrosDia(); // today's sales — first read happens here, never before login
   drainOutbox(); // flush any services queued before login
   sesionRevisar(); // expiry notice for the new session
+  eventosCambioIniciar(); // live change notice for Sala and Sillas (needs the panel session)
 }
 
 function panelLogout(){
@@ -7588,7 +7839,9 @@ function renderStaffSS(){
       +(precioEditable
         ?'<input class="staff-input svc-precio" type="text" inputmode="numeric" value="'+s.precio_activo+'" placeholder="Precio"'+(puede?'':' disabled')+' onchange="staffSaveSvcPrecio(\''+escJsAttr(id)+'\',this.value)" style="max-width:100px">'
         :'<span class="svc-precio-fijo">'+(s.precio_activo!=null?_fmtCLP(s.precio_activo):'sin precio')+'</span>')
-      +'<span class="svc-duracion">'+(s.duracion_min?s.duracion_min+' min':'')+'</span>'
+      +(puede
+        ?'<input class="staff-input svc-dur-in" type="text" inputmode="numeric" value="'+(s.duracion_min?s.duracion_min:'')+'" placeholder="min" title="Duración en minutos: la usan las estimaciones de Sillas" onchange="staffGuardarDuracion(\''+escJsAttr(id)+'\',this.value)" style="max-width:64px;text-align:right"><span class="svc-duracion">min'+(s.duracion_min?'':' · sin duración')+'</span>'
+        :'<span class="svc-duracion">'+(s.duracion_min?s.duracion_min+' min':'sin duración')+'</span>')
       +(s.activo?'':'<span class="svc-badge">Inactivo</span>')
       +'<button class="staff-action-btn '+(s.activo?'deactivate':'reactivate')+' svc-toggle"'+(puede?'':' disabled')+' onclick="staffCambiarEstadoSvc(\''+escJsAttr(id)+'\')">'+(s.activo?'Desactivar':'Reactivar')+'</button>'
       +'</div>';
@@ -7633,6 +7886,25 @@ function staffRenombrarSvc(id,val){
   if(!confirm('¿Renombrar "'+s.nombre+'" a "'+nuevo+'"?\nLas ventas con el nombre anterior se siguen reconociendo.')){renderStaffSS();return;}
   _svcEnviar('PATCH','/api/v2/config/servicios/'+encodeURIComponent(id),{nombre:nuevo},function(j){
     return 'Servicio renombrado: '+j.nombre;
+  });
+}
+// Duration of a service in minutes (admin only; the server audits who/when/before/after and refuses a stale screen or an implausible jump).
+function staffGuardarDuracion(id,val,confirmado){
+  var s=_svcPorId(id);
+  if(!s){renderStaffSS();return;}
+  var txt=String(val).trim();
+  if(!_svcEsEnteroPositivo(txt)){toast('La duración debe ser un número entero de minutos mayor que 0.');renderStaffSS();return;}
+  var nueva=parseInt(txt,10), antes=(s.duracion_min==null)?null:Number(s.duracion_min);
+  if(nueva===antes){renderStaffSS();return;}
+  if(!confirmado&&!confirm('¿Cambiar la duración de "'+s.nombre+'" de '+(antes==null?'sin duración':antes+' min')+' a '+nueva+' min?\nLas estimaciones de Sillas usarán el nuevo valor.')){renderStaffSS();return;}
+  var body={duracion_min:nueva,duracion_actual_esperada:antes};
+  if(confirmado) body.confirmacion_magnitud=true;
+  _svcEnviar('PATCH','/api/v2/config/servicios/'+encodeURIComponent(id)+'/duracion',body,function(j){
+    return j.sin_cambios?'Sin cambios':'Duración guardada: '+j.duracion_min+' min';
+  }).then(function(res){
+    if(res&&res.status===422&&res.body&&res.body.error==='cambio_magnitud_elevada'){
+      if(confirm('La duración cambia un '+res.body.variacion_pct+'% (de '+res.body.duracion_actual+' a '+res.body.duracion_nueva+' min). ¿Es correcto?')) staffGuardarDuracion(id,txt,true);
+    }
   });
 }
 function staffCambiarEstadoSvc(id){
