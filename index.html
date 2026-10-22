@@ -1221,6 +1221,208 @@
 <script src="reportes-api.js"></script>
 <script src="conducta-diaria.js"></script>
 <script>
+// ═══ SESIÓN DEL PANEL: aviso antes de vencer y reingreso SIN recargar ═══════════════════════════════════════════
+// El token del panel dura 8 h. 10 minutos antes de vencer aparece un aviso que no bloquea ("Tu sesión vence pronto · Renovar").
+// Si una petición recibe 401 por sesión vencida o inválida NO se muestra "Unauthorized": se abre un cuadro de ingreso encima de la
+// pantalla (sin recargar nada, así lo que se estaba escribiendo no se toca) y, al ingresar, se reintentan UNA vez las peticiones que
+// habían fallado. Un 401 por otro motivo (contraseña actual mala, PIN) no cuenta como sesión vencida.
+var SESION_AVISO_MIN=10;        // minutos antes del vencimiento en que aparece el aviso
+var SESION_REVISION_MS=20000;   // cada cuánto se revisa cuánto falta
+var SESION_RUTAS_LIBRES=/\/(panel\/login|auth\/login|socio\/login)(\?|$)|\/events(\?|$)/;
+var SESION_401_NO_SESION={invalid_credentials:1,invalid_pin:1,socio_not_configured:1};
+var _fetchBase=window.fetch.bind(window);
+var _sesionPend=null;           // reingreso en curso: {promesa, resolver, modo}
+
+function sesionToken(){ try{ return sessionStorage.getItem('panelJwt')||''; }catch(e){ return ''; } }
+// Lee el contenido del JWT (solo exp y quién es); quien decide si es válido es el servidor.
+function sesionDatos(tok){
+  try{
+    var p=String(tok).split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+    while(p.length%4) p+='=';
+    return JSON.parse(decodeURIComponent(escape(atob(p))));
+  }catch(e){ return null; }
+}
+function sesionAuthDe(init){
+  var h=init&&init.headers; if(!h) return '';
+  var a=(typeof h.get==='function')?(h.get('Authorization')||''):(h.Authorization||h.authorization||'');
+  return a.indexOf('Bearer ')===0?a.slice(7):'';
+}
+function sesionInitCon(init,tok){
+  var n=Object.assign({},init||{}), h=init&&init.headers;
+  if(h&&typeof h.get==='function'){ var hh=new Headers(h); hh.set('Authorization','Bearer '+tok); n.headers=hh; }
+  else { var o=Object.assign({},h||{}); delete o.authorization; o.Authorization='Bearer '+tok; n.headers=o; }
+  return n;
+}
+
+window.fetch=function(input,init){
+  var url=(typeof input==='string')?input:((input&&input.url)||'');
+  var enviado=sesionAuthDe(init);
+  var aplica=!!enviado&&typeof API_URL==='string'&&!!API_URL&&url.indexOf(API_URL)===0&&!SESION_RUTAS_LIBRES.test(url);
+  if(!aplica) return _fetchBase(input,init);
+  return _fetchBase(input,init).then(function(r){
+    if(r.status!==401) return r;
+    return r.clone().json().catch(function(){ return null; }).then(function(j){
+      if(j&&SESION_401_NO_SESION[j.error]) return r;                                   // otro motivo: no es la sesión
+      var actual=sesionToken();
+      if(actual&&actual!==enviado) return _fetchBase(input,sesionInitCon(init,actual)); // la sesión ya se renovó mientras tanto
+      return sesionReingreso('vencida').then(function(){
+        return _fetchBase(input,sesionInitCon(init,sesionToken()));                    // un solo reintento, con el token nuevo
+      });
+    });
+  });
+};
+
+function sesionReingreso(modo){
+  if(!_sesionPend){
+    var o={modo:modo};
+    o.promesa=new Promise(function(res){ o.resolver=res; });
+    _sesionPend=o;
+  } else if(modo==='vencida') _sesionPend.modo='vencida';
+  sesionModalMostrar();
+  return _sesionPend.promesa;
+}
+function sesionRenovar(){ sesionReingreso('renovar'); }
+
+function sesionEstilos(){
+  if(document.getElementById('sesionCss')) return;
+  var st=document.createElement('style'); st.id='sesionCss';
+  st.textContent=
+    '#sesionBanner{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:8000;display:none;align-items:center;gap:10px;padding:8px 14px;background:#fff8e1;border:1px solid #d4a843;border-radius:99px;box-shadow:0 4px 14px rgba(0,0,0,.15);font-size:13px;color:#5c4300}'
+    +'#sesionBanner button{padding:4px 12px;border:none;border-radius:99px;background:var(--text);color:#fff;font-size:12px;font-weight:600;cursor:pointer}'
+    +'#sesionModal{position:fixed;inset:0;z-index:9500;display:none;align-items:center;justify-content:center;background:rgba(10,9,8,.55)}'
+    +'#sesionModal .sesion-card{width:min(380px,92vw);background:var(--surface);border-radius:var(--rl);padding:22px;box-shadow:0 12px 40px rgba(0,0,0,.35)}'
+    +'#sesionModal h3{margin:0 0 6px;font-size:17px}'
+    +'#sesionModal p{margin:0 0 14px;font-size:13px;color:var(--text2)}'
+    +'#sesionModal input{width:100%;box-sizing:border-box;padding:9px 11px;margin-bottom:10px;border:1px solid var(--border);border-radius:var(--r);font-size:14px;font-family:var(--sans);background:var(--surface)}'
+    +'#sesionModal input[readonly]{background:var(--soft);color:var(--text2)}'
+    +'#sesionModal .sesion-err{min-height:18px;margin-bottom:8px;font-size:12px;color:var(--err)}'
+    +'#sesionModal .sesion-fila{display:flex;align-items:center;justify-content:space-between;gap:10px}'
+    +'#sesionModal .sesion-ok{padding:9px 18px;border:none;border-radius:var(--r);background:var(--text);color:#fff;font-size:14px;font-weight:600;cursor:pointer}'
+    +'#sesionModal .sesion-ok:disabled{opacity:.6;cursor:default}'
+    +'#sesionModal .sesion-link{background:none;border:none;color:var(--text3);font-size:12px;text-decoration:underline;cursor:pointer;padding:0}';
+  document.head.appendChild(st);
+}
+function sesionModalMostrar(){
+  sesionEstilos();
+  var m=document.getElementById('sesionModal');
+  if(!m){
+    m=document.createElement('div'); m.id='sesionModal'; m.setAttribute('role','dialog'); m.setAttribute('aria-modal','true');
+    m.innerHTML='<div class="sesion-card">'
+      +'<h3 id="sesionTitulo"></h3><p id="sesionTexto"></p>'
+      +'<input id="sesionEmail" type="email" readonly aria-label="Correo">'
+      +'<input id="sesionPass" type="password" placeholder="Contraseña" autocomplete="current-password" aria-label="Contraseña" onkeydown="if(event.key===\'Enter\')sesionEnviar()">'
+      +'<div id="sesionErr" class="sesion-err" role="alert"></div>'
+      +'<div class="sesion-fila"><button id="sesionEntrar" class="sesion-ok" onclick="sesionEnviar()">Entrar</button>'
+      +'<span><button id="sesionAhoraNo" class="sesion-link" onclick="sesionCancelar()">Ahora no</button> '
+      +'<button class="sesion-link" onclick="panelLogout()">Cerrar sesión</button></span></div></div>';
+    document.body.appendChild(m);
+  }
+  var d=sesionDatos(sesionToken())||{}, venc=_sesionPend&&_sesionPend.modo==='vencida';
+  document.getElementById('sesionTitulo').textContent=venc?'Tu sesión venció':'Renovar sesión';
+  document.getElementById('sesionTexto').textContent=venc
+    ?'Vuelve a ingresar para seguir. No se pierde nada de lo que estabas escribiendo.'
+    :'Ingresa tu contraseña para extender la sesión. No se pierde nada de lo que estás haciendo.';
+  document.getElementById('sesionEmail').value=d.email||'';
+  document.getElementById('sesionPass').value='';
+  document.getElementById('sesionErr').textContent='';
+  document.getElementById('sesionAhoraNo').style.display=venc?'none':'';
+  m.style.display='flex';
+  setTimeout(function(){ var p=document.getElementById('sesionPass'); if(p) p.focus(); },50);
+}
+function sesionModalOcultar(){ var m=document.getElementById('sesionModal'); if(m) m.style.display='none'; }
+function sesionCancelar(){   // solo en modo "renovar": nada está esperando
+  if(_sesionPend&&_sesionPend.modo==='vencida') return;
+  _sesionPend=null; sesionModalOcultar();
+}
+function sesionEnviar(){
+  var antes=sesionDatos(sesionToken())||{};
+  var email=(document.getElementById('sesionEmail').value||'').trim(), pass=document.getElementById('sesionPass').value||'';
+  var err=document.getElementById('sesionErr'), btn=document.getElementById('sesionEntrar');
+  err.textContent='';
+  if(!pass){ err.textContent='Escribe tu contraseña.'; return; }
+  btn.disabled=true; btn.textContent='Entrando…';
+  _fetchBase(API_URL+'/api/v2/panel/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass})})
+    .then(function(r){ return r.json().catch(function(){ return null; }); })
+    .then(function(j){
+      if(!j||!j.ok||!j.token){ err.textContent=mensajeErrorLogin(j); return; }
+      if(antes.panel_user_id!=null&&j.panel_user_id!==antes.panel_user_id){
+        err.textContent='Esa cuenta no es la de esta sesión. Usa «Cerrar sesión» para entrar con otra.'; return;
+      }
+      try{ sessionStorage.setItem('panelJwt',j.token); }catch(e){}
+      if(j.role&&typeof _panelRole!=='undefined'&&_panelRole&&j.role!==_panelRole){   // los permisos cambiaron: se recarga para aplicarlos
+        toast('Tus permisos cambiaron: se recarga el panel'); setTimeout(function(){ location.reload(); },1200); return;
+      }
+      sesionModalOcultar();
+      var o=_sesionPend; _sesionPend=null;
+      sesionRevisar();
+      if(o) o.resolver();
+    })
+    .catch(function(){ err.textContent='Error de conexión: intenta de nuevo.'; })
+    .then(function(){ btn.disabled=false; btn.textContent='Entrar'; });
+}
+
+// Aviso no bloqueante cuando faltan SESION_AVISO_MIN minutos (o ya venció)
+function sesionRevisar(){
+  var tok=sesionToken(), d=tok?sesionDatos(tok):null, b=document.getElementById('sesionBanner');
+  if(!d||!d.exp||d.exp*1000-Date.now()>SESION_AVISO_MIN*60000){ if(b) b.style.display='none'; return; }
+  sesionEstilos();
+  if(!b){
+    b=document.createElement('div'); b.id='sesionBanner'; b.setAttribute('role','status');
+    b.innerHTML='<span id="sesionBannerTxt"></span><button onclick="sesionRenovar()">Renovar</button>';
+    document.body.appendChild(b);
+  }
+  var resta=d.exp*1000-Date.now();
+  document.getElementById('sesionBannerTxt').textContent=(resta>0?'Tu sesión vence pronto':'Tu sesión venció')+' ·';
+  b.title=resta>0?'Vence en '+Math.max(1,Math.ceil(resta/60000))+' min':'Venció';
+  b.style.display='flex';
+}
+setInterval(sesionRevisar,SESION_REVISION_MS);
+document.addEventListener('visibilitychange',sesionRevisar);
+setTimeout(sesionRevisar,1500);
+
+// ── Borradores de los formularios de cierre (precio, forma de pago, propina) ─────────────────────────────────────
+// Todo lo que se escribe o elige queda guardado POR TICKET en esta pestaña (sessionStorage) y se vuelve a poner después de cada
+// redibujo de Sala o Sillas (también tras reingresar por sesión vencida). Es el mismo borrador para el formulario de Sala y el de
+// Sillas del mismo ticket. Se borra cuando el ticket ya no está en servicio (cerrado, eliminado).
+var _BORR_KEY='bp_borradores_cierre';
+var _borr={};
+try{ _borr=JSON.parse(sessionStorage.getItem(_BORR_KEY)||'{}')||{}; }catch(e){ _borr={}; }
+function borrPersistir(){ try{ sessionStorage.setItem(_BORR_KEY,JSON.stringify(_borr)); }catch(e){} }
+function borrClave(id){ var m=/^(prc|pago|prop)-(?:sala|sillas)-(\d+)$/.exec(id||''); return m?m[1]+'-'+m[2]:null; }
+function borrCapturar(ev){
+  var el=ev&&ev.target, k=el&&borrClave(el.id);
+  if(!k) return;
+  _borr[k]=el.value; borrPersistir();
+}
+document.addEventListener('input',borrCapturar);
+document.addEventListener('change',borrCapturar);
+function borrRestaurar(){
+  Object.keys(_borr).forEach(function(k){
+    var m=/^(prc|pago|prop)-(\d+)$/.exec(k); if(!m) return;
+    ['sala','sillas'].forEach(function(ctx){
+      var el=document.getElementById(m[1]+'-'+ctx+'-'+m[2]);
+      if(!el||el.value===_borr[k]) return;
+      if(el.tagName==='SELECT'){
+        var hay=false; for(var i=0;i<el.options.length;i++){ if(el.options[i].value===_borr[k]){ hay=true; break; } }
+        if(!hay) return;
+      }
+      el.value=_borr[k];
+    });
+    if(m[1]==='pago'&&typeof _pagoSelections!=='undefined') _pagoSelections[m[2]]=_borr[k];
+  });
+}
+// ids: tickets that are in service right now (from the server). A draft of any other ticket is dropped.
+function borrPodar(ids){
+  var vivos={}; (ids||[]).forEach(function(q){ vivos[String(q)]=true; });
+  var cambio=false;
+  Object.keys(_borr).forEach(function(k){ var q=k.split('-')[1]; if(!vivos[q]){ delete _borr[k]; cambio=true; } });
+  if(cambio) borrPersistir();
+}
+function borrEnServicio(queue){
+  var ids=[]; Object.keys((queue&&queue.barberos)||{}).forEach(function(b){ var sv=queue.barberos[b].enServicio; if(sv) ids.push(sv.queue_id); });
+  return ids;
+}
+
 // ═══ DATOS ═══════════════════════════════════════════════
 // Populated from GET /barberos — adding a barber to DB propagates here automatically
 // Never hardcoded — populated from localStorage cache (loadStaffConfig, the
@@ -6294,7 +6496,9 @@ function renderSala(){
         h+='</div></div>';
       }
       if(!h) h='<div class="empty" style="grid-column:1/-1"><div class="empty-ico">✓</div><div>Cola vacía</div></div>';
+      borrPodar(borrEnServicio(j));
       document.getElementById('salaGrid').innerHTML=h;
+      borrRestaurar();
     }).catch(function(e){
       document.getElementById('salaGrid').innerHTML='<div class="empty" style="grid-column:1/-1"><div class="empty-ico">⚠</div><div>Error: '+escHtml(e.message)+'</div></div>';
     });
@@ -6481,7 +6685,9 @@ function renderSillas(){
         h+='</div></div>';
       }
     });
+    borrPodar(borrEnServicio(queue));
     document.getElementById('sillasGrid').innerHTML=h||'<div class="empty" style="grid-column:1/-1"><div>Sin datos de barberos</div></div>';
+    borrRestaurar();
 
     // Iniciar cronómetros por segundo
     if(_sillasTimerInterval) clearInterval(_sillasTimerInterval);
@@ -6732,6 +6938,7 @@ function salaActualizarServicio(){
           _salaEditorData[_editorQueueId].service=svc;
           _salaEditorData[_editorQueueId].precio=precio;
         }
+        delete _borr['prc-'+_editorQueueId]; borrPersistir();   // the price just set here replaces whatever was typed in the closing form
         salaCerrarEditor();
       } else toast('Error: '+(j.error||''));
     }).catch(function(e){toast('Error: '+e.message);});
@@ -6863,6 +7070,7 @@ function panelApplySession(){
   cargarMetodosPago(); // payment methods + commission rates from the server (preview only)
   cargarRegistrosDia(); // today's sales — first read happens here, never before login
   drainOutbox(); // flush any services queued before login
+  sesionRevisar(); // expiry notice for the new session
 }
 
 function panelLogout(){
