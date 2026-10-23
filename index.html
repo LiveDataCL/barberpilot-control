@@ -394,6 +394,33 @@
   .sc-esp{font-size:10.5px;color:var(--text3);white-space:nowrap}
   .sc-next{font-size:10.5px;font-weight:700;color:var(--ok);white-space:nowrap}
   .sc-sub{font-size:11.5px;color:var(--text2)}
+  /* DYNAMIC SIZE: the grid computes --k (1 = the compact reference card) from the real space and every text size, padding and bar scales with it */
+  #sillasGrid{--k:1}
+  #sillasGrid .sc{padding:calc(9px*var(--k)) calc(11px*var(--k));gap:calc(5px*var(--k));justify-content:center}
+  #sillasGrid .sc-ocu{padding-bottom:0;column-gap:calc(10px*var(--k));row-gap:calc(5px*var(--k));align-content:space-between;justify-content:normal}
+  #sillasGrid .sc-name{font-size:calc(14px*var(--k))} #sillasGrid .sc-chip{font-size:calc(9.5px*var(--k))} #sillasGrid .sc-esp,#sillasGrid .sc-next{font-size:calc(10.5px*var(--k))}
+  #sillasGrid .sc-sub{font-size:calc(11.5px*var(--k))} #sillasGrid .sc-cli{font-size:calc(12.5px*var(--k))} #sillasGrid .sc-rem{font-size:calc(28px*var(--k))}
+  #sillasGrid .sc-fin{font-size:calc(12px*var(--k))} #sillasGrid .sc-foot{font-size:calc(11px*var(--k))} #sillasGrid .sc-pos{font-size:calc(17px*var(--k))}
+  #sillasGrid .sc-cita{font-size:calc(11.5px*var(--k));padding:calc(2px*var(--k)) calc(7px*var(--k))}
+  #sillasGrid .sc-cerrar{font-size:calc(12px*var(--k));padding:calc(4px*var(--k)) calc(10px*var(--k))} #sillasGrid .sc-aus-btn{font-size:calc(11px*var(--k));padding:calc(2px*var(--k)) calc(8px*var(--k))}
+  #sillasGrid .sc-bar{height:calc(6px*var(--k));margin-left:calc(-11px*var(--k));margin-right:calc(-11px*var(--k))}
+  .sc-pos{font-size:17px;line-height:1;color:var(--ok);font-weight:700}
+  .sc-cita{font-size:11.5px;color:#6a5416;background:rgba(201,168,76,.2);border-radius:var(--r);padding:2px 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;align-self:flex-start}
+  .ss-rot{flex-basis:100%;font-size:12.5px;line-height:1.5;color:rgba(255,255,255,.75);border-top:1px solid rgba(255,255,255,.15);padding-top:4px;margin-top:2px}
+  .rot-i{white-space:nowrap}
+  .rot-l b{color:#7fe0a3}
+  .rot-o b,.rot-x b{color:rgba(255,255,255,.85)}
+  .rot-x{opacity:.7}
+  .ss-aviso{flex-basis:100%;font-size:12.5px;font-weight:600;color:#f0c36a;border-top:1px solid rgba(255,255,255,.15);padding-top:4px;margin-top:2px}
+  /* barbers with no shift today: compact gray chips under the grid, never an alert */
+  #sillasDiaLibre{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  #sillasDiaLibre:empty{display:none}
+  #sillasDiaLibre .sc{display:inline-flex;flex-direction:row;align-items:baseline;gap:8px;padding:3px 10px;border-width:1px;border-left-width:4px;opacity:.8}
+  #sillasDiaLibre .sc-name{font-size:12.5px;font-weight:600}
+  /* the closing popover: below the card, above it, or (when neither fits the window) centred — always fully visible */
+  .sc.centro .sc-cierre{position:fixed;left:50%;top:50%;right:auto;bottom:auto;transform:translate(-50%,-50%);width:min(440px,94vw);max-height:94vh;overflow:auto}
+  .sc-ocu.con-cita{grid-template-areas:"top rem" "meta rem" "cli cli" "cita cita" "foot foot" "bar bar"}
+  .sc-ocu .sc-cita{grid-area:cita}
   .sc-lib{border-color:#b8e5c8;border-left-color:var(--ok);background:#f3faf5}
   .sc-lib .sc-name{color:var(--ok)}
   .sc-aus{border-color:#c9c9c9;border-left-color:#8a8a8a;background:#efefef}
@@ -796,6 +823,7 @@
       <div id="sillasGrid">
         <div class="empty" style="grid-column:1/-1"><div class="empty-ico">⟳</div><div>Cargando sillas…</div></div>
       </div>
+      <div id="sillasDiaLibre"></div>
     </div>
 
     <!-- ── Modal editar pago de registro ── -->
@@ -6141,20 +6169,7 @@ function _resolverPrimerDisponible(callback){
       }
     });
 
-    // Free = present + not currently in service + not marked absent
-    var libres=BB.filter(function(b){
-      if(b.active===false) return false;
-      var bd=queue.barberos&&queue.barberos[b.id];
-      var enServicio=bd&&bd.enServicio;
-      var ausente=barberoAusente(bd);
-      return !enServicio && !ausente && presente(b.id);
-    });
-    // Sort: barber who finished their last service earliest goes first
-    libres.sort(function(a,b){
-      var ta=lastSvc[a.id]||'00:00:00';
-      var tb=lastSvc[b.id]||'00:00:00';
-      return ta<tb?-1:ta>tb?1:_desempateTurno(a,b);
-    });
+    var libres=rotacionLibres(BB,queue,horMap,lastSvc);   // the one rotation rule (same function Sillas shows)
 
     var winner=libres[0]||null;
     callback(winner?winner.id:null, winner?winner.nombre:null);
@@ -6642,6 +6657,114 @@ function sillasProximaLibre(sillas,pool,ahora){
   return {min:Math.max(0,Math.ceil((Math.min.apply(null,conocidos)-ahora)/60000)),parcial:parcial};
 }
 
+// Minutes since midnight in Santiago for a timestamp (the shop's clock, whatever the browser's time zone).
+function sillasMinutosDelDia(ms){
+  var p=new Date(ms).toLocaleTimeString('en-GB',{timeZone:'America/Santiago',hour12:false,hour:'2-digit',minute:'2-digit'}).split(':');
+  return parseInt(p[0],10)*60+parseInt(p[1],10);
+}
+// Upcoming appointment of each barber within the next N minutes (information only: the rotation never reads it).
+// citas: [{bid, client_name, hora_inicio:'HH:MM[:SS]'}] from GET /appointments/proximity (confirmed ones). N: _CITA_VENTANA_MIN, or the server's cita_ventana_min when it sends one.
+var _CITA_VENTANA_MIN=45;
+function sillasCitasProximas(citas,ahoraMs,ventana){
+  var out={}, nowM=sillasMinutosDelDia(ahoraMs);
+  (citas||[]).forEach(function(a){
+    var hi=String(a.hora_inicio||'').slice(0,5); if(!/^\d\d:\d\d$/.test(hi)||!a.bid) return;
+    var m=parseInt(hi.slice(0,2),10)*60+parseInt(hi.slice(3,5),10), d=m-nowM;
+    if(d<0||d>ventana) return;
+    var c=out[a.bid]||(out[a.bid]={hora:hi,m:m,cliente:a.client_name||'',mas:0});
+    if(m<c.m){ c.hora=hi; c.m=m; c.cliente=a.client_name||''; }
+    else if(c.hora!==hi||c.cliente!==(a.client_name||'')) c.mas++;
+  });
+  return out;
+}
+function sillasCitaHtml(c){
+  if(!c) return '';
+  return '<div class="sc-cita" title="Cita agendada: solo informativa, no cambia la rotación">📅 Cita '+escHtml(c.hora)+(c.cliente?' · '+escHtml(c.cliente):'')+(c.mas?' (+'+c.mas+' más)':'')+'</div>';
+}
+
+// Full rotation for the strip: the free barbers in turn order, then the busy ones by estimated finish (numbering continues, with their state),
+// then everyone who is not in the rotation, with their state and no number. The first free barber is, by construction, the next turn.
+function sillasRotacionHtml(libres,activeBB,queue,horMap,ahora){
+  var enLib={}; libres.forEach(function(b){ enLib[b.id]=true; });
+  var ocup=[], otros=[];
+  activeBB.forEach(function(b){
+    if(enLib[b.id]) return;
+    var bd=queue.barberos[b.id]||{}, sv=bd.enServicio||null;
+    if(sv){
+      var st=sv.service_start?new Date(sv.service_start).getTime():0;
+      var e=sillasEstadoOcupada(st,sillasDuracionMin(sv.service),ahora);
+      ocup.push({b:b,fin:e.estimado?e.finMs:Infinity,txt:e.estimado?(e.tarde?'ocupado, atrasado '+e.tardeMin+' min':'ocupado, ~'+e.restanteMin+' min'):'ocupado, sin estimación'});
+      return;
+    }
+    var h=horMap[b.id], motivo;
+    if(barberoAusente(bd)) motivo='ausente';
+    else if(h&&h.entrada&&h.salida) motivo='fuera de turno';
+    else if(bd.programado_hoy===false) motivo='día libre';
+    else motivo='sin registrar llegada';
+    otros.push({b:b,txt:motivo});
+  });
+  ocup.sort(function(x,y){ return x.fin-y.fin; });
+  var partes=[], n=0;
+  libres.forEach(function(b){ n++; partes.push('<span class="rot-i rot-l">'+rotNum(n)+' <b>'+escHtml(b.nombre)+'</b></span>'); });
+  ocup.forEach(function(o){ n++; partes.push('<span class="rot-i rot-o">'+rotNum(n)+' <b>'+escHtml(o.b.nombre)+'</b> ('+escHtml(o.txt)+')</span>'); });
+  otros.forEach(function(o){ partes.push('<span class="rot-i rot-x"><b>'+escHtml(o.b.nombre)+'</b> ('+escHtml(o.txt)+')</span>'); });
+  return partes.join(' · ');
+}
+
+// ── Dynamic layout. Nothing here depends on how many barbers there are: the columns, the card height and the text scale (--k) are computed from the
+// ACTUAL space (grid width, window height under the strip, side panel open or collapsed, browser zoom) and the CURRENT number of cards, and recomputed live
+// (after every draw, on resize/zoom, when the side panel toggles, when the strip changes height). Only styles change: typed input is never touched.
+// The readability limits are configuration: defaults here, overridable by the server (queue.sillas_layout) and per screen (localStorage 'sfsf_sillas_layout').
+var SILLAS_LAYOUT_DEFECTO={ref_ancho:270,ref_alto:170,min_ancho:270,k_min:0.62,k_max:2.4,alto_max:380,hueco:10,margen_inferior:14};
+var SILLAS_LAYOUT_LIMITES={ref_ancho:[150,600],ref_alto:[80,400],min_ancho:[150,600],k_min:[0.4,1],k_max:[1,4],alto_max:[120,900],hueco:[0,40],margen_inferior:[0,60]};
+var _sillasLayoutServidor=null;
+function sillasLayoutCfg(){
+  var cfg={}, k;
+  for(k in SILLAS_LAYOUT_DEFECTO) cfg[k]=SILLAS_LAYOUT_DEFECTO[k];
+  function aplicar(o){
+    if(!o||typeof o!=='object') return;
+    for(var k in SILLAS_LAYOUT_LIMITES){ var v=Number(o[k]), l=SILLAS_LAYOUT_LIMITES[k]; if(o[k]!=null&&isFinite(v)&&v>=l[0]&&v<=l[1]) cfg[k]=v; }   // an invalid value is ignored (default stays)
+  }
+  aplicar(_sillasLayoutServidor);
+  try{ aplicar(JSON.parse(localStorage.getItem('sfsf_sillas_layout')||'null')); }catch(e){}
+  if(cfg.k_min>cfg.k_max){ cfg.k_min=SILLAS_LAYOUT_DEFECTO.k_min; cfg.k_max=SILLAS_LAYOUT_DEFECTO.k_max; }
+  return cfg;
+}
+// Pure: W×H pixels available for n cards → {cols, rows, h (card height), k (text scale)}. For every possible column count the card size is (W/cols)×(H/rows);
+// k = how much bigger than the reference card (ref_ancho×ref_alto) it is, limited by k_min/k_max; the best k wins (then fewer empty cells, then fewer rows).
+function sillasCalcularLayout(W,H,n,cfg){
+  var gap=cfg.hueco, maxCols=Math.max(1,Math.min(n,Math.floor((W+gap)/(cfg.min_ancho+gap)))), mejor=null;
+  H=Math.max(H,60);
+  for(var c=1;c<=maxCols;c++){
+    var r=Math.ceil(n/c), w=(W-(c-1)*gap)/c, h=Math.min(cfg.alto_max,(H-(r-1)*gap)/r);
+    var k=Math.max(cfg.k_min,Math.min(cfg.k_max,Math.min(w/cfg.ref_ancho,h/cfg.ref_alto))), vacios=c*r-n;
+    if(!mejor||k>mejor.k+1e-6||(Math.abs(k-mejor.k)<=1e-6&&(vacios<mejor.vacios||(vacios===mejor.vacios&&r<mejor.rows)))) mejor={cols:c,rows:r,h:h,k:k,vacios:vacios};
+  }
+  return mejor;
+}
+function sillasAjustarGrid(){
+  var g=document.getElementById('sillasGrid'); if(!g||!tabActiva('pSillas')) return;
+  var n=g.querySelectorAll('.sc').length; if(!n) return;
+  var cfg=sillasLayoutCfg(), dl=document.getElementById('sillasDiaLibre');
+  var dlH=(dl&&dl.children.length)?dl.offsetHeight+8:0;
+  var H=window.innerHeight-g.getBoundingClientRect().top-dlH-cfg.margen_inferior;
+  var L=sillasCalcularLayout(g.clientWidth,H,n,cfg);
+  g.style.gridTemplateColumns='repeat('+L.cols+',minmax(0,1fr))';
+  g.style.gridAutoRows=Math.floor(L.h)+'px';
+  g.style.setProperty('--k',L.k.toFixed(3));
+  g.setAttribute('data-cols',L.cols); g.setAttribute('data-rows',L.rows); g.setAttribute('data-k',L.k.toFixed(2));
+  sillasAplicarAbierto();   // an open closing popover is placed again for the new size
+}
+var _sillasRO=null, _sillasRaf=0;
+function sillasAjustarPronto(){ if(_sillasRaf) return; _sillasRaf=requestAnimationFrame(function(){ _sillasRaf=0; sillasAjustarGrid(); }); }
+function sillasObservarTamano(){
+  if(_sillasRO) return;
+  window.addEventListener('resize',sillasAjustarPronto);   // window resize and browser zoom
+  if(typeof ResizeObserver==='undefined') return;
+  _sillasRO=new ResizeObserver(sillasAjustarPronto);       // side panel toggled (pane width), strip or day-off row changed height
+  ['pSillas','sillasNextTurn','sillasDiaLibre'].forEach(function(id){ var e=document.getElementById(id); if(e) _sillasRO.observe(e); });
+}
+
 function sillasToggleCierre(q){
   _sillasAbierto=(String(_sillasAbierto)===String(q))?null:q;
   sillasAplicarAbierto();
@@ -6650,10 +6773,13 @@ function sillasToggleCierre(q){
 function sillasAplicarAbierto(){
   document.querySelectorAll('#sillasGrid .sc').forEach(function(c){
     var on=_sillasAbierto!=null&&String(c.getAttribute('data-q'))===String(_sillasAbierto);
-    c.classList.toggle('abierto',on); c.classList.remove('up');
+    c.classList.toggle('abierto',on); c.classList.remove('up','centro');
     if(on){
-      var pop=c.querySelector('.sc-cierre');
-      if(pop&&c.getBoundingClientRect().bottom+pop.offsetHeight+8>window.innerHeight) c.classList.add('up');
+      var pop=c.querySelector('.sc-cierre'); if(!pop) return;
+      var r=c.getBoundingClientRect(), ph=pop.offsetHeight+8, vh=window.innerHeight;
+      if(r.bottom+ph<=vh) return;                  // fits below the card
+      if(r.top-ph>=0) c.classList.add('up');       // fits above it
+      else c.classList.add('centro');              // neither: centred in the window
     }
   });
 }
@@ -6851,9 +6977,10 @@ function renderSillas(){
   Promise.all([
     fetch(API_URL+'/queue/control',{headers:getAuthHeaders()}).then(function(r){return r.json();}),
     cargarPeriodoApi(fechaHoy,fechaHoy,{registros:true}),
-    fetch(API_URL+'/horarios/'+fechaHoy).then(function(r){return r.json();}).catch(function(){return {ok:false};})
+    fetch(API_URL+'/horarios/'+fechaHoy).then(function(r){return r.json();}).catch(function(){return {ok:false};}),
+    fetch(API_URL+'/appointments/proximity?fecha='+fechaHoy).then(function(r){return r.json();}).catch(function(){return {ok:false};})
   ]).then(function(res){
-    var queue=res[0]; var regRes=res[1]; var horData=res[2];
+    var queue=res[0]; var regRes=res[1]; var horData=res[2]; var citasRes=res[3];
     if(!queue.ok) throw new Error(queue.error||'Error cola');
     // Without today's sales the rotation order is unknown: the chairs are
     // still shown, but no "next turn" is recommended (see the strip below).
@@ -6882,23 +7009,14 @@ function renderSillas(){
       }
     });
 
-    // Barberos libres Y presentes Y no ausentes → rotation candidates (UNCHANGED rule)
-    var libres=BB.filter(function(b){
-      var bd=queue.barberos[b.id]||{};
-      return !bd.enServicio && !barberoAusente(bd) && presente(b.id);
-    });
-    libres.sort(function(a,b){
-      var ta=lastSvc[a.id]||'';
-      var tb=lastSvc[b.id]||'';
-      if(ta!==tb) return ta<tb?-1:1;
-      // Tiebreaker: quien llegó primero al trabajo va primero
-      var ea=(horMap[a.id]&&horMap[a.id].entrada)||'99:99';
-      var eb=(horMap[b.id]&&horMap[b.id].entrada)||'99:99';
-      return ea<eb?-1:ea>eb?1:_desempateTurno(a,b);
-    });
+    // Rotation candidates, in order: the one rule (rotacionLibres), shared with "Primer disponible" at check-in
+    var libres=rotacionLibres(BB,queue,horMap,lastSvc);
 
     var ahora=Date.now();
     var activeBB=BB.filter(function(b){return b.active!==false;});
+    if(queue.sillas_layout) _sillasLayoutServidor=queue.sillas_layout;
+    // Nobody has an entry mark today (and the attendance was read): rotation and "Próximo turno" have nobody to offer. Admin and encargado are told where to fix it.
+    var sinEntradas=!!(horData.ok&&activeBB.length>0&&activeBB.every(function(b){ var hh=horMap[b.id]; return !(hh&&hh.entrada); }));
 
     // Resumen: una franja delgada arriba
     var nOcupados=activeBB.filter(function(b){return queue.barberos[b.id]&&queue.barberos[b.id].enServicio;}).length;
@@ -6938,11 +7056,17 @@ function renderSillas(){
       '<span class="ss-i" id="ssProxLibre" title="'+escHtml(plTitulo)+'">Próxima silla libre: <b>'+plTxt+'</b></span>'+
       '<span class="ss-act" id="ssAct" title="'+escHtml(refrescoTitulo('sillas'))+'">actualizado '+sillasHora(ahora)+'</span>'+
       '<button class="ss-btn" onclick="sillasCargar()">↺ Actualizar</button>'+
+      (sinEntradas&&sillasPuedeMarcarAusencia()?'<div class="ss-aviso" id="ssAvisoEntradas">Nadie tiene entrada marcada hoy — marca las llegadas en Horarios</div>':'')+
+      '<div class="ss-rot" id="ssRot" title="Orden de turnos: primero los libres (quien terminó antes su último servicio), luego los ocupados según su fin estimado; los demás no están en la rotación.">Rotación: '
+        +(regRes.ok?sillasRotacionHtml(libres,activeBB,queue,horMap,ahora):'<span class="ss-warn">no disponible (no se cargaron las ventas de hoy)</span>')+'</div>'+
       '</div>';
 
     // Tarjetas: orden de pantalla de los barberos (el mismo de todo el panel); la posición de una silla no cambia con su estado
     var nextId=(regRes.ok&&libres.length>0)?libres[0].id:null;
-    var h='';
+    var posRot={}; if(regRes.ok) libres.forEach(function(b,i){ posRot[b.id]=i+1; });
+    var ventanaCita=(Number(queue.cita_ventana_min)>0)?Number(queue.cita_ventana_min):_CITA_VENTANA_MIN;
+    var citas=(citasRes&&citasRes.ok)?sillasCitasProximas(citasRes.appointments,ahora,ventanaCita):{};
+    var h='', hDL='';
     activeBB.forEach(function(b){
       var bd=queue.barberos[b.id]||{};
       var sv=bd.enServicio||null;
@@ -6955,11 +7079,12 @@ function renderSillas(){
         var stMs=sv.service_start?new Date(sv.service_start).getTime():0;
         var dur=sillasDuracionMin(sv.service);
         var desde=stMs?sillasHora(stMs):'—';
-        h+='<div class="sc sc-ocu" id="sc-'+escHtml(b.id)+'" data-q="'+Number(sv.queue_id)+'" data-start="'+stMs+'" data-dur="'+(dur||'')+'">';
+        h+='<div class="sc sc-ocu'+(citas[b.id]?' con-cita':'')+'" id="sc-'+escHtml(b.id)+'" data-q="'+Number(sv.queue_id)+'" data-start="'+stMs+'" data-dur="'+(dur||'')+'">';
         h+='<div class="sc-top"><span class="sc-name">'+escHtml(b.nombre)+'</span></div>';
         h+='<div class="sc-meta"><span class="sc-chip">Ocupado</span><span class="sc-esp">'+nEsp+' en espera</span>'
           +(sillasPuedeMarcarAusencia()?'<button class="sc-aus-btn" title="Marcar que salió (ausente)" onclick="sillasMarcarAusencia(\''+escJsAttr(bd.barber_id||b.id)+'\',false,this)">⏸ Salió</button>':'')+'</div>';
         h+='<div class="sc-cli" title="'+escHtml(sv.client_name+' · '+sv.service)+'"><b>'+escHtml(sv.client_name)+'</b> · '+escHtml(sv.service)+'</div>';
+        if(citas[b.id]) h+=sillasCitaHtml(citas[b.id]);
         h+='<div class="sc-main"><div class="sc-rem">—</div><div class="sc-fin">sin estimación</div></div>';
         h+='<div class="sc-bar"><i></i></div>';
         h+='<div class="sc-foot"><span>⏱ <span class="sc-t" id="stimer-'+escHtml(b.id)+'">—</span> · desde '+desde+'</span>';
@@ -6971,21 +7096,22 @@ function renderSillas(){
         // Libre y presente
         var esperaLbl=nEsp>0?nEsp+' en espera'+(bd.queue_wait_min!=null?' · ~'+bd.queue_wait_min+' min':''):'';
         h+='<div class="sc sc-lib" id="sc-'+escHtml(b.id)+'">';
-        h+='<div class="sc-top"><span class="sc-name">'+escHtml(b.nombre)+'</span><span class="sc-chip">Libre</span>'+(b.id===nextId?'<span class="sc-next" title="Próximo turno en rotación">▶ siguiente</span>':'')+'<span class="sc-esp">'+escHtml(esperaLbl)+'</span></div>';
+        h+='<div class="sc-top">'+(posRot[b.id]?'<span class="sc-pos" title="Posición en la rotación">'+rotNum(posRot[b.id])+'</span>':'')+'<span class="sc-name">'+escHtml(b.nombre)+'</span><span class="sc-chip">Libre</span>'+(b.id===nextId?'<span class="sc-next" title="Próximo turno en rotación">▶ siguiente</span>':'')+'<span class="sc-esp">'+escHtml(esperaLbl)+'</span></div>';
         var llegoTxt=(horMap[b.id]&&horMap[b.id].entrada)?' · llegó '+horMap[b.id].entrada.slice(0,5):'';
         h+='<div class="sc-sub">'+(lastSvc[b.id]?'Último servicio '+escHtml(lastSvc[b.id].slice(0,5)):(b.id===nextId?'Primer turno del día':'Sin servicios hoy')+escHtml(llegoTxt))
           +(sillasPuedeMarcarAusencia()?' <button class="sc-aus-btn" title="Marcar que salió (ausente)" onclick="sillasMarcarAusencia(\''+escJsAttr(bd.barber_id||b.id)+'\',false,this)">⏸ Salió</button>':'')+'</div>';
+        h+=sillasCitaHtml(citas[b.id]);
         h+='</div>';
       } else if(!barberoAusente(bd)&&!seWas&&bd.programado_hoy===false){
         // Día libre: no shift today by the weekly schedule / holidays / closed days (the server's answer, the same rule as the punctuality score). Gray, compact, no alert
-        h+='<div class="sc sc-aus sc-dl" id="sc-'+escHtml(b.id)+'">';
-        h+='<div class="sc-top"><span class="sc-name">'+escHtml(b.nombre)+'</span><span class="sc-chip">Día libre</span><span class="sc-esp">sin turno hoy</span></div>';
-        h+='</div>';
+        hDL+='<div class="sc sc-aus sc-dl" id="sc-'+escHtml(b.id)+'" title="Sin turno hoy">'
+          +'<span class="sc-name">'+escHtml(b.nombre)+'</span><span class="sc-chip">Día libre</span></div>';
       } else if(!barberoAusente(bd)&&!seWas){
         // Sin registrar llegada: scheduled today (or the server could not say: then it still warns, and says so), never checked in. Not a chair that can take a client (never in "siguiente")
         h+='<div class="sc sc-sll" id="sc-'+escHtml(b.id)+'">';
         h+='<div class="sc-top"><span class="sc-name">'+escHtml(b.nombre)+'</span><span class="sc-chip">Sin registrar llegada</span></div>';
         h+='<div class="sc-sub">No ha llegado'+(bd.programado_hoy==null?' · horario de hoy sin confirmar':'')+(lastSvc[b.id]?' · último '+escHtml(lastSvc[b.id].slice(0,5)):'')+'</div>';
+        h+=sillasCitaHtml(citas[b.id]);
         h+='</div>';
       } else {
         // Ausente: marcado manualmente, o ya salió (fuera de turno)
@@ -7004,9 +7130,11 @@ function renderSillas(){
       }
     });
     borrPodar(borrEnServicio(queue));
-    document.getElementById('sillasGrid').innerHTML=h||'<div class="empty" style="grid-column:1/-1"><div>Sin datos de barberos</div></div>';
+    document.getElementById('sillasGrid').innerHTML=h||'<div class="empty" style="grid-column:1/-1"><div>'+(hDL?'Ningún barbero con turno hoy':'Sin datos de barberos')+'</div></div>';
+    document.getElementById('sillasDiaLibre').innerHTML=hDL;
     borrRestaurar();
     sillasAplicarAbierto();
+    sillasAjustarGrid(); sillasObservarTamano();
 
     // Iniciar cronómetros por segundo
     if(_sillasTimerInterval) clearInterval(_sillasTimerInterval);
@@ -7498,6 +7626,28 @@ function _ordenarBBPorPosicion(pos){ // pos: bid → position; barbers not in it
   dec.sort(function(x,y){ return (x.p-y.p)||(x.i-y.i); });
   BB.length=0; dec.forEach(function(d){ BB.push(d.b); });
 }
+// THE rotation rule ("próximo turno") IN FORCE TODAY: the same the live API applies to "cualquiera" (resolveAnyBarber), so the board always shows
+// who the system assigns. Candidates: active, not in service, present (entry mark, no exit mark), not marked absent.
+// Order: who has not served today goes first, then whoever finished their last sale earliest; ties → whoever arrived at work first; then barber id.
+// Used by Sillas (strip, cards, "siguiente") AND by "Primer disponible" at check-in: ONE function (it used to be two copies with different tie-breaks).
+// The owner's new definition (available the longest) replaces it TOGETHER with the API rule (services/rotacion.js): never one without the other.
+function rotacionLibres(bbLista,queue,horMap,lastSvc){
+  var libres=bbLista.filter(function(b){
+    if(b.active===false) return false;
+    var bd=(queue.barberos&&queue.barberos[b.id])||{};
+    var h=horMap[b.id];
+    return !bd.enServicio && !barberoAusente(bd) && !!(h&&h.entrada&&!h.salida);
+  });
+  libres.sort(function(a,b){
+    var ta=lastSvc[a.id]||'', tb=lastSvc[b.id]||'';
+    if(ta!==tb) return ta<tb?-1:1;
+    var ea=(horMap[a.id]&&horMap[a.id].entrada)||'99:99';
+    var eb=(horMap[b.id]&&horMap[b.id].entrada)||'99:99';
+    return ea<eb?-1:ea>eb?1:_desempateTurno(a,b);
+  });
+  return libres;
+}
+function rotNum(n){ return (n>=1&&n<=20)?String.fromCharCode(0x2460+n-1):'('+n+')'; }
 // Last tie-break of the rotation: the barber's id (b2 before b10), never the display order.
 function _desempateTurno(a,b){
   var na=parseInt(String(a.id).replace(/\D/g,''),10), nb=parseInt(String(b.id).replace(/\D/g,''),10);
