@@ -397,6 +397,12 @@
   .sc-lib{border-color:#b8e5c8;border-left-color:var(--ok);background:#f3faf5}
   .sc-lib .sc-name{color:var(--ok)}
   .sc-aus{border-color:#d4a843;border-left-color:#d4a843;background:rgba(212,168,67,.08)}
+  /* barber marked absent by hand (server state): gray, with its Volvió button */
+  .sc-aus.sc-man{border-color:#c9c9c9;border-left-color:#8a8a8a;background:#efefef}
+  .sc-aus.sc-man .sc-name,.sc-aus.sc-man .sc-chip{color:var(--text3)}
+  .sc-aus-btn{margin-left:6px;padding:2px 8px;font-size:11px;font-weight:600;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;color:var(--text2);font-family:var(--sans)}
+  .sc-aus-btn.sc-vuelve{background:var(--ok);border-color:var(--ok);color:#fff}
+  .sc-aus-btn:disabled{opacity:.5;cursor:default}
   .sc-ocu{border-color:var(--text);border-left-color:var(--text);display:grid;grid-template-columns:minmax(0,1fr) auto;
     grid-template-areas:"top rem" "meta rem" "cli cli" "foot foot" "bar bar";column-gap:10px;row-gap:5px;padding-bottom:0}
   .sc-ocu .sc-top{grid-area:top}
@@ -6134,7 +6140,7 @@ function _resolverPrimerDisponible(callback){
       if(b.active===false) return false;
       var bd=queue.barberos&&queue.barberos[b.id];
       var enServicio=bd&&bd.enServicio;
-      var ausente=bd&&bd.ausente;
+      var ausente=barberoAusente(bd);
       return !enServicio && !ausente && presente(b.id);
     });
     // Sort: barber who finished their last service earliest goes first
@@ -6373,6 +6379,16 @@ function salaEliminarEntrada(queue_id){
     }).catch(function(e){toast('Error: '+e.message);});
 }
 
+// Absence of a barber: ONE reading everywhere. The server sends `available` per barber on GET /queue/control (derived from the audited
+// table, restart-safe, per day); false = absent. Nothing here keeps its own copy. (Before, Sillas and the Sala banner read a field the
+// server never sends, so they never knew.)
+function barberoAusente(bd){ return !!bd && bd.available===false; }
+function sillasPuedeMarcarAusencia(){ return _panelRole==='admin'||_panelRole==='encargado'; }
+function sillasMarcarAusencia(barberName, available, btn){
+  if(btn) btn.disabled=true;
+  toggleBarberAvailability(barberName, available);
+}
+
 function toggleBarberAvailability(barberName, available){
   if(!API_URL) return;
   fetch(API_URL+'/barbers/'+barberName+'/availability',{
@@ -6383,11 +6399,12 @@ function toggleBarberAvailability(barberName, available){
     if(j.ok){
       var nm=barberName.charAt(0).toUpperCase()+barberName.slice(1);
       toast(available ? nm+' marcado como disponible ✓' : nm+' marcado como ausente ⏸');
-      renderSala();
+      _refrescarSalaYSillas();
     } else {
-      toast('Error: '+(j.error||'no se pudo actualizar'));
+      toast('Error: '+(j.detalle||j.error||'no se pudo actualizar'));
+      _refrescarSalaYSillas();
     }
-  }).catch(function(e){ toast('Error de red: '+e.message); });
+  }).catch(function(e){ toast('Error de red: '+e.message); _refrescarSalaYSillas(); });
 }
 
 // ONE place that builds a WhatsApp Web link: the digits of the client's phone (a 9-digit
@@ -6433,7 +6450,7 @@ function renderSala(){
         if(!b) return;
         var nEspera=b.enEspera.length;
         var enSvc=!!b.enServicio;
-        var isAbsent=b.available===false;
+        var isAbsent=barberoAusente(b);
         var clr=salaBarberColor(bid);
         // ── Card shell ──
         h+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;transition:border-color .2s;'+(isAbsent?'opacity:.82':'')+(enSvc?';box-shadow:0 0 0 2px '+clr.accent+'33':'')+ '">';
@@ -6839,7 +6856,7 @@ function renderSillas(){
     // Barberos libres Y presentes Y no ausentes → rotation candidates (UNCHANGED rule)
     var libres=BB.filter(function(b){
       var bd=queue.barberos[b.id]||{};
-      return !bd.enServicio && !bd.ausente && presente(b.id);
+      return !bd.enServicio && !barberoAusente(bd) && presente(b.id);
     });
     libres.sort(function(a,b){
       var ta=lastSvc[a.id]||'';
@@ -6860,7 +6877,7 @@ function renderSillas(){
     var chairs=[];
     activeBB.forEach(function(b){
       var bd=queue.barberos[b.id]||{}; var sv=bd.enServicio||null;
-      if(!sv&&!(presente(b.id)&&!bd.ausente)) return;   // absent / not arrived: not a chair that can take a client
+      if(!sv&&!(presente(b.id)&&!barberoAusente(bd))) return;   // absent / not arrived: not a chair that can take a client
       var st=0, dur=null;
       if(sv){ st=sv.service_start?new Date(sv.service_start).getTime():0; dur=sillasDuracionMin(sv.service); }
       var e=sv?sillasEstadoOcupada(st,dur,ahora):null;
@@ -6911,7 +6928,8 @@ function renderSillas(){
         var desde=stMs?sillasHora(stMs):'—';
         h+='<div class="sc sc-ocu" id="sc-'+escHtml(b.id)+'" data-q="'+Number(sv.queue_id)+'" data-start="'+stMs+'" data-dur="'+(dur||'')+'">';
         h+='<div class="sc-top"><span class="sc-name">'+escHtml(b.nombre)+'</span></div>';
-        h+='<div class="sc-meta"><span class="sc-chip">Ocupado</span><span class="sc-esp">'+nEsp+' en espera</span></div>';
+        h+='<div class="sc-meta"><span class="sc-chip">Ocupado</span><span class="sc-esp">'+nEsp+' en espera</span>'
+          +(sillasPuedeMarcarAusencia()?'<button class="sc-aus-btn" title="Marcar que salió (ausente)" onclick="sillasMarcarAusencia(\''+escJsAttr(bd.barber_id||b.id)+'\',false,this)">⏸ Salió</button>':'')+'</div>';
         h+='<div class="sc-cli" title="'+escHtml(sv.client_name+' · '+sv.service)+'"><b>'+escHtml(sv.client_name)+'</b> · '+escHtml(sv.service)+'</div>';
         h+='<div class="sc-main"><div class="sc-rem">—</div><div class="sc-fin">sin estimación</div></div>';
         h+='<div class="sc-bar"><i></i></div>';
@@ -6920,24 +6938,27 @@ function renderSillas(){
         // The closing block (price, payment, tip, products) is the shared one from Sala, collapsed until "💳 Cerrar"
         h+='<div class="sc-cierre">'+salaServicioActivoHtml(sv,b.nombre,b.id,'sillas',desde,true)+'</div>';
         h+='</div>';
-      } else if(esPresente && !bd.ausente){
+      } else if(esPresente && !barberoAusente(bd)){
         // Libre y presente
         var esperaLbl=nEsp>0?nEsp+' en espera'+(bd.queue_wait_min!=null?' · ~'+bd.queue_wait_min+' min':''):'';
-        h+='<div class="sc sc-lib">';
+        h+='<div class="sc sc-lib" id="sc-'+escHtml(b.id)+'">';
         h+='<div class="sc-top"><span class="sc-name">'+escHtml(b.nombre)+'</span><span class="sc-chip">Libre</span>'+(b.id===nextId?'<span class="sc-next" title="Próximo turno en rotación">▶ siguiente</span>':'')+'<span class="sc-esp">'+escHtml(esperaLbl)+'</span></div>';
-        h+='<div class="sc-sub">'+(lastSvc[b.id]?'Último servicio '+escHtml(lastSvc[b.id].slice(0,5)):'Sin servicios hoy')+'</div>';
+        h+='<div class="sc-sub">'+(lastSvc[b.id]?'Último servicio '+escHtml(lastSvc[b.id].slice(0,5)):'Sin servicios hoy')
+          +(sillasPuedeMarcarAusencia()?' <button class="sc-aus-btn" title="Marcar que salió (ausente)" onclick="sillasMarcarAusencia(\''+escJsAttr(bd.barber_id||b.id)+'\',false,this)">⏸ Salió</button>':'')+'</div>';
         h+='</div>';
       } else {
         // Ausente: marcado manualmente, ya salió, o no ha llegado
-        var motivoAusente=bd.ausente
+        var marcadoAusente=barberoAusente(bd);
+        var motivoAusente=marcadoAusente
           ?'Salió temporalmente ⏸'
           :seWas
             ?'Salió a las '+(horMap[b.id].salida||'')
             :'No ha llegado';
-        var labelAusente=bd.ausente?'Ausente':( seWas ? 'Fuera de turno' : 'Sin llegada' );
-        h+='<div class="sc sc-aus">';
+        var labelAusente=marcadoAusente?'Ausente':( seWas ? 'Fuera de turno' : 'Sin llegada' );
+        h+='<div class="sc sc-aus'+(marcadoAusente?' sc-man':'')+'" id="sc-'+escHtml(b.id)+'">';
         h+='<div class="sc-top"><span class="sc-name">'+escHtml(b.nombre)+'</span><span class="sc-chip">'+escHtml(labelAusente)+'</span></div>';
-        h+='<div class="sc-sub">'+escHtml(motivoAusente)+(lastSvc[b.id]?' · último '+escHtml(lastSvc[b.id].slice(0,5)):'')+'</div>';
+        h+='<div class="sc-sub">'+escHtml(motivoAusente)+(lastSvc[b.id]?' · último '+escHtml(lastSvc[b.id].slice(0,5)):'')
+          +(marcadoAusente&&sillasPuedeMarcarAusencia()?' <button class="sc-aus-btn sc-vuelve" title="Marcar que volvió (disponible)" onclick="sillasMarcarAusencia(\''+escJsAttr(bd.barber_id||b.id)+'\',true,this)">✓ Volvió</button>':'')+'</div>';
         h+='</div>';
       }
     });
