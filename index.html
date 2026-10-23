@@ -402,7 +402,14 @@
   #sillasGrid .sc-sub{font-size:calc(11.5px*var(--k))} #sillasGrid .sc-cli{font-size:calc(12.5px*var(--k))} #sillasGrid .sc-rem{font-size:calc(28px*var(--k))}
   #sillasGrid .sc-fin{font-size:calc(12px*var(--k))} #sillasGrid .sc-foot{font-size:calc(11px*var(--k))} #sillasGrid .sc-pos{font-size:calc(17px*var(--k))}
   #sillasGrid .sc-cita{font-size:calc(11.5px*var(--k));padding:calc(2px*var(--k)) calc(7px*var(--k))}
-  #sillasGrid .sc-cerrar{font-size:calc(12px*var(--k));padding:calc(4px*var(--k)) calc(10px*var(--k))} #sillasGrid .sc-aus-btn{font-size:calc(11px*var(--k));padding:calc(2px*var(--k)) calc(8px*var(--k))}
+  #sillasGrid .sc-cerrar,#sillasGrid .sc-editar{font-size:calc(12px*var(--k));padding:calc(4px*var(--k)) calc(10px*var(--k))}
+  .sc-acc{display:inline-flex;align-items:center;gap:calc(6px*var(--k,1));flex:0 0 auto}
+  .sc-desde{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sc-editar{background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:var(--r);font-weight:600;cursor:pointer;font-family:var(--sans);white-space:nowrap}
+  .sc-editar:hover{background:var(--soft)}
+  /* when the card is too narrow for the labels the buttons keep only the icon (the tooltip says what they do): decided by measuring, see sillasAjustarGrid */
+  #sillasGrid.btn-icono .sc-btn-txt{display:none}
+  #sillasGrid.btn-icono .sc-editar,#sillasGrid.btn-icono .sc-cerrar{min-width:28px;min-height:22px;padding-left:6px;padding-right:6px}   /* a usable target even at the smallest text scale */ #sillasGrid .sc-aus-btn{font-size:calc(11px*var(--k));padding:calc(2px*var(--k)) calc(8px*var(--k))}
   #sillasGrid .sc-bar{height:calc(6px*var(--k));margin-left:calc(-11px*var(--k));margin-right:calc(-11px*var(--k))}
   .sc-pos{font-size:17px;line-height:1;color:var(--ok);font-weight:700}
   .sc-cita{font-size:11.5px;color:#6a5416;background:rgba(201,168,76,.2);border-radius:var(--r);padding:2px 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;align-self:flex-start}
@@ -6753,6 +6760,10 @@ function sillasAjustarGrid(){
   g.style.gridAutoRows=Math.floor(L.h)+'px';
   g.style.setProperty('--k',L.k.toFixed(3));
   g.setAttribute('data-cols',L.cols); g.setAttribute('data-rows',L.rows); g.setAttribute('data-k',L.k.toFixed(2));
+  // buttons: labels first; if the "desde" text of any busy card is cut because the two buttons need the room, ALL cards switch to icon-only (consistent)
+  g.classList.remove('btn-icono'); void g.offsetWidth;
+  var apretado=false; g.querySelectorAll('.sc-desde').forEach(function(e){ if(e.scrollWidth>e.clientWidth+1) apretado=true; });
+  if(apretado) g.classList.add('btn-icono');
   sillasAplicarAbierto();   // an open closing popover is placed again for the new size
 }
 var _sillasRO=null, _sillasRaf=0;
@@ -7087,8 +7098,9 @@ function renderSillas(){
         if(citas[b.id]) h+=sillasCitaHtml(citas[b.id]);
         h+='<div class="sc-main"><div class="sc-rem">—</div><div class="sc-fin">sin estimación</div></div>';
         h+='<div class="sc-bar"><i></i></div>';
-        h+='<div class="sc-foot"><span>⏱ <span class="sc-t" id="stimer-'+escHtml(b.id)+'">—</span> · desde '+desde+'</span>';
-        h+='<button class="sc-cerrar" onclick="sillasToggleCierre('+Number(sv.queue_id)+')">💳 Cerrar</button></div>';
+        h+='<div class="sc-foot"><span class="sc-desde">⏱ <span class="sc-t" id="stimer-'+escHtml(b.id)+'">—</span> · desde '+desde+'</span>';
+        h+='<span class="sc-acc"><button class="sc-editar" title="Editar el servicio o el cliente (no cobra)" onclick="salaAbrirEditor('+Number(sv.queue_id)+')"><span class="sc-ico">✏</span><span class="sc-btn-txt"> Editar</span></button>'
+          +'<button class="sc-cerrar" title="Cobrar y cerrar el servicio" onclick="sillasToggleCierre('+Number(sv.queue_id)+')"><span class="sc-ico">💳</span><span class="sc-btn-txt"> Cerrar</span></button></span></div>';
         // The closing block (price, payment, tip, products) is the shared one from Sala, collapsed until "💳 Cerrar"
         h+='<div class="sc-cierre">'+salaServicioActivoHtml(sv,b.nombre,b.id,'sillas',desde,true)+'</div>';
         h+='</div>';
@@ -7250,7 +7262,8 @@ function salaAbrirEditor(queue_id){
 
 function salaCerrarEditor(){
   document.getElementById('salaEditorOverlay').style.display='none';
-  _sillasAbierto=null;   // the closing popover of Sillas closes with the editor (the card may have changed)
+  // the closing popover of the card that was just edited closes (the card may have changed); a popover open on ANOTHER card stays as it is
+  if(_sillasAbierto!=null&&String(_sillasAbierto)===String(_editorQueueId)) _sillasAbierto=null;
   _refrescarSalaYSillas();
 }
 
