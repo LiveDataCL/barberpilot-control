@@ -250,6 +250,9 @@
      ESTILOS DE IMPRESIÓN — TICKET 58mm
   ═══════════════════════════════════════ */
   #printArea{display:none}
+  /* Paper of the 58 mm printouts (ticket, shift summary, cash closing). It only matters when the panel page itself is printed, which only
+     happens through #printArea; the A4 reports are separate windows. Nothing here changes the on-screen layout. */
+  @page{size:58mm auto;margin:0}
 
   /* HISTÓRICO PERÍODOS */
   .hist-periodo-btn{padding:7px 14px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);font-family:var(--sans);font-size:12px;cursor:pointer;font-weight:500;transition:all .12s}
@@ -303,6 +306,7 @@
     }
     #printArea * { visibility: visible !important; }
     .no-print { display: none !important; }
+    #printArea.pa-caja { font-family: "Courier New", monospace; font-size: 10px; line-height: 1.45; }
   }
 
   /* KPIs */
@@ -3148,6 +3152,31 @@ function mkTktHtml(r){
   return h;
 }
 
+// ═══ IMPRESIÓN TÉRMICA 58 mm: nunca debe alterar el diseño del panel ═══════════════════════════════════════
+// El ticket se dibuja dentro de #printArea (oculto en pantalla; solo se ve al imprimir, por el bloque @media print). Antes se inyectaba
+// además un <style> SIN ámbito (html,body{width:58mm!important}) que quedaba en la página después de imprimir y dejaba todo el panel
+// angosto hasta recargar. Ahora el HTML que se pone en #printArea no lleva <style>, y al terminar se vacía #printArea (y su clase):
+// en el evento afterprint y, por si ese evento no llega, con un plazo de respaldo.
+var _printLimpiar=null;
+var PRINT_RESPALDO_MS=60000;   // plazo de respaldo para limpiar si afterprint no llega
+function imprimirEnAreaTicket(html,clase){
+  var area=document.getElementById('printArea'); if(!area) return;
+  if(_printLimpiar) _printLimpiar();   // un trabajo anterior que no llegó a limpiarse
+  area.className=clase||''; area.innerHTML=html;
+  var listo=false, t=null;
+  function limpiar(){
+    if(listo) return; listo=true;
+    clearTimeout(t); window.removeEventListener('afterprint',limpiar);
+    area.innerHTML=''; area.className=''; _printLimpiar=null;
+  }
+  _printLimpiar=limpiar;
+  window.addEventListener('afterprint',limpiar);
+  setTimeout(function(){
+    try{ window.print(); }
+    finally{ t=setTimeout(limpiar,PRINT_RESPALDO_MS); }
+  },200);
+}
+
 function printTicket62(r){
   // Asegurar que el contador esté disponible
   if(!r.numServicio || !r.acumBB){
@@ -3162,12 +3191,7 @@ function printTicket62(r){
     r.totalServicios=mismos.length;
     r.acumBB=acumBB; r.acumFact=acumFact; r.acumProp=pagoBarbero(mismos).propina;
   }
-  var css='<style>'
-    +'@page{size:58mm auto;margin:0}'
-    +'html,body{margin:0!important;padding:0!important;width:58mm!important}'
-    +'</style>';
-  document.getElementById('printArea').innerHTML=css+mkTktHtml(r);
-  setTimeout(function(){window.print();},200);
+  imprimirEnAreaTicket(mkTktHtml(r));
 }
 
 function verTkt(id){
@@ -3245,9 +3269,7 @@ function printCierre58mm(){
   }
 
   if(partes.length===0){toast('Ningún barbero tiene registros');return;}
-  var css='<style>@page{size:58mm auto;margin:0}html,body{margin:0!important;padding:0!important;width:58mm!important}</style>';
-  document.getElementById('printArea').innerHTML=css+partes.join('');
-  setTimeout(function(){window.print();},200);
+  imprimirEnAreaTicket(partes.join(''));
 }
 
 // ═══ CIERRE A4 ════════════════════════════════════════════
@@ -4094,12 +4116,7 @@ function printCaja(){
 
   var cajaFinal=BASE_CAJA+totE-totalPagoEfectivo-totalGastosPrint;
 
-  var h='<style>'
-    +'@page{size:58mm auto;margin:0}'
-    +'html,body{margin:0!important;padding:0!important;width:58mm!important}'
-    +'body{font-family:"Courier New",monospace;font-size:10px;line-height:1.45}'
-    +'</style>'
-    +'<center><b>SALON MEN SAÚL FINO</b></center>'
+  var h='<center><b>SALON MEN SAÚL FINO</b></center>'
     +'<center>Local 222 · Gal. Santiago Centro</center>'
     +'<hr style="border-top:1px dashed #000;margin:4px 0">'
     +'<center><b>CIERRE DE CAJA · '+escHtml(fecha)+'</b></center>'
@@ -4136,8 +4153,7 @@ function printCaja(){
     +'<div style="margin-top:20px;border-top:1px solid #000;padding-top:3px;font-size:9px;text-align:center">'
     +'Firma responsable: ___________</div>';
 
-  document.getElementById('printArea').innerHTML=h;
-  setTimeout(function(){window.print();},200);
+  imprimirEnAreaTicket(h,'pa-caja');
 }
 
 // ═══ GOOGLE SHEETS CONFIG ════════════════════════════════════
