@@ -396,7 +396,13 @@
   .sc-sub{font-size:11.5px;color:var(--text2)}
   .sc-lib{border-color:#b8e5c8;border-left-color:var(--ok);background:#f3faf5}
   .sc-lib .sc-name{color:var(--ok)}
-  .sc-aus{border-color:#d4a843;border-left-color:#d4a843;background:rgba(212,168,67,.08)}
+  .sc-aus{border-color:#c9c9c9;border-left-color:#8a8a8a;background:#efefef}
+  .sc-aus .sc-name,.sc-aus .sc-chip{color:var(--text3)}
+  /* fourth state: scheduled today but the entry mark was never registered (yellow) */
+  .sc-sll{border-color:#d4a843;border-left-color:#d4a843;background:rgba(212,168,67,.08)}
+  .sc-sll .sc-chip{color:#9a6e0a}
+  /* no shift today (day off, holiday, closed day): compact gray, never an alert */
+  .sc-dl{padding-top:6px;padding-bottom:6px;opacity:.75}
   /* barber marked absent by hand (server state): gray, with its Volvió button */
   .sc-aus.sc-man{border-color:#c9c9c9;border-left-color:#8a8a8a;background:#efefef}
   .sc-aus.sc-man .sc-name,.sc-aus.sc-man .sc-chip{color:var(--text3)}
@@ -6659,7 +6665,11 @@ function sillasAplicarAbierto(){
 //    Sillas hace una recarga completa de respaldo. Los dos reaccionan al instante al aviso "cambio" de /events; si el flujo se cae,
 //    las revisiones periódicas siguen funcionando.
 // 3. Los intervalos NO están en este archivo: los entrega el servidor (tenant_config, junto al marcador). null = sin revisión periódica.
-var _refresco={sala_seg:null,sillas_seg:null};
+// fuente: 'ninguna' (not read yet) | 'servidor' (the server gave the intervals: Migration 055) | 'defecto' (an older server without the marker route, or it could not be read).
+// The defaults live here ONLY for that second case; once the server answers, its configuration always wins.
+var _refresco={sala_seg:null,sillas_seg:null,fuente:'ninguna'};
+var _REF_DEFECTO={sala_seg:30,sillas_seg:180};
+var _marcaRuta=null;   // null = unknown, true = the server has GET /queue/control/marca, false = it answered 404 (older server): never asked again until the page is reloaded
 var _refTimers={sala:null,sillas:null,salaSeg:null,sillasSeg:null};
 var _refPend={sala:false,sillas:false};
 var _marcaSala=null;
@@ -6682,17 +6692,35 @@ function tableroEditando(paneId){
 // Lee el marcador (y los intervalos). Resuelve null si no se pudo leer (servidor caído, 5xx, demora): quien llama recarga completo.
 function refrescoMarca(){
   if(!API_URL) return Promise.resolve(null);
+  if(_marcaRuta===false){ refrescoDefecto(); return Promise.resolve(null); }   // older server: no marker, full reloads at the default interval
   var leer=fetch(API_URL+'/queue/control/marca',{headers:getAuthHeaders()})
-    .then(function(r){ return r.json().then(function(j){ return (r.ok&&j&&j.ok)?j:null; },function(){ return null; }); })
+    .then(function(r){
+      if(r.status===404){ _marcaRuta=false; return null; }
+      return r.json().then(function(j){ if(r.ok&&j&&j.ok){ _marcaRuta=true; return j; } return null; },function(){ return null; });
+    })
     .catch(function(){ return null; });
   var tope=new Promise(function(res){ setTimeout(function(){ res(null); },_REF_ESPERA_MARCA_MS); });
-  return Promise.race([leer,tope]).then(function(j){ if(j) refrescoAplicar(j.refresco); return j; });
+  return Promise.race([leer,tope]).then(function(j){ if(j) refrescoAplicar(j.refresco); else refrescoDefecto(); return j; });
+}
+// No answer from the server and no interval ever read: the periodic checks still run, at the defaults. A server answer replaces them.
+function refrescoDefecto(){
+  var nueva=(_refresco.fuente==='ninguna');
+  if(nueva){ _refresco.sala_seg=_REF_DEFECTO.sala_seg; _refresco.sillas_seg=_REF_DEFECTO.sillas_seg; _refresco.fuente='defecto'; }
+  if(_refresco.fuente!=='defecto') return;   // the server's own intervals are never touched here
+  // every time (not only the first): the timers exist only for the tab that is open, so entering Sala or Sillas must arm that tab's timer
+  refrescoProgramar('sala'); refrescoProgramar('sillas');
+  if(nueva){ refrescoEtiquetas(); staffRefrescarPorApi(); }
 }
 function refrescoAplicar(r){
   if(!r) return;
-  _refresco.sala_seg=r.sala_seg; _refresco.sillas_seg=r.sillas_seg;
+  var antes=_refresco.fuente;
+  _refresco.sala_seg=r.sala_seg; _refresco.sillas_seg=r.sillas_seg; _refresco.fuente='servidor';
   refrescoProgramar('sala'); refrescoProgramar('sillas');
+  if(antes!=='servidor') staffRefrescarPorApi();
 }
+// Features that need the newer server (editing a service duration) appear only once the server has shown it is the newer one.
+function apiConMarca(){ return _marcaRuta===true&&_refresco.fuente==='servidor'; }
+function staffRefrescarPorApi(){ if(typeof renderStaffSS==='function'&&document.getElementById('staffSS')) renderStaffSS(); }
 function refrescoProgramar(cual){
   var seg=_refresco[cual+'_seg'];
   if(!tabActiva(cual==='sala'?'pSala':'pSillas')){ refrescoDetener(cual); return; }
@@ -6709,6 +6737,7 @@ function refrescoDetener(cual){
 function refrescoTitulo(cual){
   var seg=_refresco[cual+'_seg'];
   return 'Hora de la última carga. '+(seg>0?'Se revisa sola cada '+seg+' s':'Sin revisión periódica (configuración)')
+    +(_refresco.fuente==='defecto'?' (intervalo por defecto: el servidor no lo informa)':'')
     +(_evt.conectado?' y al instante con los avisos del servidor':'; avisos en vivo no conectados')
     +'. Nunca se recarga mientras editas. ↺ fuerza una carga.';
 }
@@ -6943,18 +6972,30 @@ function renderSillas(){
         var esperaLbl=nEsp>0?nEsp+' en espera'+(bd.queue_wait_min!=null?' · ~'+bd.queue_wait_min+' min':''):'';
         h+='<div class="sc sc-lib" id="sc-'+escHtml(b.id)+'">';
         h+='<div class="sc-top"><span class="sc-name">'+escHtml(b.nombre)+'</span><span class="sc-chip">Libre</span>'+(b.id===nextId?'<span class="sc-next" title="Próximo turno en rotación">▶ siguiente</span>':'')+'<span class="sc-esp">'+escHtml(esperaLbl)+'</span></div>';
-        h+='<div class="sc-sub">'+(lastSvc[b.id]?'Último servicio '+escHtml(lastSvc[b.id].slice(0,5)):'Sin servicios hoy')
+        var llegoTxt=(horMap[b.id]&&horMap[b.id].entrada)?' · llegó '+horMap[b.id].entrada.slice(0,5):'';
+        h+='<div class="sc-sub">'+(lastSvc[b.id]?'Último servicio '+escHtml(lastSvc[b.id].slice(0,5)):(b.id===nextId?'Primer turno del día':'Sin servicios hoy')+escHtml(llegoTxt))
           +(sillasPuedeMarcarAusencia()?' <button class="sc-aus-btn" title="Marcar que salió (ausente)" onclick="sillasMarcarAusencia(\''+escJsAttr(bd.barber_id||b.id)+'\',false,this)">⏸ Salió</button>':'')+'</div>';
         h+='</div>';
+      } else if(!barberoAusente(bd)&&!seWas&&bd.programado_hoy===false){
+        // Día libre: no shift today by the weekly schedule / holidays / closed days (the server's answer, the same rule as the punctuality score). Gray, compact, no alert
+        h+='<div class="sc sc-aus sc-dl" id="sc-'+escHtml(b.id)+'">';
+        h+='<div class="sc-top"><span class="sc-name">'+escHtml(b.nombre)+'</span><span class="sc-chip">Día libre</span><span class="sc-esp">sin turno hoy</span></div>';
+        h+='</div>';
+      } else if(!barberoAusente(bd)&&!seWas){
+        // Sin registrar llegada: scheduled today (or the server could not say: then it still warns, and says so), never checked in. Not a chair that can take a client (never in "siguiente")
+        h+='<div class="sc sc-sll" id="sc-'+escHtml(b.id)+'">';
+        h+='<div class="sc-top"><span class="sc-name">'+escHtml(b.nombre)+'</span><span class="sc-chip">Sin registrar llegada</span></div>';
+        h+='<div class="sc-sub">No ha llegado'+(bd.programado_hoy==null?' · horario de hoy sin confirmar':'')+(lastSvc[b.id]?' · último '+escHtml(lastSvc[b.id].slice(0,5)):'')+'</div>';
+        h+='</div>';
       } else {
-        // Ausente: marcado manualmente, ya salió, o no ha llegado
+        // Ausente: marcado manualmente, o ya salió (fuera de turno)
         var marcadoAusente=barberoAusente(bd);
         var motivoAusente=marcadoAusente
           ?'Salió temporalmente ⏸'
           :seWas
             ?'Salió a las '+(horMap[b.id].salida||'')
-            :'No ha llegado';
-        var labelAusente=marcadoAusente?'Ausente':( seWas ? 'Fuera de turno' : 'Sin llegada' );
+            :'';
+        var labelAusente=marcadoAusente?'Ausente':'Fuera de turno';
         h+='<div class="sc sc-aus'+(marcadoAusente?' sc-man':'')+'" id="sc-'+escHtml(b.id)+'">';
         h+='<div class="sc-top"><span class="sc-name">'+escHtml(b.nombre)+'</span><span class="sc-chip">'+escHtml(labelAusente)+'</span></div>';
         h+='<div class="sc-sub">'+escHtml(motivoAusente)+(lastSvc[b.id]?' · último '+escHtml(lastSvc[b.id].slice(0,5)):'')
@@ -7825,6 +7866,7 @@ function _svcEnviar(method,path,body,mensajeOk){
 
 function renderStaffSS(){
   var el=document.getElementById('staffSS');if(!el)return;
+  if(_refresco.fuente==='ninguna') refrescoMarca();   // learn whether the server is the newer one; the list is drawn again when it answers
   var puede=_svcPuedeEditar(), motivo=_svcMotivoBloqueo();
   var addBtn=document.getElementById('staffAddSvcBtn');
   if(addBtn){addBtn.disabled=!puede||_svcForm.abierto;addBtn.title=motivo;}
@@ -7860,9 +7902,9 @@ function renderStaffSS(){
       +(precioEditable
         ?'<input class="staff-input svc-precio" type="text" inputmode="numeric" value="'+s.precio_activo+'" placeholder="Precio"'+(puede?'':' disabled')+' onchange="staffSaveSvcPrecio(\''+escJsAttr(id)+'\',this.value)" style="max-width:100px">'
         :'<span class="svc-precio-fijo">'+(s.precio_activo!=null?_fmtCLP(s.precio_activo):'sin precio')+'</span>')
-      +(puede
+      +(puede&&apiConMarca()
         ?'<input class="staff-input svc-dur-in" type="text" inputmode="numeric" value="'+(s.duracion_min?s.duracion_min:'')+'" placeholder="min" title="Duración en minutos: la usan las estimaciones de Sillas" onchange="staffGuardarDuracion(\''+escJsAttr(id)+'\',this.value)" style="max-width:64px;text-align:right"><span class="svc-duracion">min'+(s.duracion_min?'':' · sin duración')+'</span>'
-        :'<span class="svc-duracion">'+(s.duracion_min?s.duracion_min+' min':'sin duración')+'</span>')
+        :'<span class="svc-duracion"'+(puede?' title="La duración se podrá editar cuando se actualice el servidor. Mientras tanto se usa la del catálogo."':'')+'>'+(s.duracion_min?s.duracion_min+' min':'sin duración')+(puede?' <small style="color:var(--text3)">(edición pendiente de actualización del servidor)</small>':'')+'</span>')
       +(s.activo?'':'<span class="svc-badge">Inactivo</span>')
       +'<button class="staff-action-btn '+(s.activo?'deactivate':'reactivate')+' svc-toggle"'+(puede?'':' disabled')+' onclick="staffCambiarEstadoSvc(\''+escJsAttr(id)+'\')">'+(s.activo?'Desactivar':'Reactivar')+'</button>'
       +'</div>';
