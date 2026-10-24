@@ -427,6 +427,20 @@
   /* the closing popover: below the card, above it, or (when neither fits the window) centred — always fully visible */
   .sc.centro .sc-cierre{position:fixed;left:50%;top:50%;right:auto;bottom:auto;transform:translate(-50%,-50%);width:min(440px,94vw);max-height:94vh;overflow:auto}
   .sc-ocu.con-cita{grid-template-areas:"top rem" "meta rem" "cli cli" "cita cita" "foot foot" "bar bar"}
+  .sc-ocu.con-espera{grid-template-areas:"top rem" "meta rem" "cli cli" "esp esp" "foot foot" "bar bar"}
+  .sc-ocu.con-espera.con-cita{grid-template-areas:"top rem" "meta rem" "cli cli" "esp esp" "cita cita" "foot foot" "bar bar"}
+  .sc-ocu .sc-espera{grid-area:esp}
+  /* clients waiting for a barber: amber, bold and large (as heavy as the appointment line); red past the alert threshold */
+  .sc-espera{display:block;font-weight:700;font-size:calc(13px*var(--k,1));line-height:1.25;padding:calc(3px*var(--k,1)) calc(8px*var(--k,1));border-radius:var(--r);background:#fde4b0;color:#7a4300;border:1px solid #e6a23c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;align-self:flex-start}
+  .sc-espera.urgente{background:#fcd3cf;color:#8f1d14;border-color:#d9534f}
+  .esp-corto{display:none}
+  #sillasGrid.k-compacto .esp-largo{display:none}
+  #sillasGrid.k-compacto .esp-corto{display:inline}
+  .ss-espera{background:#f59e0b;border-radius:var(--r);padding:1px 8px;font-weight:700;color:#2b1a00}
+  .ss-espera b{color:#2b1a00}
+  .ss-espera.urgente{background:#e5484d;color:#fff}
+  .ss-espera.urgente b{color:#fff}
+  .sc-esp-dl{color:#b45309;font-weight:700;font-size:12px}
   .sc-ocu .sc-cita{grid-area:cita}
   .sc-lib{border-color:#b8e5c8;border-left-color:var(--ok);background:#f3faf5}
   .sc-lib .sc-name{color:var(--ok)}
@@ -6756,6 +6770,7 @@ function sillasAjustarGrid(){
   var dlH=(dl&&dl.children.length)?dl.offsetHeight+8:0;
   var H=window.innerHeight-g.getBoundingClientRect().top-dlH-cfg.margen_inferior;
   var L=sillasCalcularLayout(g.clientWidth,H,n,cfg);
+  g.classList.toggle('k-compacto',L.k<0.85);   // compact density: the waiting badge shortens to "👤 N · hace N min" (the tooltip has the detail)
   g.style.gridTemplateColumns='repeat('+L.cols+',minmax(0,1fr))';
   g.style.gridAutoRows=Math.floor(L.h)+'px';
   g.style.setProperty('--k',L.k.toFixed(3));
@@ -6774,6 +6789,33 @@ function sillasObservarTamano(){
   if(typeof ResizeObserver==='undefined') return;
   _sillasRO=new ResizeObserver(sillasAjustarPronto);       // side panel toggled (pane width), strip or day-off row changed height
   ['pSillas','sillasNextTurn','sillasDiaLibre'].forEach(function(id){ var e=document.getElementById(id); if(e) _sillasRO.observe(e); });
+}
+
+// ── Clients WAITING for a barber must stand out. Waiting time = minutes since the queue entry's check-in (checkin_at). The badge turns red when the oldest
+// one waits longer than the alert threshold (configuration: default 20 min; the server may send queue.espera_alerta_min; per screen: localStorage 'sfsf_sillas_espera_alerta_min').
+var SILLAS_ESPERA_ALERTA_MIN=20;
+function sillasEsperaAlerta(queue){
+  var v=Number(queue&&queue.espera_alerta_min);
+  try{ var l=Number(localStorage.getItem('sfsf_sillas_espera_alerta_min')); if(isFinite(l)&&l>=1&&l<=240) v=l; }catch(e){}
+  return (isFinite(v)&&v>=1&&v<=240)?v:SILLAS_ESPERA_ALERTA_MIN;
+}
+function sillasCheckinMs(e){ var t=e&&e.checkin_at?new Date(e.checkin_at).getTime():0; return t>0?t:0; }
+function sillasMasViejoMin(lista,ahora){   // minutes the longest-waiting entry has waited, or null when no entry has a check-in time
+  var min=null; (lista||[]).forEach(function(e){ var t=sillasCheckinMs(e); if(t){ var m=Math.max(0,Math.floor((ahora-t)/60000)); if(min==null||m>min) min=m; } });
+  return min;
+}
+function sillasEsperaHtml(lista,ahora,alerta){
+  if(!lista||!lista.length) return '';
+  var n=lista.length, viejo=sillasMasViejoMin(lista,ahora), desde=0;
+  lista.forEach(function(e){ var t=sillasCheckinMs(e); if(t&&(!desde||t<desde)) desde=t; });
+  var nombres=lista.map(function(e){ return e.client_name||'Cliente'; });
+  var vistos=nombres.slice(0,2).map(escHtml).join(', ')+(n>2?' +'+(n-2)+' más':'');
+  var hace=(viejo!=null)?' · hace <span class="esp-min">'+viejo+'</span> min':'';
+  var largo=(n===1)?'👤 1 en espera · '+escHtml(nombres[0])+hace:'👤 '+n+' en espera · '+vistos;
+  var corto='👤 '+n+hace;
+  var tip=lista.map(function(e){ var m=sillasMasViejoMin([e],ahora); return (e.client_name||'Cliente')+(e.service?' — '+e.service:'')+(m!=null?' — hace '+m+' min':''); }).join('\n');
+  return '<div class="sc-espera'+(viejo!=null&&viejo>alerta?' urgente':'')+'" data-desde="'+desde+'" data-alerta="'+alerta+'" title="'+escHtml(tip)+'">'
+    +'<span class="esp-largo">'+largo+'</span><span class="esp-corto">'+corto+'</span></div>';
 }
 
 function sillasToggleCierre(q){
@@ -7032,6 +7074,9 @@ function renderSillas(){
     // Resumen: una franja delgada arriba
     var nOcupados=activeBB.filter(function(b){return queue.barberos[b.id]&&queue.barberos[b.id].enServicio;}).length;
     var nEspera=queue.totalEspera!=null?queue.totalEspera:0;
+    var alertaEsp=sillasEsperaAlerta(queue), nPool=(queue.pool||[]).length;
+    var todosEsp=(queue.pool||[]).slice(); activeBB.forEach(function(b){ ((queue.barberos[b.id]||{}).enEspera||[]).forEach(function(e){ todosEsp.push(e); }); });
+    var viejoGlobal=sillasMasViejoMin(todosEsp,ahora), viejoPool=sillasMasViejoMin(queue.pool||[],ahora);
     var chairs=[];
     activeBB.forEach(function(b){
       var bd=queue.barberos[b.id]||{}; var sv=bd.enServicio||null;
@@ -7063,7 +7108,8 @@ function renderSillas(){
       '<span class="ss-i" title="'+escHtml(proximoTitulo)+'">Próximo turno: '+proximo+'</span>'+
       '<span class="ss-i">Libres <b>'+libres.length+'</b></span>'+
       '<span class="ss-i">Ocupados <b>'+nOcupados+'</b></span>'+
-      '<span class="ss-i">En espera <b>'+nEspera+'</b></span>'+
+      '<span class="ss-i'+(nEspera>0?' ss-espera'+(viejoGlobal!=null&&viejoGlobal>alertaEsp?' urgente':''):'')+'" id="ssEspera" title="'+(nEspera>0?'Clientes esperando barbero (más antiguo: '+(viejoGlobal!=null?'hace '+viejoGlobal+' min':'sin hora')+')':'Nadie esperando')+'">En espera <b>'+nEspera+'</b></span>'+
+      (nPool>0?'<span class="ss-i ss-espera'+(viejoPool!=null&&viejoPool>alertaEsp?' urgente':'')+'" id="ssPool" title="Clientes sin barbero elegido (cualquiera): el primero que se libere los toma">'+nPool+' esperando a cualquiera</span>':'')+
       '<span class="ss-i" id="ssProxLibre" title="'+escHtml(plTitulo)+'">Próxima silla libre: <b>'+plTxt+'</b></span>'+
       '<span class="ss-act" id="ssAct" title="'+escHtml(refrescoTitulo('sillas'))+'">actualizado '+sillasHora(ahora)+'</span>'+
       '<button class="ss-btn" onclick="sillasCargar()">↺ Actualizar</button>'+
@@ -7090,11 +7136,12 @@ function renderSillas(){
         var stMs=sv.service_start?new Date(sv.service_start).getTime():0;
         var dur=sillasDuracionMin(sv.service);
         var desde=stMs?sillasHora(stMs):'—';
-        h+='<div class="sc sc-ocu'+(citas[b.id]?' con-cita':'')+'" id="sc-'+escHtml(b.id)+'" data-q="'+Number(sv.queue_id)+'" data-start="'+stMs+'" data-dur="'+(dur||'')+'">';
+        h+='<div class="sc sc-ocu'+(citas[b.id]?' con-cita':'')+((bd.enEspera||[]).length?' con-espera':'')+'" id="sc-'+escHtml(b.id)+'" data-q="'+Number(sv.queue_id)+'" data-start="'+stMs+'" data-dur="'+(dur||'')+'">';
         h+='<div class="sc-top"><span class="sc-name">'+escHtml(b.nombre)+'</span></div>';
-        h+='<div class="sc-meta"><span class="sc-chip">Ocupado</span><span class="sc-esp">'+nEsp+' en espera</span>'
+        h+='<div class="sc-meta"><span class="sc-chip">Ocupado</span>'
           +(sillasPuedeMarcarAusencia()?'<button class="sc-aus-btn" title="Marcar que salió (ausente)" onclick="sillasMarcarAusencia(\''+escJsAttr(bd.barber_id||b.id)+'\',false,this)">⏸ Salió</button>':'')+'</div>';
         h+='<div class="sc-cli" title="'+escHtml(sv.client_name+' · '+sv.service)+'"><b>'+escHtml(sv.client_name)+'</b> · '+escHtml(sv.service)+'</div>';
+        h+=sillasEsperaHtml(bd.enEspera,ahora,alertaEsp);
         if(citas[b.id]) h+=sillasCitaHtml(citas[b.id]);
         h+='<div class="sc-main"><div class="sc-rem">—</div><div class="sc-fin">sin estimación</div></div>';
         h+='<div class="sc-bar"><i></i></div>';
@@ -7108,21 +7155,23 @@ function renderSillas(){
         // Libre y presente
         var esperaLbl=nEsp>0?nEsp+' en espera'+(bd.queue_wait_min!=null?' · ~'+bd.queue_wait_min+' min':''):'';
         h+='<div class="sc sc-lib" id="sc-'+escHtml(b.id)+'">';
-        h+='<div class="sc-top">'+(posRot[b.id]?'<span class="sc-pos" title="Posición en la rotación">'+rotNum(posRot[b.id])+'</span>':'')+'<span class="sc-name">'+escHtml(b.nombre)+'</span><span class="sc-chip">Libre</span>'+(b.id===nextId?'<span class="sc-next" title="Próximo turno en rotación">▶ siguiente</span>':'')+'<span class="sc-esp">'+escHtml(esperaLbl)+'</span></div>';
+        h+='<div class="sc-top">'+(posRot[b.id]?'<span class="sc-pos" title="Posición en la rotación">'+rotNum(posRot[b.id])+'</span>':'')+'<span class="sc-name">'+escHtml(b.nombre)+'</span><span class="sc-chip">Libre</span>'+(b.id===nextId?'<span class="sc-next" title="Próximo turno en rotación">▶ siguiente</span>':'')+'</div>';
         var llegoTxt=(horMap[b.id]&&horMap[b.id].entrada)?' · llegó '+horMap[b.id].entrada.slice(0,5):'';
         h+='<div class="sc-sub">'+(lastSvc[b.id]?'Último servicio '+escHtml(lastSvc[b.id].slice(0,5)):(b.id===nextId?'Primer turno del día':'Sin servicios hoy')+escHtml(llegoTxt))
           +(sillasPuedeMarcarAusencia()?' <button class="sc-aus-btn" title="Marcar que salió (ausente)" onclick="sillasMarcarAusencia(\''+escJsAttr(bd.barber_id||b.id)+'\',false,this)">⏸ Salió</button>':'')+'</div>';
+        h+=sillasEsperaHtml(bd.enEspera,ahora,alertaEsp);
         h+=sillasCitaHtml(citas[b.id]);
         h+='</div>';
       } else if(!barberoAusente(bd)&&!seWas&&bd.programado_hoy===false){
         // Día libre: no shift today by the weekly schedule / holidays / closed days (the server's answer, the same rule as the punctuality score). Gray, compact, no alert
         hDL+='<div class="sc sc-aus sc-dl" id="sc-'+escHtml(b.id)+'" title="Sin turno hoy">'
-          +'<span class="sc-name">'+escHtml(b.nombre)+'</span><span class="sc-chip">Día libre</span></div>';
+          +'<span class="sc-name">'+escHtml(b.nombre)+'</span><span class="sc-chip">Día libre</span>'+(nEsp>0?'<span class="sc-esp-dl">👤 '+nEsp+' en espera</span>':'')+'</div>';
       } else if(!barberoAusente(bd)&&!seWas){
         // Sin registrar llegada: scheduled today (or the server could not say: then it still warns, and says so), never checked in. Not a chair that can take a client (never in "siguiente")
         h+='<div class="sc sc-sll" id="sc-'+escHtml(b.id)+'">';
         h+='<div class="sc-top"><span class="sc-name">'+escHtml(b.nombre)+'</span><span class="sc-chip">Sin registrar llegada</span></div>';
         h+='<div class="sc-sub">No ha llegado'+(bd.programado_hoy==null?' · horario de hoy sin confirmar':'')+(lastSvc[b.id]?' · último '+escHtml(lastSvc[b.id].slice(0,5)):'')+'</div>';
+        h+=sillasEsperaHtml(bd.enEspera,ahora,alertaEsp);
         h+=sillasCitaHtml(citas[b.id]);
         h+='</div>';
       } else {
@@ -7138,6 +7187,7 @@ function renderSillas(){
         h+='<div class="sc-top"><span class="sc-name">'+escHtml(b.nombre)+'</span><span class="sc-chip">'+escHtml(labelAusente)+'</span></div>';
         h+='<div class="sc-sub">'+escHtml(motivoAusente)+(lastSvc[b.id]?' · último '+escHtml(lastSvc[b.id].slice(0,5)):'')
           +(marcadoAusente&&sillasPuedeMarcarAusencia()?' <button class="sc-aus-btn sc-vuelve" title="Marcar que volvió (disponible)" onclick="sillasMarcarAusencia(\''+escJsAttr(bd.barber_id||b.id)+'\',true,this)">✓ Volvió</button>':'')+'</div>';
+        h+=sillasEsperaHtml(bd.enEspera,ahora,alertaEsp);
         h+='</div>';
       }
     });
@@ -7160,6 +7210,12 @@ function renderSillas(){
 // Every second: elapsed time, remaining time, estimated finish clock and the progress bar (red once overdue).
 function sillasTickTimers(){
   var ahora=Date.now();
+  document.querySelectorAll('#sillasGrid .sc-espera').forEach(function(e){
+    var d=Number(e.getAttribute('data-desde'))||0, al=Number(e.getAttribute('data-alerta'))||0; if(!d) return;
+    var m=Math.max(0,Math.floor((ahora-d)/60000));
+    e.querySelectorAll('.esp-min').forEach(function(x){ x.textContent=m; });
+    e.classList.toggle('urgente',m>al);
+  });
   document.querySelectorAll('#sillasGrid .sc-ocu').forEach(function(c){
     var st=Number(c.getAttribute('data-start'))||0, dur=Number(c.getAttribute('data-dur'))||0;
     var e=sillasEstadoOcupada(st,dur,ahora);
