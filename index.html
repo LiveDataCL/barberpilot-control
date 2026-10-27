@@ -7946,11 +7946,21 @@ function _ordenarBBPorPosicion(pos){ // pos: bid → position; barbers not in it
   dec.sort(function(x,y){ return (x.p-y.p)||(x.i-y.i); });
   BB.length=0; dec.forEach(function(d){ BB.push(d.b); });
 }
-// THE rotation rule ("próximo turno") IN FORCE TODAY: the same the live API applies to "cualquiera" (resolveAnyBarber), so the board always shows
-// who the system assigns. Candidates: active, not in service, present (entry mark, no exit mark), not marked absent.
-// Order: who has not served today goes first, then whoever finished their last sale earliest; ties → whoever arrived at work first; then barber id.
-// Used by Sillas (strip, cards, "siguiente") AND by "Primer disponible" at check-in: ONE function (it used to be two copies with different tie-breaks).
-// The owner's new definition (available the longest) replaces it TOGETHER with the API rule (services/rotacion.js): never one without the other.
+// THE rotation rule ("próximo turno"), owner definition 2026-10-23. Candidates: active, not in service, present (entry mark, no exit mark), not marked absent.
+// The next turn goes to whoever has been AVAILABLE THE LONGEST: "available since" = the end of their last service today (the time of their last
+// confirmed sale), or their arrival (entry mark) if they have not served yet. Earliest goes first; identical times → barber id.
+// A barber who has not arrived is not in the rotation; on arriving they join with "available since" = arrival (behind those already available).
+// Doing a service never pushes a barber behind someone who arrived after that service ended.
+// RETURN FROM ABSENCE (owner, 2026-10-27): "available since" is the LATEST of arrival, end of last service today and the return from an absence ("Volvió",
+// the server's `regreso` per barber): the time spent absent is not waiting time. Same rule as services/rotacion.js in the API.
+// Used by Sillas (strip, cards, "siguiente") AND by "Primer disponible" at check-in: ONE function. The server's assignment for "cualquiera" implements the
+// same rule (services/rotacion.js in the API); both are tested against the same cases (rotacion_casos.json).
+function _hms(t){ t=String(t==null?'':t); return t.length===5?t+':00':t; }
+function rotacionDisponibleDesde(id,horMap,lastSvc,bd){
+  var h=horMap[id], t=[lastSvc[id], h&&h.entrada, bd&&bd.regreso].filter(Boolean).map(_hms), m='';
+  t.forEach(function(x){ if(x>m) m=x; });
+  return m;
+}
 function rotacionLibres(bbLista,queue,horMap,lastSvc){
   var libres=bbLista.filter(function(b){
     if(b.active===false) return false;
@@ -7959,11 +7969,9 @@ function rotacionLibres(bbLista,queue,horMap,lastSvc){
     return !bd.enServicio && !barberoAusente(bd) && !!(h&&h.entrada&&!h.salida);
   });
   libres.sort(function(a,b){
-    var ta=lastSvc[a.id]||'', tb=lastSvc[b.id]||'';
+    var qb=queue.barberos||{}, ta=rotacionDisponibleDesde(a.id,horMap,lastSvc,qb[a.id]), tb=rotacionDisponibleDesde(b.id,horMap,lastSvc,qb[b.id]);
     if(ta!==tb) return ta<tb?-1:1;
-    var ea=(horMap[a.id]&&horMap[a.id].entrada)||'99:99';
-    var eb=(horMap[b.id]&&horMap[b.id].entrada)||'99:99';
-    return ea<eb?-1:ea>eb?1:_desempateTurno(a,b);
+    return _desempateTurno(a,b);
   });
   return libres;
 }
