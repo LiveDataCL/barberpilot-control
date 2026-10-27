@@ -301,9 +301,11 @@
       width: 58mm !important;
       max-width: 58mm !important;
       margin: 0 !important;
-      padding: 0 !important;
+      box-sizing: border-box !important;
+      padding: 0 3mm 0 6mm !important;   /* left margin 6 mm, right 3 mm (the paper is 58 mm: 49 mm of text) */
       background: #fff !important;
     }
+    #printArea > div { width: auto !important; max-width: 100% !important; box-sizing: border-box !important; }   /* the ticket blocks were fixed at 52 mm */
     #printArea * { visibility: visible !important; }
     .no-print { display: none !important; }
     #printArea.pa-caja { font-family: "Courier New", monospace; font-size: 10px; line-height: 1.45; }
@@ -979,7 +981,8 @@
       <div id="cGrid"></div>
       <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
         <button onclick="printCierre58mm()" style="padding:10px 18px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer">🖨 Imprimir tickets 58mm (firma barberos)</button>
-        <button onclick="imprimirA4()" style="padding:10px 18px;border:1.5px solid var(--text);background:var(--surface);border-radius:var(--r);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer">📄 Imprimir resumen A4 (socios)</button>
+        <button id="btnPdfResumen" onclick="descargarPdfA4()" title="Descarga Resumen_AAAA-MM-DD.pdf (A4, sin márgenes); se imprime desde el visor de PDF" style="padding:10px 18px;border:1.5px solid var(--text);background:var(--surface);border-radius:var(--r);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer">📄 Descargar resumen PDF (socios)</button>
+        <button onclick="imprimirA4()" title="Respaldo: abre el resumen en una ventana para imprimir" style="padding:10px 18px;border:1px solid var(--border);background:var(--surface);border-radius:var(--r);font-family:var(--sans);font-size:13px;cursor:pointer">🖨 Imprimir resumen A4</button>
         <button onclick="exportCSV()" style="padding:10px 18px;border:1px solid var(--border);background:var(--surface);border-radius:var(--r);font-family:var(--sans);font-size:13px;cursor:pointer">⬇ Exportar CSV</button>
       </div>
     </div>
@@ -1675,7 +1678,14 @@ function _metodoPago(clave){
 // Barber rate (0–1) for a SERVICE paid with `clave`; null if unknown or inactive.
 function tasaComision(clave){ var m=_metodoPago(clave); return m&&m.activo?m.pct_barbero/100:null; }
 function tasaComisionProducto(){ return COMISION_PRODUCTO_PCT==null?null:COMISION_PRODUCTO_PCT/100; }
-function etiquetaPago(clave){ var m=_metodoPago(clave); return m?m.etiqueta:(clave||''); }
+// The three built-in methods with their accents (Débito): used when the server list has not loaded or when its label is just the raw key.
+var ETIQUETA_PAGO_BASE={efectivo:'Efectivo',debito:'Débito',transferencia:'Transferencia'};
+function _sinAcentoMin(t){ return String(t==null?'':t).normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase(); }
+function etiquetaPago(clave){
+  var m=_metodoPago(clave), et=m?m.etiqueta:'';
+  if(!et||_sinAcentoMin(et)===_sinAcentoMin(clave)) return ETIQUETA_PAGO_BASE[clave]||et||clave||'';
+  return et;
+}
 function _metodosActivos(){ return (METODOS_PAGO||[]).filter(function(m){return m.activo;}); }
 function _pctTexto(p){ return String(p).replace('.',',')+'%'; }
 // <option>s for a payment-method select, from the server list.
@@ -2229,7 +2239,8 @@ function _mostrarJornadaCargadaSinGuarda(fecha,recs,totales){
   }
   h+='</tbody></table>'
     +'<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">'
-    +'<button id="btnA4Hist" style="padding:8px 14px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-family:var(--sans);font-size:12px;cursor:pointer">📄 Imprimir A4</button>'
+    +'<button id="btnPdfHist" style="padding:8px 14px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-family:var(--sans);font-size:12px;cursor:pointer">📄 Descargar PDF</button>'
+    +'<button id="btnA4Hist" style="padding:8px 14px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:12px;cursor:pointer">🖨 Imprimir A4</button>'
     +'</div>'
     +'</div>';
 
@@ -2238,6 +2249,10 @@ function _mostrarJornadaCargadaSinGuarda(fecha,recs,totales){
   var _btnA4 = document.getElementById('btnA4Hist');
   if(_btnA4){
     (function(f,r){ _btnA4.onclick = function(){ imprimirA4Hist(f,r); }; })(fecha, recs);
+  }
+  var _btnPdf = document.getElementById('btnPdfHist');
+  if(_btnPdf){
+    (function(f,r){ _btnPdf.onclick = function(){ descargarPdfA4Hist(f,r); }; })(fecha, recs);
   }
 }
 
@@ -3438,7 +3453,7 @@ function generarHTMLA4(fecha, recs, gastosParam){
     +'<div class="doc-meta"><strong>Resumen de Jornada</strong><br>'+escHtml(fecha)+'<br>Generado: '+new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'})+'</div>'
     +'</div>'
     +'<div class="doc-title">Cierre de Jornada · '+escHtml(fecha)+'</div>'
-    +'<div class="kpis" style="grid-template-columns:repeat(7,1fr)">'
+    +'<div class="kpis" style="grid-template-columns:repeat(4,1fr)">'   // 4 + 3 en dos filas: con 7 columnas la última tarjeta salía cortada (cada cifra necesita más que 1/7 del ancho)
     +'<div class="kpi"><div class="kpi-lbl">Servicios</div><div class="kpi-val">'+cnt+'</div></div>'
     +'<div class="kpi"><div class="kpi-lbl">Ticket promedio</div><div class="kpi-val">$'+fmt(cnt>0?Math.round(tot/cnt):0)+'</div></div>'
     +'<div class="kpi"><div class="kpi-lbl">Facturación total</div><div class="kpi-val a">$'+fmt(tot)+'</div></div>'
@@ -3446,6 +3461,7 @@ function generarHTMLA4(fecha, recs, gastosParam){
     +'<div class="kpi"><div class="kpi-lbl">Propinas</div><div class="kpi-val g">$'+fmt(pagoBarbero(recs).propina)+'</div></div>'
     +'<div class="kpi"><div class="kpi-lbl">Para el negocio</div><div class="kpi-val b">$'+fmt(tNeg)+'</div></div>'
     +'<div class="kpi"><div class="kpi-lbl">Utilidad neta</div><div class="kpi-val '+(tNeg-totalGastosPrint>=0?'g':'err')+'">$'+fmt(tNeg-totalGastosPrint)+'</div></div>'
+    +'</div>';   // cierra .kpis (faltaba desde mayo: las secciones siguientes quedaban DENTRO de la grilla de KPI y el resumen salía desarmado)
 
   // RESUMEN POR BARBERO
   // Inicializar regMap de horarios para las cards
@@ -3552,6 +3568,137 @@ function generarHTMLA4(fecha, recs, gastosParam){
     +'</div></body></html>';
   return h;
 }
+
+// ═══ RESUMEN A4 → DESCARGA DIRECTA DE PDF (sin librerías, todo en el navegador) ═══════════════════════════════
+// Un navegador no puede elegir la impresora. En vez de "imprimir" se descarga un PDF del MISMO resumen (mismo diseño, SIN márgenes de página) y se
+// imprime desde el visor de PDF, donde sí se elige impresora y escala. Cómo: generarHTMLA4 se dibuja en un iframe oculto de 210 mm de ancho
+// (794 px), se rasteriza al doble de resolución (SVG foreignObject → canvas), se corta en hojas A4 sin partir filas de tabla ni recuadros y cada
+// hoja va como imagen JPEG en una página A4 de un PDF escrito a mano. Nombre: Resumen_AAAA-MM-DD.pdf. El botón "Imprimir" de siempre queda como respaldo.
+var PDF_A4_PX={w:794,h:1123};        // A4 a 96 dpi
+var PDF_A4_PT={w:595.28,h:841.89};   // A4 en puntos PDF
+var PDF_ESCALA=2;
+function pdfFechaIso(f){
+  var s=String(f||''), m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if(m) return s;
+  m=/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/.exec(s);
+  if(m) return m[3]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[1]).slice(-2);
+  return fechaHoy;
+}
+function pdfRenderizarDocumento(htmlDoc){
+  return new Promise(function(resolve,reject){
+    var fr=document.createElement('iframe');
+    fr.setAttribute('aria-hidden','true'); fr.tabIndex=-1;
+    fr.style.cssText='position:fixed;left:-12000px;top:0;width:'+PDF_A4_PX.w+'px;height:'+PDF_A4_PX.h+'px;border:0;visibility:hidden';
+    function limpiar(){ try{ document.body.removeChild(fr); }catch(e){} }
+    fr.onload=function(){
+      try{
+        var doc=fr.contentDocument, root=doc.documentElement;
+        if(!doc.body||!doc.body.children.length) throw new Error('el resumen no se cargó');
+        var alto=Math.ceil(Math.max(root.scrollHeight,doc.body.scrollHeight));
+        // dónde se puede cortar una hoja: bajo filas de tabla y bloques completos (nunca justo bajo un título de sección)
+        var cortes=[];
+        doc.querySelectorAll('.hdr-doc,.hdr,.doc-title,.kpis,.bb-grid,.hor-grid,tr,.firma-grid,.firmas,.footer').forEach(function(e){ cortes.push(Math.ceil(e.getBoundingClientRect().bottom)); });
+        var xml=new XMLSerializer().serializeToString(root);
+        var svg='<svg xmlns="http://www.w3.org/2000/svg" width="'+PDF_A4_PX.w+'" height="'+alto+'"><foreignObject x="0" y="0" width="100%" height="100%">'+xml+'</foreignObject></svg>';
+        var img=new Image();
+        img.onload=function(){
+          try{
+            var cv=document.createElement('canvas'); cv.width=PDF_A4_PX.w*PDF_ESCALA; cv.height=alto*PDF_ESCALA;
+            var cx=cv.getContext('2d'); cx.fillStyle='#fff'; cx.fillRect(0,0,cv.width,cv.height); cx.drawImage(img,0,0,cv.width,cv.height);
+            limpiar(); resolve({canvas:cv,alto:alto,cortes:cortes});
+          }catch(e){ limpiar(); reject(e); }
+        };
+        img.onerror=function(){ limpiar(); reject(new Error('no se pudo dibujar el resumen')); };
+        img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);
+      }catch(e){ limpiar(); reject(e); }
+    };
+    fr.srcdoc=htmlDoc;               // antes de insertarlo: si no, el 'load' del about:blank inicial se confunde con el del resumen
+    document.body.appendChild(fr);
+  });
+}
+// [[desde,hasta],…] en px del documento: cada hoja llega hasta el último corte permitido que cabe en una página A4
+function pdfPartirEnHojas(alto,cortes){
+  var H=PDF_A4_PX.h, hojas=[], y=0;
+  while(y<alto-1){
+    var fin=y+H;
+    if(fin>=alto){ hojas.push([y,alto]); break; }
+    var mejor=0;
+    cortes.forEach(function(c){ if(c>y+H*0.4&&c<=fin&&c>mejor) mejor=c; });
+    if(!mejor) mejor=fin;
+    hojas.push([y,mejor]); y=mejor;
+  }
+  return hojas;
+}
+function pdfHojaJpeg(cv,y0,y1){
+  return new Promise(function(resolve,reject){
+    var h=Math.round((y1-y0)*PDF_ESCALA), sub=document.createElement('canvas');
+    sub.width=cv.width; sub.height=h;
+    var cx=sub.getContext('2d'); cx.fillStyle='#fff'; cx.fillRect(0,0,sub.width,h);
+    cx.drawImage(cv,0,Math.round(y0*PDF_ESCALA),cv.width,h,0,0,cv.width,h);
+    sub.toBlob(function(b){
+      if(!b){ reject(new Error('no se pudo codificar la hoja')); return; }
+      b.arrayBuffer().then(function(ab){ resolve({jpg:new Uint8Array(ab),wImg:sub.width,hImg:h,hPx:(y1-y0)}); },reject);
+    },'image/jpeg',0.92);
+  });
+}
+// PDF 1.4 mínimo: una imagen JPEG por página A4 (ancho completo, pegada arriba, sin márgenes)
+function pdfEnsamblar(hojas){
+  var enc=new TextEncoder(), trozos=[], largo=0, offs={}, n=hojas.length;
+  function add(x){ var b=(typeof x==='string')?enc.encode(x):x; trozos.push(b); largo+=b.length; }
+  function inicio(id){ offs[id]=largo; add(id+' 0 obj\n'); }
+  add('%PDF-1.4\n');
+  inicio(1); add('<< /Type /Catalog /Pages 2 0 R >>\nendobj\n');
+  var kids=[]; for(var i=0;i<n;i++) kids.push((3+i*3)+' 0 R');
+  inicio(2); add('<< /Type /Pages /Count '+n+' /Kids ['+kids.join(' ')+'] >>\nendobj\n');
+  for(var j=0;j<n;j++){
+    var h=hojas[j], pg=3+j*3, ct=pg+1, im=pg+2;
+    var k=PDF_A4_PT.w/PDF_A4_PX.w, hPt=h.hPx*k, y=PDF_A4_PT.h-hPt;
+    var cont='q '+PDF_A4_PT.w.toFixed(2)+' 0 0 '+hPt.toFixed(2)+' 0 '+y.toFixed(2)+' cm /Im0 Do Q\n';
+    inicio(pg); add('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 '+PDF_A4_PT.w+' '+PDF_A4_PT.h+'] /Resources << /XObject << /Im0 '+im+' 0 R >> >> /Contents '+ct+' 0 R >>\nendobj\n');
+    inicio(ct); add('<< /Length '+cont.length+' >>\nstream\n'+cont+'endstream\nendobj\n');
+    inicio(im); add('<< /Type /XObject /Subtype /Image /Width '+h.wImg+' /Height '+h.hImg+' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length '+h.jpg.length+' >>\nstream\n');
+    add(h.jpg); add('\nendstream\nendobj\n');
+  }
+  var xref=largo, total=3*n+3;
+  add('xref\n0 '+total+'\n0000000000 65535 f \n');
+  for(var id=1;id<total;id++) add(('0000000000'+offs[id]).slice(-10)+' 00000 n \n');
+  add('trailer\n<< /Size '+total+' /Root 1 0 R >>\nstartxref\n'+xref+'\n%%EOF\n');
+  return new Blob(trozos,{type:'application/pdf'});
+}
+function pdfDescargar(blob,nombre){
+  var url=URL.createObjectURL(blob), a=document.createElement('a');
+  a.href=url; a.download=nombre; a.style.display='none';
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ try{ document.body.removeChild(a); }catch(e){} URL.revokeObjectURL(url); },10000);
+}
+// Cualquier documento A4 del panel (HTML completo) → descarga de PDF con ese nombre
+function pdfDesdeHtml(html,nombre){
+  toast('Generando '+nombre+'…');
+  // mismo diseño; sin botón de imprimir y sin márgenes de página
+  html=html.replace('</head>','<style>.no-print{display:none!important}html,body{width:'+PDF_A4_PX.w+'px!important;margin:0!important;background:#fff}</style></head>');
+  return pdfRenderizarDocumento(html).then(function(r){
+    var hojas=pdfPartirEnHojas(r.alto,r.cortes);
+    return Promise.all(hojas.map(function(h){ return pdfHojaJpeg(r.canvas,h[0],h[1]); }));
+  }).then(function(hojas){
+    pdfDescargar(pdfEnsamblar(hojas),nombre);
+    toast('✓ '+nombre+' descargado');
+  }).catch(function(e){
+    console.error('PDF A4:',e);
+    toast('No se pudo generar el PDF ('+((e&&e.message)||e)+'). Usa «Imprimir» como respaldo.');
+  });
+}
+// Resumen de jornada (Cierre → "Resumen A4"): Resumen_jornada_AAAA-MM-DD.pdf. fecha: texto del documento; iso: fecha del nombre (si falta se deduce de fecha)
+function descargarResumenPdf(fecha,recs,gastosParam,iso){
+  return pdfDesdeHtml(generarHTMLA4(fecha,recs,gastosParam),'Resumen_jornada_'+(iso||pdfFechaIso(fecha))+'.pdf');
+}
+// Cierre de caja (Caja → "Resumen A4 (socios)"): Resumen_AAAA-MM-DD.pdf; el recordatorio de marcas pendientes va antes, igual que al imprimir
+function descargarPdfCajaA4(){ a4Recordatorio(function(){ printCajaA4Directo('pdf'); }); }
+function descargarPdfA4(){
+  if(regs.length===0){toast('Sin registros para guardar');return;}
+  a4Recordatorio(descargarPdfA4Directo);   // el recordatorio de marcas pendientes sigue antes de generar
+}
+function descargarPdfA4Directo(){ return descargarResumenPdf(new Date().toLocaleDateString('es-CL'),regs,gastos,fechaHoy); }
+function descargarPdfA4Hist(fecha,recs){ return descargarResumenPdf(fecha,recs,[]); }
 
 function imprimirA4(){
   if(regs.length===0){toast('Sin registros para imprimir');return;}
@@ -3980,7 +4127,8 @@ function renderCaja(){
   // Botón imprimir
   h+='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px">'
     +'<button onclick="printCaja()" style="padding:11px 20px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer">🖨 Ticket 58mm (barberos)</button>'
-    +'<button onclick="printCajaA4()" style="padding:11px 20px;background:var(--surface);color:var(--text);border:1.5px solid var(--text);border-radius:var(--r);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer">📄 Resumen A4 (socios)</button>'
+    +'<button id="btnPdfCaja" onclick="descargarPdfCajaA4()" title="Descarga Resumen_AAAA-MM-DD.pdf (A4, sin márgenes); se imprime desde el visor de PDF" style="padding:11px 20px;background:var(--surface);color:var(--text);border:1.5px solid var(--text);border-radius:var(--r);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer">📄 Descargar PDF (socios)</button>'
+    +'<button onclick="printCajaA4()" title="Respaldo: abre el resumen en una ventana para imprimir" style="padding:11px 20px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:13px;cursor:pointer">🖨 Imprimir A4</button>'
     +'<button id="btnCopiarCierre" onclick="copiarTextoCierre()" style="padding:11px 20px;background:var(--surface);color:var(--text);border:1.5px solid var(--text);border-radius:var(--r);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer">📋 Copiar texto</button>'
     +'</div>';
 
@@ -4083,20 +4231,20 @@ function textoCierreWhatsapp(){
   var aDepositarW = cajaFinalW - BASE_MINIMA;
 
   var lineas=[];
-  var lineaBase='Base inicial en caja\t$'+fmt(BASE_CAJA);
-  if(AJUSTE_CAJA<0) lineaBase+=' (Incluye $'+fmt(Math.abs(AJUSTE_CAJA))+' de ajuste pendiente de cierre anterior)';
-  else if(AJUSTE_CAJA>0) lineaBase+=' (Incluye $'+fmt(AJUSTE_CAJA)+' de excedente de cierre anterior)';
+  var lineaBase='Base inicial en caja: $'+fmt(BASE_CAJA);
+  if(AJUSTE_CAJA<0) lineaBase+=' (incluye $'+fmt(Math.abs(AJUSTE_CAJA))+' de ajuste pendiente del cierre anterior)';
+  else if(AJUSTE_CAJA>0) lineaBase+=' (incluye $'+fmt(AJUSTE_CAJA)+' de excedente del cierre anterior)';
   lineas.push(lineaBase);
   lineas.push('');
   lineas.push('*Cobros del día*');
-  lineas.push('💵 Efectivo\t'+cntE+' servicios\t$'+fmt(totE));
-  lineas.push('💳 POS Mercado Pago ('+etiquetaPago('debito')+')\t'+cntD+' servicios\t$'+fmt(totD));
-  lineas.push('📲 Transferencia\t'+cntT+' servicios\t$'+fmt(totT));
-  lineas.push('*TOTAL FACTURADO*\t*$'+fmt(totE+totD+totT)+'*');
+  lineas.push('💵 Efectivo: '+cntE+' '+palabraServicios(cntE)+' · $'+fmt(totE));
+  lineas.push('💳 POS Mercado Pago ('+etiquetaPago('debito')+'): '+cntD+' '+palabraServicios(cntD)+' · $'+fmt(totD));
+  lineas.push('📲 Transferencia: '+cntT+' '+palabraServicios(cntT)+' · $'+fmt(totT));
+  lineas.push('*TOTAL FACTURADO: $'+fmt(totE+totD+totT)+'*');
   lineas.push('');
   lineas.push('*Gastos del día*');
-  for(var i=0;i<gastos.length;i++) lineas.push(gastos[i].desc+'\t−$'+fmt(gastos[i].monto));
-  lineas.push('*Total gastos*\t−$'+fmt(totalGastosW));
+  for(var i=0;i<gastos.length;i++) lineas.push(gastos[i].desc+': −$'+fmt(gastos[i].monto));
+  lineas.push('*Total gastos: −$'+fmt(totalGastosW)+'*');
   if(aDepositarW>0){
     lineas.push('');
     lineas.push('✓ *Retirar $'+fmt(aDepositarW)+' del cajón y depositar*');
@@ -4104,8 +4252,10 @@ function textoCierreWhatsapp(){
     lineas.push('');
     lineas.push('⚠️ *Reponer $'+fmt(Math.abs(aDepositarW))+' en caja*');
   }
-  return lineas.join('\n');
+  return lineas.join('\n').replace(/\t/g,' ');   // WhatsApp borra los tabuladores y deja las palabras pegadas: ningún tab sale en el texto
 }
+// "1 servicio", "2 servicios" (también 0 servicios)
+function palabraServicios(n){ return n===1?'servicio':'servicios'; }
 
 function copiarTextoFallback(texto, cb){
   var ta=document.createElement('textarea');
@@ -4119,10 +4269,28 @@ function copiarTextoFallback(texto, cb){
   if(cb) cb();
 }
 
+// "Copiar texto" del cierre: copia al portapapeles Y abre WhatsApp Web en una pestaña con nombre (si ya está abierta se vuelve a esa misma, sin recargarla).
+// No se usa un enlace con el texto ya escrito (wa.me/?text=…): WhatsApp documenta que sin número muestra la lista de chats, pero no se pudo comprobar que
+// funcione en WhatsApp Web ni con un texto largo, y el redireccionamiento de wa.me daña los emojis (ver waUrl). Por eso: copiar, abrir WhatsApp Web y avisar.
+var WA_SOCIOS_VENTANA='wa_socios';
+function abrirWhatsAppSocios(){
+  var w=null;
+  try{ w=window.open('',WA_SOCIOS_VENTANA); }catch(e){ w=null; }   // con el mismo nombre devuelve la pestaña ya abierta, sin navegarla
+  if(!w) return false;   // ventanas emergentes bloqueadas: el aviso lo da copiarTextoCierre junto con el de copiado
+  var nueva=false;
+  try{ nueva=(w.location.href==='about:blank'); }catch(e){ nueva=false; }   // una pestaña de WhatsApp ya abierta es de otro origen: leerla da error → se reutiliza tal cual
+  if(nueva) w.location.href='https://web.whatsapp.com/';
+  try{ w.focus(); }catch(e){}
+  return true;
+}
+var WA_SOCIOS_AVISO='Texto copiado — elige el grupo de socios y pega (Ctrl+V)';
+var WA_SOCIOS_AVISO_BLOQUEADO='Texto copiado — activa las ventanas emergentes para abrir WhatsApp Web, elige el grupo de socios y pega (Ctrl+V)';
 function copiarTextoCierre(){
   var texto=textoCierreWhatsapp();
   var btn=document.getElementById('btnCopiarCierre');
+  var abrio=abrirWhatsAppSocios();   // primero y sin esperas: el navegador solo permite abrir la ventana dentro del clic
   function marcarCopiado(){
+    toast(abrio?WA_SOCIOS_AVISO:WA_SOCIOS_AVISO_BLOQUEADO);
     if(!btn) return;
     var original=btn.dataset.original||btn.textContent;
     btn.dataset.original=original;
@@ -4338,7 +4506,7 @@ function testSheetsConnection(){
 
 // ═══ IMPRIMIR CIERRE A4 ═══════════════════════════════════════
 function printCajaA4(){ a4Recordatorio(printCajaA4Directo); }
-function printCajaA4Directo(){
+function printCajaA4Directo(modo){   // modo 'pdf' → descarga Resumen_AAAA-MM-DD.pdf; sin modo → la ventana de siempre (respaldo "Imprimir")
   var fecha = new Date().toLocaleDateString('es-CL');
   var hora  = pad(new Date().getHours())+':'+pad(new Date().getMinutes());
 
@@ -4427,8 +4595,7 @@ function printCajaA4Directo(){
     +'<div class="kpis">'
     +'<div class="kpi"><div class="kpi-l">Facturación total</div><div class="kpi-v" style="color:#8b5e00">$'+fmt(totalFact)+'</div></div>'
     +'<div class="kpi"><div class="kpi-l">Para el negocio</div><div class="kpi-v" style="color:#1a6b3a">$'+fmt(negocioTotal)+'</div></div>'
-    +'<div class="kpi"><div class="kpi-l">Pago barberos (comisión + propina)</div><div class="kpi-v" style="color:#1a4b8b">$'+fmt(totalCorresponde)+'</div>'
-      +'<div style="font-size:9pt;color:#5c5a54">comisiones $'+fmt(pagoBarbero(regs).comision)+' · propinas $'+fmt(pagoBarbero(regs).propina)+'</div></div>'
+    +'<div class="kpi"><div class="kpi-l">Pago barberos (comisión + propina)</div><div class="kpi-v" style="color:#1a4b8b">$'+fmt(totalCorresponde)+'</div></div>'
     +'<div class="kpi"><div class="kpi-l">Utilidad neta</div><div class="kpi-v" style="color:'+(utilidad>=0?'#1a6b3a':'#c0392b')+'">$'+fmt(utilidad)+'</div></div>'
     +'</div>'
     +'<div class="stitle">Cobros del día</div>'
@@ -4484,6 +4651,7 @@ function printCajaA4Directo(){
 
   html=html.replace('</head>','<title>'+escHtml(nombreArchivo)+'</title></head>');
 
+  if(modo==='pdf') return pdfDesdeHtml(html,'Resumen_'+fechaHoy+'.pdf');
   var win=window.open('','_blank','width=900,height=700,toolbar=0,menubar=0,scrollbars=1');
   if(!win){ toast('Activa los pop-ups para abrir el A4'); return; }
   win.document.write(html);
@@ -6452,12 +6620,15 @@ function toggleBarberAvailability(barberName, available){
 // ONE place that builds a WhatsApp Web link: the digits of the client's phone (a 9-digit
 // Chilean number gets the 56 prefix) and the message pre-filled with encodeURIComponent.
 // Used by the Sala de Espera button and by the Clientes buttons. '' when there is no usable phone.
+// NOT wa.me: its redirect corrupts emojis (verified 2026-10-24: https://wa.me/<n>?text=%F0%9F%92%88 answers 302 to …text=%EF%BF%BD, the replacement character,
+// so a message that starts with 💈 arrived broken). api.whatsapp.com/send is the page wa.me redirects to and it keeps the UTF-8 bytes, which it passes
+// intact on to WhatsApp Web. The text is percent-encoded as UTF-8 with encodeURIComponent on the FULL message.
 function waUrl(phone, msg){
   if(!phone) return '';
   var d = String(phone).replace(/\D/g,'');
   if(!d) return '';
   if(d.length<=9) d = '56'+d;
-  return 'https://wa.me/'+d+'?text='+encodeURIComponent(msg);
+  return 'https://api.whatsapp.com/send?phone='+d+'&text='+encodeURIComponent(msg);
 }
 function salaWaHref(phone, name, barberNombre, enServicio){
   var msg = enServicio
@@ -8871,7 +9042,7 @@ function renderClienteHistorial(registros){
       +'<td>'+escAttr(r.snom)+'</td>'
       +'<td style="text-align:right;font-family:var(--mono);font-weight:600">$'+fmt(r.precio)+'</td>'
       +'<td>'+escAttr(r.bnom)+'</td>'
-      +'<td><span class="badge '+bc+'">'+escAttr(r.pago)+'</span></td>'
+      +'<td><span class="badge '+bc+'">'+escAttr(etiquetaPago(r.pago))+'</span></td>'
       +'</tr>';
   }
   h+='</tbody></table>';
