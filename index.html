@@ -74,22 +74,24 @@
      (.pl-inner) nunca se restructura ni se remueve del DOM — al
      colapsar solo se oculta, y reaparece como flyout (hover o
      focus-within) anclado junto al rail, asi que ninguna accion del
-     checkout deja de ser clickeable/usable estando colapsado. */
+     checkout deja de ser clickeable/usable estando colapsado.
+     .pl-empuja (la pone plEmpujeActualizar mientras el foco esta DENTRO del panel): el panel se usa como expandido y EMPUJA el tablero
+     (el tablero se recalcula); con el mouse solo encima (hover) queda como flyout, siempre por encima de las tarjetas. */
   .pl-toggle{display:none}
   .pl-rail{display:none}
   @media(min-width:901px){
-    .layout.pl-collapsed{grid-template-columns:60px 1fr}
-    .layout.pl-collapsed .pl{overflow:visible;padding:12px 8px}
-    .layout.pl-collapsed .pl-rail{display:flex;flex-direction:column;align-items:center;gap:6px;padding-top:6px}
-    .layout.pl-collapsed .pl-inner{
+    .layout.pl-collapsed:not(.pl-empuja){grid-template-columns:60px 1fr}
+    .layout.pl-collapsed:not(.pl-empuja) .pl{overflow:visible;padding:12px 8px;z-index:90}   /* .pl is sticky = its own stacking context: without a z-index the flyout was painted BEHIND the positioned cards of the board */
+    .layout.pl-collapsed:not(.pl-empuja) .pl-rail{display:flex;flex-direction:column;align-items:center;gap:6px;padding-top:6px}
+    .layout.pl-collapsed:not(.pl-empuja) .pl-inner{
       opacity:0;pointer-events:none;
       position:absolute;top:0;left:60px;width:340px;height:calc(100vh - 62px);
       background:var(--surface);border:1px solid var(--border);
       border-radius:0 var(--rl) var(--rl) 0;box-shadow:0 8px 24px rgba(0,0,0,.18);
       padding:16px;overflow-y:auto;z-index:140;
     }
-    .layout.pl-collapsed .pl:hover .pl-inner,
-    .layout.pl-collapsed .pl:focus-within .pl-inner{opacity:1;pointer-events:auto}
+    .layout.pl-collapsed:not(.pl-empuja) .pl:hover .pl-inner,
+    .layout.pl-collapsed:not(.pl-empuja) .pl:focus-within .pl-inner{opacity:1;pointer-events:auto}
     .pl-rail-btn{
       position:relative;width:40px;height:40px;flex-shrink:0;
       border:1.5px solid var(--border);border-radius:var(--r);background:var(--surface2);
@@ -114,9 +116,9 @@
     }
     .pl-toggle:hover{border-color:var(--text);background:var(--soft);color:var(--text)}
     .pl-toggle:focus-visible{outline:2px solid var(--text);outline-offset:2px}
-    .layout.pl-collapsed .pl-toggle{left:46px}
+    .layout.pl-collapsed:not(.pl-empuja) .pl-toggle{left:46px}
     .pl-toggle-ico{font-size:11px;line-height:1;display:inline-block}
-    .layout.pl-collapsed .pl-toggle-ico{transform:rotate(180deg)}
+    .layout.pl-collapsed:not(.pl-empuja) .pl-toggle-ico{transform:rotate(180deg)}
   }
   @media(min-width:901px) and (prefers-reduced-motion: no-preference){
     .layout{transition:grid-template-columns .22s ease}
@@ -381,7 +383,7 @@
   .xfirma{margin-top:16px;border-top:1px solid #000;padding-top:3px;font-size:9px;text-align:center}
 
   /* SILLAS — tablero compacto: todas las sillas en una vista (sin scroll vertical a 1366×768, también con 9 barberos).
-     Riel de color a la izquierda, tiempo restante a la derecha, barra al borde inferior; "💳 Cerrar" abre un globo sobre la tarjeta. */
+     Riel de color a la izquierda, tiempo restante a la derecha, barra al borde inferior; "💰 Cobrar servicio" abre el cobro (modo foco). */
   #sillasGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;align-items:stretch}
   .ss{display:flex;flex-wrap:wrap;align-items:center;gap:3px 16px;padding:7px 12px;margin-bottom:10px;border-radius:var(--r);background:var(--text);border:1px solid var(--text);font-size:12.5px;color:rgba(255,255,255,.75)}
   .ss b{color:#fff}
@@ -427,6 +429,12 @@
   #sillasDiaLibre .sc{display:inline-flex;flex-direction:row;align-items:baseline;gap:8px;padding:3px 10px;border-width:1px;border-left-width:4px;opacity:.8}
   #sillasDiaLibre .sc-name{font-size:12.5px;font-weight:600}
   /* the closing popover: below the card, above it, or (when neither fits the window) centred — always fully visible */
+  /* FOCUS MODE ("💰 Cobrar servicio"): the rest of the board fades behind a veil, the chosen card lifts above it and the charging sheet is a white sheet, distinct from the cards */
+  #sillasFoco{position:fixed;inset:0;z-index:60;background:rgba(246,245,241,.74);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);opacity:0;pointer-events:none}
+  #sillasFoco.on{opacity:1;pointer-events:auto}
+  @media(prefers-reduced-motion:no-preference){ #sillasFoco{transition:opacity .18s ease} #sillasGrid .sc{transition:transform .18s ease,box-shadow .18s ease} }
+  #sillasGrid .sc.abierto{z-index:61;transform:scale(1.025);box-shadow:0 18px 40px rgba(26,25,22,.32)}
+  #sillasGrid .sc.abierto.centro{transform:none}
   .sc.centro .sc-cierre{position:fixed;left:50%;top:50%;right:auto;bottom:auto;transform:translate(-50%,-50%);width:min(440px,94vw);max-height:94vh;overflow:auto}
   .sc-ocu.con-cita{grid-template-areas:"top rem" "meta rem" "cli cli" "cita cita" "foot foot" "bar bar"}
   .sc-ocu.con-espera{grid-template-areas:"top rem" "meta rem" "cli cli" "esp esp" "foot foot" "bar bar"}
@@ -476,10 +484,19 @@
   .sc-late .sc-rem{color:var(--err)}
   .sc-late .sc-bar>i{background:var(--err)}
   .sc-late .sc-fin{color:var(--err);font-weight:600}
-  /* closing block: collapsed; "💳 Cerrar" opens it as a popover over the card, so no neighbouring card ever moves or grows */
-  .sc-cierre{display:none;position:absolute;left:-5px;right:-1.5px;top:calc(100% + 4px);z-index:30;background:var(--surface);border:1.5px solid var(--text);border-radius:var(--rl);box-shadow:0 8px 24px rgba(0,0,0,.18);padding:10px 11px}
+  /* closing block: collapsed; "💰 Cobrar servicio" opens it as a sheet over the card (focus mode), so no neighbouring card ever moves or grows */
+  .sc-cierre{display:none;position:absolute;left:-5px;right:-1.5px;min-width:340px;top:calc(100% + 6px);z-index:30;background:#fff;border:1px solid var(--border);border-top:4px solid var(--ok);border-radius:var(--rl);box-shadow:0 22px 54px rgba(26,25,22,.38);padding:12px 14px}
+  .sc.der .sc-cierre{left:auto}
+  .fc-titulo{font-size:13px;font-weight:700;line-height:1.3;color:#14452a;background:#e6f4ec;margin:-12px -14px 12px;padding:10px 14px;border-radius:calc(var(--rl) - 2px) calc(var(--rl) - 2px) 0 0;overflow-wrap:anywhere}
+  .fc-prod{font-size:11px;color:var(--text2);margin:-4px 0 8px}
+  .fc-total{font-size:11.5px;color:var(--text2);margin:-2px 0 10px}
+  .fc-acc{display:flex;gap:8px;align-items:stretch}
+  .fc-conf{flex:1;padding:10px 12px;background:var(--ok);color:#fff;border:none;border-radius:var(--r);font-size:14px;font-weight:700;cursor:pointer;font-family:var(--sans)}
+  .fc-conf:disabled{opacity:.45;cursor:not-allowed}
+  .fc-canc{padding:10px 14px;background:transparent;color:var(--text2);border:1px solid var(--border2);border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans)}
+  .fc-conf:focus-visible,.fc-canc:focus-visible{outline:2px solid var(--text);outline-offset:2px}
   .sc.abierto .sc-cierre{display:block}
-  .sc.up .sc-cierre{top:auto;bottom:calc(100% + 4px)}
+  .sc.up .sc-cierre{top:auto;bottom:calc(100% + 6px)}
   /* ── Staff panel ── */
   .staff-section-hdr{display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border)}
   .staff-note{font-size:11px;font-weight:400;color:var(--text3)}
@@ -847,6 +864,7 @@
         <div class="empty" style="grid-column:1/-1"><div class="empty-ico">⟳</div><div>Cargando sillas…</div></div>
       </div>
       <div id="sillasDiaLibre"></div>
+      <div id="sillasFoco" onclick="sillasFocoCancelar()" aria-hidden="true"></div>
     </div>
 
     <!-- ── Modal editar pago de registro ── -->
@@ -2366,6 +2384,7 @@ function togglePlPanel(){
   var layout=document.querySelector('.layout');
   if(!layout)return;
   var collapsed=layout.classList.toggle('pl-collapsed');
+  plEmpujeActualizar();
   try{ localStorage.setItem(PL_COLLAPSE_KEY, collapsed?'1':'0'); }catch(e){}
   var btn=document.getElementById('plToggle');
   if(btn){
@@ -2383,6 +2402,14 @@ function plRailFocus(sectionId){
   var target=sec.querySelector('button,input,[tabindex]');
   if(target)target.focus();
 }
+// Colapsado: con el foco DENTRO del panel (se esta usando) el panel se comporta como expandido y empuja el tablero; con solo el mouse encima
+// queda como flyout por encima de las tarjetas. El retraso evita parpadeos cuando el foco pasa de un control a otro.
+function plEmpujeActualizar(){
+  var layout=document.querySelector('.layout'), pl=document.querySelector('.pl'); if(!layout||!pl) return;
+  layout.classList.toggle('pl-empuja',layout.classList.contains('pl-collapsed')&&pl.contains(document.activeElement));
+}
+document.addEventListener('focusin',function(e){ if(e.target&&e.target.closest&&e.target.closest('.pl')) plEmpujeActualizar(); });
+document.addEventListener('focusout',function(){ setTimeout(plEmpujeActualizar,120); });
 function initPlToggle(){
   var wasCollapsed=false;
   try{ wasCollapsed = localStorage.getItem(PL_COLLAPSE_KEY)==='1'; }catch(e){}
@@ -6412,20 +6439,16 @@ function salaIniciarSiguiente(queue_id){
 }
 
 // ONE block for a client in service — client row (✏ Editar, WhatsApp, ✕), service and attached products, price (from the
-// catalog), payment method (from the server list), tip and 💳 Cerrar — used by Sala de Espera AND by Sillas, so both screens
+// catalog), payment method (from the server list), tip and 💰 Cobrar servicio — used by Sala de Espera AND by Sillas, so both screens
 // close a service the same way (salaCerrarServicio → POST /queue/control/registrar, where the server computes the commission).
 // ctx ('sala' | 'sillas') only keeps the element ids unique when both screens are drawn.
 function salaServicioActivoHtml(sv,barberNombre,bid,ctx,desde,soloCierre){
   var q=Number(sv.queue_id), h='';
   _salaEditorData[sv.queue_id]={client_name:sv.client_name,phone:sv.phone||'',service:sv.service,precio:SALA_PRECIOS[sv.service]||0,cliente_id:sv.cliente_id||null,productosAdjuntos:sv.productos_adjuntos||[]};
   if(soloCierre){
-    // Sillas: the card already shows client and service; here only the actions and the closing form
-    h+='<div style="display:flex;gap:4px;align-items:center;margin-bottom:8px">';
-    h+='<button onclick="salaAbrirEditor('+q+')" style="padding:2px 8px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;font-family:var(--sans)">✏ Editar</button>';
-    h+=salaWaHref(sv.phone, sv.client_name, barberNombre, true);
-    h+='<button onclick="salaEliminarEntrada('+q+')" style="padding:2px 7px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;color:var(--err)">✕</button>';
-    if(sv.productos_adjuntos&&sv.productos_adjuntos.length) h+='<span style="font-size:11px;color:var(--text2)">+ '+escHtml(sv.productos_adjuntos.map(function(p){return (p.cantidad>1?p.cantidad+'x ':'')+p.nombre;}).join(' + '))+'</span>';
-    h+='</div>';
+    // Sillas (focus mode): a title that says WHAT is being charged, then the form. Editar, WhatsApp and ✕ stay on the card (not repeated here)
+    h+='<div class="fc-titulo">Cobro · '+escHtml(barberNombre)+' · '+escHtml(sv.client_name)+' · '+escHtml(sv.service)+'</div>';
+    if(sv.productos_adjuntos&&sv.productos_adjuntos.length) h+='<div class="fc-prod">+ '+escHtml(sv.productos_adjuntos.map(function(p){return (p.cantidad>1?p.cantidad+'x ':'')+p.nombre;}).join(' + '))+'</div>';
   } else {
   h+='<div style="margin-bottom:8px">';
   h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">';
@@ -6445,23 +6468,32 @@ function salaServicioActivoHtml(sv,barberNombre,bid,ctx,desde,soloCierre){
   h+='<div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap">';
   h+='<input id="prc-'+ctx+'-'+q+'" type="number" min="0" step="1000" ';
   h+='value="'+(_salaEditorData[sv.queue_id]&&_salaEditorData[sv.queue_id].precio?_salaEditorData[sv.queue_id].precio:(SALA_PRECIOS[sv.service]||''))+'" ';
-  h+='style="width:84px;padding:6px 8px;border:1.5px solid var(--border2);border-radius:var(--r);font-size:12px;font-family:var(--mono);background:var(--surface)" title="Precio"/>';
+  h+=(soloCierre?'oninput="sillasFocoMonto('+q+')" ':'')+'style="width:84px;padding:6px 8px;border:1.5px solid var(--border2);border-radius:var(--r);font-size:12px;font-family:var(--mono);background:var(--surface)" title="Precio"/>';
   var _sp=_pagoSelections[sv.queue_id]||'efectivo';
   h+='<select id="pago-'+ctx+'-'+q+'" onchange="salaGuardarPago('+q+',this.value)" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface);font-family:var(--sans)">';
   h+=opcionesPagoHtml(_sp,false);
   h+='</select>';
   h+='<input id="prop-'+ctx+'-'+q+'" type="number" placeholder="Propina" min="0" step="500" ';
-  h+='style="width:78px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;font-family:var(--mono);background:var(--surface)"/>';
-  h+='<button onclick="salaCerrarDesdeForm(\''+ctx+'\','+q+',\''+escJsAttr(bid)+'\')" ';
-  h+='style="padding:6px 12px;background:var(--ok);color:#fff;border:none;border-radius:var(--r);font-size:12px;font-weight:600;cursor:pointer">💳 Cerrar</button>';
+  h+=(soloCierre?'oninput="sillasFocoMonto('+q+')" ':'')+'style="width:78px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;font-family:var(--mono);background:var(--surface)"/>';
+  if(!soloCierre){
+    h+='<button title="Cobrar servicio" onclick="salaCerrarDesdeForm(\''+ctx+'\','+q+',\''+escJsAttr(bid)+'\')" ';
+    h+='style="padding:6px 12px;background:var(--ok);color:#fff;border:none;border-radius:var(--r);font-size:12px;font-weight:600;cursor:pointer">💰 Cobrar servicio</button>';
+  }
   h+='</div>';
+  if(soloCierre){
+    h+='<div class="fc-total" id="fc-tot-'+q+'"></div>';
+    h+='<div class="fc-acc"><button type="button" class="fc-conf" id="fc-conf-'+q+'" onclick="salaCerrarDesdeForm(\''+ctx+'\','+q+',\''+escJsAttr(bid)+'\')">✓ Confirmar cobro</button>'
+      +'<button type="button" class="fc-canc" onclick="sillasFocoCancelar()">Cancelar</button></div>';
+    return h;
+  }
   h+='<div style="height:1px;background:var(--border);margin-bottom:10px"></div>';
   return h;
 }
 function salaCerrarDesdeForm(ctx,queue_id,bid){
   var g=function(p){ return document.getElementById(p+'-'+ctx+'-'+queue_id); };
   if(!g('pago')||!g('prop')||!g('prc')){ toast('No se pudo leer el formulario de cierre: actualiza la pantalla'); return; }
-  salaCerrarServicio(queue_id,bid,g('pago').value,parseInt(g('prop').value)||0,parseInt(g('prc').value)||0);
+  // Sillas: the "✓ Confirmar cobro · $X" button of the focus sheet IS the confirmation, so the native summary dialog is skipped there (Sala keeps it)
+  salaCerrarServicio(queue_id,bid,g('pago').value,parseInt(g('prop').value)||0,parseInt(g('prc').value)||0,ctx==='sillas');
 }
 // A change to the queue (close, edit, delete) must show on both screens.
 function _refrescarSalaYSillas(){
@@ -6470,7 +6502,7 @@ function _refrescarSalaYSillas(){
   if(ps&&ps.classList.contains('on')) renderSillas();
 }
 
-function salaCerrarServicio(queue_id,bid,pago,propina,precio){
+function salaCerrarServicio(queue_id,bid,pago,propina,precio,sinConfirmarNativo){
   if(!API_URL) return;
   // Resolve barber and editor data before showing the confirm
   var barber=null;
@@ -6508,7 +6540,7 @@ function salaCerrarServicio(queue_id,bid,pago,propina,precio){
     +'→ Barbero recibe: $'+fmt(bbPreview)+(propina>0?' + propina $'+fmt(propina):'')+(productosAdjuntos.length>0?' + productos $'+fmt(productosTotalBB):'')+' = $'+fmt(bbPreview+propina+productosTotalBB)+'\n'
     +'Negocio retiene: $'+fmt(negPreview+(productosTotal-productosTotalBB))+'\n\n'
     +'¿Cerrar servicio y generar ticket?';
-  if(!window.confirm(confirmMsg)) return;
+  if(!sinConfirmarNativo && !window.confirm(confirmMsg)) return;
   // Confirmed — close the service in the API. productos_adjuntos is no
   // longer sent here — the backend reads it straight from the persisted
   // queue row (docs/attach-product-to-ticket-design_2026-08-03.md §d),
@@ -6959,7 +6991,7 @@ function sillasObservarTamano(){
   window.addEventListener('resize',sillasAjustarPronto);   // window resize and browser zoom
   if(typeof ResizeObserver==='undefined') return;
   _sillasRO=new ResizeObserver(sillasAjustarPronto);       // side panel toggled (pane width), strip or day-off row changed height
-  ['pSillas','sillasNextTurn','sillasDiaLibre'].forEach(function(id){ var e=document.getElementById(id); if(e) _sillasRO.observe(e); });
+  ['pSillas','sillasGrid','sillasNextTurn','sillasDiaLibre'].forEach(function(id){ var e=document.getElementById(id); if(e) _sillasRO.observe(e); });
 }
 
 // ── Clients WAITING for a barber must stand out. Waiting time = minutes since the queue entry's check-in (checkin_at). The badge turns red when the oldest
@@ -6989,24 +7021,71 @@ function sillasEsperaHtml(lista,ahora,alerta){
     +'<span class="esp-largo">'+largo+'</span><span class="esp-corto">'+corto+'</span></div>';
 }
 
+// Focus mode: "💰 Cobrar servicio" opens the charging sheet of ONE card; the rest of the board fades (#sillasFoco). While it is open the board counts as
+// "editing" (no redraw, see tableroEditando). Cancel = Esc, click on the veil, or the Cancelar button: nothing typed is lost (drafts, borr*).
 function sillasToggleCierre(q){
-  _sillasAbierto=(String(_sillasAbierto)===String(q))?null:q;
+  var abre=String(_sillasAbierto)!==String(q);
+  _sillasAbierto=abre?q:null;
   sillasAplicarAbierto();
-  if(_sillasAbierto==null) setTimeout(refrescoPendienteAplicar,0);   // closed: a refresh that was waiting runs now
+  if(abre) sillasFocoEnfocar(q);
+  else setTimeout(refrescoPendienteAplicar,0);   // closed: a refresh that was waiting runs now
 }
+function sillasFocoCancelar(){
+  if(_sillasAbierto==null) return;
+  var q=_sillasAbierto; _sillasAbierto=null;
+  sillasAplicarAbierto();
+  var b=document.querySelector('#sillasGrid .sc[data-q="'+q+'"] .sc-cerrar'); if(b) b.focus();
+  setTimeout(refrescoPendienteAplicar,0);
+}
+function sillasFocoEnfocar(q){
+  var el=document.getElementById('prc-sillas-'+q);
+  if(el){ el.focus({preventScroll:true}); if(el.select) el.select(); }
+}
+// Live total on the confirm button: service price + tip (+ attached products), read from the fields as they are typed
+function sillasFocoMonto(q){
+  var p=document.getElementById('prc-sillas-'+q), t=document.getElementById('prop-sillas-'+q), b=document.getElementById('fc-conf-'+q), d=document.getElementById('fc-tot-'+q);
+  if(!p||!b) return;
+  var precio=parseInt(p.value)||0, prop=t?(parseInt(t.value)||0):0, prods=0, ed=_salaEditorData[q]||{};
+  (ed.productosAdjuntos||[]).forEach(function(x){ prods+=(Number(x.precio)||0)*(Number(x.cantidad)||1); });
+  b.textContent='✓ Confirmar cobro · $'+fmt(precio+prop+prods);
+  b.disabled=!(precio>0);   // fail closed: no price, nothing to confirm (the server refuses it too)
+  if(d) d.textContent='Servicio $'+fmt(precio)+(prop>0?' · Propina $'+fmt(prop):'')+(prods>0?' · Productos $'+fmt(prods):'');
+}
+function sillasMontoTodos(){
+  document.querySelectorAll('#sillasGrid .sc[data-q]').forEach(function(c){ sillasFocoMonto(c.getAttribute('data-q')); });
+}
+var SILLAS_FOCO_ANCHO=340, SILLAS_FOCO_TOPE=72;   // the sticky header is 62 px high: a sheet placed above a card must not go under it
 function sillasAplicarAbierto(){
+  var hay=false, vw=window.innerWidth;
   document.querySelectorAll('#sillasGrid .sc').forEach(function(c){
     var on=_sillasAbierto!=null&&String(c.getAttribute('data-q'))===String(_sillasAbierto);
-    c.classList.toggle('abierto',on); c.classList.remove('up','centro');
+    c.classList.toggle('abierto',on); c.classList.remove('up','centro','der');
     if(on){
+      hay=true;
       var pop=c.querySelector('.sc-cierre'); if(!pop) return;
       var r=c.getBoundingClientRect(), ph=pop.offsetHeight+8, vh=window.innerHeight;
+      if(r.left+SILLAS_FOCO_ANCHO>vw-8) c.classList.add('der');   // too close to the right edge: the sheet grows to the left
       if(r.bottom+ph<=vh) return;                  // fits below the card
-      if(r.top-ph>=0) c.classList.add('up');       // fits above it
+      if(r.top-ph>=SILLAS_FOCO_TOPE) c.classList.add('up');   // fits above it (below the sticky header)
       else c.classList.add('centro');              // neither: centred in the window
     }
   });
+  if(_sillasAbierto!=null&&!hay) _sillasAbierto=null;   // the card is gone (charged, deleted, chair changed): focus mode ends and the board can refresh
+  var v=document.getElementById('sillasFoco'); if(v) v.classList.toggle('on',hay);
 }
+document.addEventListener('keydown',function(e){
+  if(_sillasAbierto==null||!tabActiva('pSillas')) return;
+  var ed=document.getElementById('salaEditorOverlay'); if(ed&&ed.style.display==='flex') return;
+  if(e.key==='Escape'){ e.preventDefault(); sillasFocoCancelar(); return; }
+  if(e.key==='Tab'){   // Tab stays inside the open sheet
+    var pop=document.querySelector('#sillasGrid .sc.abierto .sc-cierre'); if(!pop) return;
+    var f=[].filter.call(pop.querySelectorAll('input,select,button'),function(x){ return !x.disabled&&x.offsetParent!==null; });
+    if(!f.length) return;
+    var a=document.activeElement, i=f.indexOf(a);
+    if(e.shiftKey&&(i<=0)){ e.preventDefault(); f[f.length-1].focus(); }
+    else if(!e.shiftKey&&(i===f.length-1||i<0)){ e.preventDefault(); f[0].focus(); }
+  }
+});
 
 // ═══ TABLEROS (Sala, Sillas): refrescos que NO pisan lo que se escribe ═══════════════════════════════════════
 // 1. Nunca se redibuja un tablero mientras se edita (globo de cierre o editor abierto, un campo con foco o con cambios sin guardar):
@@ -7318,9 +7397,9 @@ function renderSillas(){
         h+='<div class="sc-bar"><i></i></div>';
         h+='<div class="sc-foot"><span class="sc-desde">⏱ <span class="sc-t" id="stimer-'+escHtml(b.id)+'">—</span> · desde '+desde+'</span>';
         h+='<span class="sc-acc"><button class="sc-editar" title="Editar el servicio o el cliente (no cobra)" onclick="salaAbrirEditor('+Number(sv.queue_id)+')"><span class="sc-ico">✏</span><span class="sc-btn-txt"> Editar</span></button>'
-          +'<button class="sc-cerrar" title="Cobrar y cerrar el servicio" onclick="sillasToggleCierre('+Number(sv.queue_id)+')"><span class="sc-ico">💳</span><span class="sc-btn-txt"> Cerrar</span></button></span></div>';
-        // The closing block (price, payment, tip, products) is the shared one from Sala, collapsed until "💳 Cerrar"
-        h+='<div class="sc-cierre">'+salaServicioActivoHtml(sv,b.nombre,b.id,'sillas',desde,true)+'</div>';
+          +'<button class="sc-cerrar" title="Cobrar servicio" aria-label="Cobrar servicio" onclick="sillasToggleCierre('+Number(sv.queue_id)+')"><span class="sc-ico">💰</span><span class="sc-btn-txt"> Cobrar servicio</span></button></span></div>';
+        // The closing block (price, payment, tip, products) is the shared one from Sala, collapsed until "💰 Cobrar servicio"
+        h+='<div class="sc-cierre" role="dialog" aria-label="Cobro de '+escHtml(b.nombre)+'">'+salaServicioActivoHtml(sv,b.nombre,b.id,'sillas',desde,true)+'</div>';
         h+='</div>';
       } else if(esPresente && !barberoAusente(bd)){
         // Libre y presente
@@ -7366,6 +7445,7 @@ function renderSillas(){
     document.getElementById('sillasGrid').innerHTML=h||'<div class="empty" style="grid-column:1/-1"><div>'+(hDL?'Ningún barbero con turno hoy':'Sin datos de barberos')+'</div></div>';
     document.getElementById('sillasDiaLibre').innerHTML=hDL;
     borrRestaurar();
+    sillasMontoTodos();
     sillasAplicarAbierto();
     sillasAjustarGrid(); sillasObservarTamano();
 
