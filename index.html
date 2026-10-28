@@ -1887,15 +1887,29 @@ function enviarAApi(r){
 }
 var enviarASheets = enviarAApi;
 
+// The REAL result of a server call that changes data: ok only when the answer is 2xx AND the body does not say ok:false. Never rejects.
+// { ok, status, error } — status 0 = no answer (network). Every destructive or bulk action reports from this, never from "the request went out".
+function llamarConResultado(url, opts){
+  return fetch(url, opts).then(function(r){
+    return r.text().then(function(t){
+      var j=null; try{ j=JSON.parse(t); }catch(e){}
+      var ok = r.ok && !(j && j.ok===false);
+      return { ok: ok, status: r.status, error: ok ? '' : ((j && (j.detalle||j.message||j.error)) || ('HTTP '+r.status)) };
+    });
+  }).catch(function(e){ return { ok:false, status:0, error:'sin conexión ('+(e&&e.message||'error')+')' }; });
+}
+// Summary line of a bulk action: how many worked, how many did not and why (the distinct reasons, at most three).
+function resumenLote(verbo, resultados){
+  var fallos = resultados.filter(function(x){ return !x.ok; }), n = resultados.length, ok = n - fallos.length;
+  if(!fallos.length) return { todoOk:true, texto:'✓ '+verbo+': '+ok+' de '+n };
+  var motivos = []; fallos.forEach(function(x){ var m = (x.status? x.status+' ':'')+x.error; if(motivos.indexOf(m)===-1) motivos.push(m); });
+  return { todoOk:false, texto:'⚠ '+verbo+': '+ok+' de '+n+' — '+fallos.length+' NO se pudieron ('+motivos.slice(0,3).join('; ')+')' };
+}
+
 function eliminarDeSheets(id) {
   if (API_URL) {
-    // Railway: DELETE real
-    fetch(API_URL + '/registros/' + encodeURIComponent(id), {
-      method: 'DELETE',
-      headers: getAuthHeaders()
-    }).then(function(r){ return r.json(); })
-    .then(function(d){ if(!d.ok) console.warn('Delete API error:', d); })
-    .catch(function(e){ console.warn('Delete error:', e); });
+    // Railway: DELETE real — resolves with the real result
+    return llamarConResultado(API_URL + '/registros/' + encodeURIComponent(id), { method: 'DELETE', headers: getAuthHeaders() });
   } else if (SHEETS_URL) {
     fetch(SHEETS_URL, {
       method: 'POST', mode: 'no-cors',
@@ -1903,6 +1917,7 @@ function eliminarDeSheets(id) {
       body: JSON.stringify({ accion: 'eliminar', id: id })
     }).catch(function(e){ console.warn('Sheets delete error:', e); });
   }
+  return Promise.resolve({ ok:true, status:0, error:'' });   // no server to ask (offline / Sheets no-cors): nothing to report
 }
 
 function sincronizarGastoSheets(g, accion) {
@@ -3091,28 +3106,30 @@ function renderAprobaciones(pend){
 function aprobar(id){
   var row = document.getElementById('row_'+id);
   if(row) row.style.opacity='.4';
-  fetch(API_URL+'/registros/'+id+'/estado',{
+  llamarConResultado(API_URL+'/registros/'+id+'/estado',{
     method:'PATCH',
     headers:getJsonAuthHeaders(),
     body:JSON.stringify({estado:'confirmado'})
-  }).then(function(){
+  }).then(function(r){
+    if(!r.ok){ toast('⚠ No se aprobó: '+(r.status? r.status+' ':'')+r.error); if(row) row.style.opacity=''; return; }
     toast('✓ Servicio aprobado');
     cargarPendientes();
     setTimeout(function(){ cargarRegistrosDia(); },500);
-  }).catch(function(){ toast('Error al aprobar'); });
+  });
 }
 
 function rechazar(id){
   var row = document.getElementById('row_'+id);
   if(row) row.style.opacity='.4';
-  fetch(API_URL+'/registros/'+id+'/estado',{
+  llamarConResultado(API_URL+'/registros/'+id+'/estado',{
     method:'PATCH',
     headers:getJsonAuthHeaders(),
     body:JSON.stringify({estado:'rechazado'})
-  }).then(function(){
+  }).then(function(r){
+    if(!r.ok){ toast('⚠ No se rechazó: '+(r.status? r.status+' ':'')+r.error); if(row) row.style.opacity=''; return; }
     toast('Registro rechazado');
     cargarPendientes();
-  }).catch(function(){ toast('Error'); });
+  });
 }
 
 function verComprobante(regId){
@@ -3148,13 +3165,13 @@ function aprobarTodos(){
   var rows = document.querySelectorAll('[id^="row_"]');
   var ids = Array.from(rows).map(function(r){ return r.id.replace('row_',''); });
   Promise.all(ids.map(function(id){
-    return fetch(API_URL+'/registros/'+id+'/estado',{
+    return llamarConResultado(API_URL+'/registros/'+id+'/estado',{
       method:'PATCH',
       headers:getJsonAuthHeaders(),
       body:JSON.stringify({estado:'confirmado'})
     });
-  })).then(function(){
-    toast('✓ '+ids.length+' servicios aprobados');
+  })).then(function(res){
+    toast(resumenLote('Servicios aprobados', res).texto);
     cargarPendientes();
     setTimeout(function(){ cargarRegistrosDia(); },500);
   });
@@ -3748,26 +3765,29 @@ function imprimirA4Hist(fecha,recs){
 // ═══ ACCIONES ════════════════════════════════════════════
 function del(id){
   if(!window.confirm('¿Eliminar este registro?\n\nEsto lo borrará también de la base de datos en la nube.'))return;
-  var nr=[];for(var i=0;i<regs.length;i++)if(regs[i].id!==id)nr.push(regs[i]);
-  regs=nr;
-  guardar();
-  eliminarDeSheets(id);
-  renderAll();
-  toast('Registro eliminado ✓' + (API_URL ? ' — BD actualizada' : ''));
+  eliminarDeSheets(id).then(function(r){
+    if(!r.ok){ toast('⚠ No se eliminó: '+(r.status? r.status+' ':'')+r.error); return; }   // the record stays in the list: the server still has it
+    var nr=[];for(var i=0;i<regs.length;i++)if(regs[i].id!==id)nr.push(regs[i]);
+    regs=nr;
+    guardar();
+    renderAll();
+    toast('Registro eliminado ✓' + (API_URL ? ' — BD actualizada' : ''));
+  });
 }
 
 function limpiarHoy(){
   if(_panelRole!=='admin'){toast('Solo la administración puede limpiar el día');return;}
   if(regs.length===0){toast('No hay registros');return;}
   if(!window.confirm('¿Limpiar todos los registros de hoy?\n\n⚠ Esto los eliminará también de la base de datos en la nube.\n\nTip: descarga primero el JSON como respaldo.'))return;
-  // Eliminar cada registro de la BD
-  if(API_URL){
-    regs.forEach(function(r){
-      fetch(API_URL+'/registros/'+encodeURIComponent(r.id), {method:'DELETE',headers:getAuthHeaders()})
-        .catch(function(e){console.warn('Delete error:',e);});
-    });
-  }
-  regs=[];guardar();renderAll();toast('Registros eliminados ✓' + (API_URL ? ' — BD actualizada' : ''));
+  var ids=regs.map(function(r){return r.id;});
+  Promise.all(ids.map(function(id){ return eliminarDeSheets(id).then(function(r){ r.id=id; return r; }); })).then(function(res){
+    var quedan={}; res.forEach(function(r){ if(!r.ok) quedan[r.id]=true; });
+    regs=regs.filter(function(r){return quedan[r.id];});   // only what the server really deleted leaves the list
+    guardar();renderAll();
+    var s=resumenLote('Registros eliminados', res);
+    toast(s.texto);
+    if(!s.todoOk) cargarRegistrosDia();
+  });
 }
 
 function descargarJornadaHoy(){
@@ -3847,9 +3867,23 @@ function agregarGasto(){
 }
 
 function eliminarGasto(id){
-  gastos = gastos.filter(function(g){return g.id!==id;});
-  guardarGastos();
-  renderCaja();
+  // The expense lives in the DATABASE (reports, KPIs and the partners' summary read it from there): it only counts as deleted when the SERVER says so.
+  var quitarLocal=function(){
+    gastos = gastos.filter(function(g){return g.id!==id;});
+    guardarGastos();
+    // a copy still waiting in the outbox must not come back to life after the delete
+    writeOutbox(readOutbox().filter(function(i){ return !(i.endpoint==='/gastos' && i.payload && i.payload.id===id && i.status!=='sent'); }));
+    renderCaja();
+  };
+  if(!API_URL){ quitarLocal(); return; }
+  llamarConResultado(API_URL+'/gastos/'+encodeURIComponent(id),{method:'DELETE',headers:getAuthHeaders()}).then(function(r){
+    if(!r.ok){
+      toast('⚠ No se eliminó el gasto: '+(r.status? r.status+' ':'')+(r.status===403 ? 'solo la administración puede eliminar gastos' : r.error)+'. Sigue en la lista.');
+      return;
+    }
+    quitarLocal();
+    toast('Gasto eliminado ✓ — BD actualizada');
+  });
 }
 
 function guardarGastos(){
