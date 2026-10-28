@@ -332,7 +332,16 @@ function kpiConductaV2Html(k, periodo){
     + '<div id="cdPrefA4Kpi" style="margin-bottom:16px"></div>';
 }
 
+function kpiMetodologiaV2Antigua(r){
+  var pr = r.produccion, pp = r.propinas, pu = r.puntualidad, va = r.venta_adicional;
+  var prodMax = pr.pts_servicios + pr.pts_facturacion + pr.pts_ticket, propMax = pp.pts_cantidad + pp.pts_monto;
+  return '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--rl);padding:16px;font-size:12px;color:var(--text2);line-height:1.7">'
+    + '<b>Producción (' + prodMax + ' pts):</b> servicios (hasta ' + pr.pts_servicios + ' pts, vs meta individual en servicios a ticket de referencia $' + fmt(pr.ticket_meta_ref) + ') + facturación (hasta ' + pr.pts_facturacion + ' pts, vs meta individual) + ticket promedio (hasta ' + pr.pts_ticket + ' pts, ref. $' + fmt(pr.ticket_ref) + ').'
+    + '<br>Puntaje máximo: ' + r.puntaje_max + '.</div>';
+}
 function kpiMetodologiaV2Html(r, t){
+  // an API that still carries the static ticket values (published before the reference-ticket release) gets the earlier wording, never "undefined pts"
+  if(r.produccion && r.produccion.ticket_pts_ref == null && r.produccion.ticket_ref != null) return kpiMetodologiaV2Antigua(r);
   var pr = r.produccion, pp = r.propinas, pu = r.puntualidad, va = r.venta_adicional;
   var prodMax = pr.pts_servicios + pr.pts_facturacion + pr.pts_ticket, propMax = pp.pts_cantidad + pp.pts_monto;
   return '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--rl);padding:16px;font-size:12px;color:var(--text2);line-height:1.7">'
