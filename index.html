@@ -5484,6 +5484,7 @@ function _renderKpisInnerSinGuarda(){
   var prom=bs.length?Math.round(bs.reduce(function(a,b){return a+b.puntos.total;},0)/bs.length):0;
   h+='<div class="kpi-cards-row">'
     +'<div class="kpi-mini"><div class="kpi-mini-label">Puntaje promedio</div><div class="kpi-mini-val">'+prom+'<span style="font-size:13px;color:var(--text3)">/'+r.puntaje_max+'</span></div></div>'
+    +(k.ticket?'<div class="kpi-mini"><div class="kpi-mini-label">Ticket de referencia</div><div class="kpi-mini-val" id="kpiTicketRef">$'+fmt(k.ticket.referencia)+'</div></div>':'')
     +'<div class="kpi-mini"><div class="kpi-mini-label">Servicios del mes</div><div class="kpi-mini-val">'+bs.reduce(function(a,b){return a+b.ventas.servicios;},0)+'</div></div>'
     +'<div class="kpi-mini"><div class="kpi-mini-label">Bonos potenciales</div><div class="kpi-mini-val" id="kpiPotencialTotal">$'+fmt(k.bonos.potencial_total)+'</div></div>'
     +'<div class="kpi-mini"><div class="kpi-mini-label">Bonos a pagar</div><div class="kpi-mini-val" id="kpiAPagarTotal" style="color:'+(k.bonos.a_pagar_total>0?'var(--ok)':'var(--text3)')+'">$'+fmt(k.bonos.a_pagar_total)+'</div></div>'
@@ -5572,7 +5573,7 @@ function _renderKpisInnerSinGuarda(){
 
   // ── Metodología (from the rules in the server) ──
   var pr=r.produccion, pp=r.propinas;
-  if(v2) h+=kpiMetodologiaV2Html(r);
+  if(v2) h+=kpiMetodologiaV2Html(r,k.ticket);
   else h+='<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--rl);padding:16px;font-size:12px;color:var(--text2);line-height:1.7">'
     +'<div style="font-weight:700;font-size:13px;margin-bottom:8px;color:var(--text)">📋 Metodología de cálculo ('+_escHtml(r.nombre)+')</div>'
     +'<b>Producción ('+prodMax+' pts):</b> servicios (hasta '+pr.pts_servicios+' pts, vs meta individual en servicios a ticket de referencia $'+fmt(pr.ticket_meta_ref)+') + facturación estimada (hasta '+pr.pts_facturacion+' pts, vs meta individual) + ticket promedio (hasta '+pr.pts_ticket+' pts, ref. $'+fmt(pr.ticket_ref)+'). La meta individual es la meta del local dividida entre los barberos que trabajaron en el mes.<br>'
