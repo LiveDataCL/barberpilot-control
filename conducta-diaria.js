@@ -334,3 +334,116 @@ function kpiMetodologiaV2Html(r){
     + '<b>Propinas (' + propMax + ' pts):</b> cantidad (hasta ' + pp.pts_cantidad + ') + monto (hasta ' + pp.pts_monto + '), por día trabajado contra el promedio del local del mismo mes.<br>'
     + 'Puntaje máximo: ' + r.puntaje_max + '. Reglas guardadas en el servidor (configuración del local), versionadas por mes.</div>';
 }
+
+// ── Grave-fault reports ───────────────────────────────────────────────────────────────────────────
+// The encargado (and the admin) REPORT a grave fault from Horarios: barber, date of the fact, description (author from the
+// login, set by the server). The admin DECIDES from the KPI tab: apply disqualification X for the month of the fact, or
+// dismiss — both with a mandatory reason. The encargado only ever sees "En revisión" / "Resuelta", never the decision.
+var _fgDraft = { bid: '', fecha: '', desc: '' };
+var _fgEnviando = false;
+
+function renderFaltaGrave(){
+  var box = document.getElementById('faltaGraveBox');
+  if(!box) return;
+  if(!API_URL || !Object.keys(getAuthHeaders()).length){ box.innerHTML = ''; return; }
+  var opts = BB.filter(function(b){ return b.active !== false && b.id !== 'admin'; }).map(function(b){
+    return '<option value="' + _cdEsc(b.id) + '"' + (_fgDraft.bid === b.id ? ' selected' : '') + '>' + _cdEsc(b.nombre) + '</option>';
+  }).join('');
+  var campo = 'padding:6px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--sans);background:var(--surface)';
+  box.innerHTML = '<div style="margin-top:26px;border-top:1px solid var(--border);padding-top:18px">'
+    + '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:8px">Reportar una falta grave</div>'
+    + '<p style="font-size:12px;color:var(--text2);margin:0 0 10px;line-height:1.6">Describe lo ocurrido. La administración revisa el reporte y decide; tu nombre queda registrado como quien lo reporta.</p>'
+    + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">'
+    + '<select id="fgBid" style="' + campo + '" onchange="_fgDraft.bid=this.value"><option value="">Barbero…</option>' + opts + '</select>'
+    + '<input type="date" id="fgFecha" max="' + _cdEsc(fechaHoy) + '" value="' + _cdEsc(_fgDraft.fecha || fechaHoy) + '" style="' + campo + '" onchange="_fgDraft.fecha=this.value"></div>'
+    + '<textarea id="fgDesc" rows="3" maxlength="1000" placeholder="Qué pasó (mínimo 10 caracteres)" style="width:100%;' + campo + '" oninput="_fgDraft.desc=this.value">' + _cdEsc(_fgDraft.desc) + '</textarea>'
+    + '<div style="margin-top:8px"><button id="fgEnviar" onclick="fgEnviar()" style="padding:7px 14px;background:var(--err);color:#fff;border:none;border-radius:var(--r);font-size:12px;font-weight:600;cursor:pointer">Enviar reporte</button></div>'
+    + '<div id="fgMsg" style="font-size:12px;margin:8px 0;color:var(--text2)"></div><div id="fgMias"></div></div>';
+  fgCargarMias();
+}
+
+function fgEnviar(){
+  if(_fgEnviando) return;
+  var bid = (document.getElementById('fgBid') || {}).value || '', fecha = (document.getElementById('fgFecha') || {}).value || '', desc = ((document.getElementById('fgDesc') || {}).value || '').trim();
+  var msg = document.getElementById('fgMsg');
+  if(!bid){ msg.textContent = 'Elige el barbero.'; return; }
+  if(!fecha){ msg.textContent = 'Indica la fecha del hecho.'; return; }
+  if(desc.length < 10){ msg.textContent = 'Describe lo ocurrido (al menos 10 caracteres).'; return; }
+  if(!window.confirm('¿Enviar el reporte de falta grave sobre ' + ((BB.filter(function(b){ return b.id === bid; })[0] || {}).nombre || bid) + '?\n\nQuedará registrado con tu nombre y lo revisará la administración.')) return;
+  _fgEnviando = true; msg.textContent = 'Enviando…';
+  _cdEnviar('POST', '/api/v2/faltas-graves', { bid: bid, fecha: fecha, descripcion: desc }).then(function(r){
+    _fgEnviando = false;
+    if(r.ok){ _fgDraft = { bid: '', fecha: '', desc: '' }; toast('✓ Reporte enviado'); renderFaltaGrave(); setTimeout(function(){ var m = document.getElementById('fgMsg'); if(m) m.textContent = '✓ Reporte enviado: la administración lo revisará.'; }, 300); }
+    else { msg.textContent = '⚠ No se envió: ' + r.motivo; }
+  });
+}
+
+function fgCargarMias(){
+  fetchConReintentos(API_URL + '/api/v2/faltas-graves/mias').then(function(r){
+    var el = document.getElementById('fgMias'); if(!el) return;
+    if(!r.ok){ el.innerHTML = '<div style="font-size:12px;color:var(--text3)">No se pudieron cargar tus reportes (' + _cdEsc(r.motivo) + ').</div>'; return; }
+    var l = r.json.reportes;
+    if(!l.length){ el.innerHTML = ''; return; }
+    el.innerHTML = '<div style="font-size:12px;font-weight:600;margin:6px 0 4px">Tus reportes</div>' + l.map(function(x){
+      return '<div style="display:flex;gap:10px;font-size:12px;padding:4px 0;border-bottom:1px solid var(--border)"><span style="font-family:var(--mono);color:var(--text3)">' + _cdEsc(x.fecha) + '</span>'
+        + '<span style="flex:1">' + _cdEsc(x.nombre || x.bid) + '</span><span style="color:' + (x.estado === 'resuelta' ? 'var(--ok)' : 'var(--warn)') + '">' + (x.estado === 'resuelta' ? 'Resuelta' : 'En revisión') + '</span></div>';
+    }).join('');
+  });
+}
+
+// Admin: pending reports (with the decision form) and the history, at the top of the KPI tab.
+function faltasAdminRender(){
+  var box = document.getElementById('faltasGravesAdmin');
+  if(!box || _panelRole !== 'admin' || !API_URL) return;
+  fetchConReintentos(API_URL + '/api/v2/faltas-graves').then(function(r){
+    box = document.getElementById('faltasGravesAdmin'); if(!box) return;
+    if(!r.ok){ box.innerHTML = avisoDatosHtml('No se pudieron cargar los reportes de falta grave (' + r.motivo + ').'); return; }
+    renderSeguro('faltasGravesAdmin', function(){ _faltasAdminDibujar(box, r.json.reportes); }, faltasAdminRender);
+  });
+}
+function _faltasAdminDibujar(box, lista){
+  var pend = lista.filter(function(x){ return x.estado === 'pendiente'; }), hist = lista.filter(function(x){ return x.estado === 'resuelta'; });
+  var h = '<div style="background:var(--surface);border:1px solid ' + (pend.length ? 'var(--err)' : 'var(--border)') + ';border-radius:var(--rl);padding:14px 16px;margin-bottom:16px">'
+    + '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:' + (pend.length ? 'var(--err)' : 'var(--text3)') + ';margin-bottom:8px">Faltas graves reportadas · ' + pend.length + ' pendiente' + (pend.length === 1 ? '' : 's') + '</div>';
+  if(!pend.length) h += '<div style="font-size:12px;color:var(--text3)">No hay reportes pendientes de decisión.</div>';
+  pend.forEach(function(x){
+    var mes = x.fecha.slice(0, 7);
+    h += '<div class="fg-rep" data-id="' + x.id + '" style="border-top:1px solid var(--border);padding:10px 0">'
+      + '<div style="font-size:13px"><b>' + _cdEsc(x.nombre || x.bid) + '</b> · hecho del ' + _cdEsc(x.fecha) + ' · reportado por ' + _cdEsc(x.reportado_por_nombre) + ' (' + _cdEsc(x.reportado_por_rol) + ') el ' + _cdEsc(x.creado_en) + '</div>'
+      + '<div style="font-size:12px;color:var(--text2);margin:4px 0 8px;white-space:pre-wrap">' + _cdEsc(x.descripcion) + '</div>'
+      + '<textarea class="fg-motivo" data-id="' + x.id + '" rows="2" maxlength="300" placeholder="Motivo de tu decisión (obligatorio)" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;font-family:var(--sans)"></textarea>'
+      + '<div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">'
+      + '<button class="fg-aplicar" data-id="' + x.id + '" data-mes="' + _cdEsc(mes) + '" onclick="fgDecidir(this.dataset.id,\'aplicar_descalificacion\',this.dataset.mes)" style="padding:6px 12px;background:var(--err);color:#fff;border:none;border-radius:var(--r);font-size:12px;font-weight:600;cursor:pointer">Aplicar descalificación (' + _cdEsc(mes) + ')</button>'
+      + '<button class="fg-desestimar" data-id="' + x.id + '" onclick="fgDecidir(this.dataset.id,\'desestimar\',\'\')" style="padding:6px 12px;background:var(--surface);border:1.5px solid var(--text);border-radius:var(--r);font-size:12px;font-weight:600;cursor:pointer">Desestimar</button></div></div>';
+  });
+  if(hist.length){
+    h += '<details style="margin-top:10px"><summary style="font-size:12px;cursor:pointer;color:var(--text2)">Historial de decisiones (' + hist.length + ')</summary>';
+    hist.forEach(function(x){
+      h += '<div style="border-top:1px solid var(--border);padding:8px 0;font-size:12px"><b>' + _cdEsc(x.nombre || x.bid) + '</b> · hecho del ' + _cdEsc(x.fecha) + ' · reportó ' + _cdEsc(x.reportado_por_nombre) + ': <span style="color:var(--text2)">' + _cdEsc(x.descripcion) + '</span><br>'
+        + '<b style="color:' + (x.decision === 'aplicar_descalificacion' ? 'var(--err)' : 'var(--text2)') + '">' + (x.decision === 'aplicar_descalificacion' ? 'Descalificación aplicada (' + _cdEsc(x.periodo) + ')' : 'Desestimado') + '</b>'
+        + ' por ' + _cdEsc(x.decidido_por_nombre) + ' el ' + _cdEsc(x.decidido_en) + ' · motivo: ' + _cdEsc(x.decision_motivo) + '</div>';
+    });
+    h += '</details>';
+  }
+  box.innerHTML = h + '</div>';
+}
+function fgDecidir(id, decision, mes){
+  var ta = document.querySelector('.fg-motivo[data-id="' + id + '"]');
+  var motivo = ((ta && ta.value) || '').trim();
+  if(motivo.length < 5){ toast('Escribe el motivo de tu decisión (mínimo 5 caracteres)'); if(ta) ta.focus(); return; }
+  var texto = decision === 'aplicar_descalificacion' ? '¿Aplicar la descalificación de ' + mes + ' a este barbero?\n\nSu bono de ese mes queda anulado.' : '¿Desestimar este reporte?';
+  if(!window.confirm(texto + '\n\nQuedará registrado con tu nombre y el motivo.')) return;
+  _cdEnviar('POST', '/api/v2/faltas-graves/' + encodeURIComponent(id) + '/decidir', { decision: decision, motivo: motivo }).then(function(r){
+    if(r.ok){ toast('✓ Decisión guardada'); _kpiMes = {}; faltasActualizarBadge(); renderKpis(); }
+    else toast('⚠ No se guardó: ' + r.motivo);
+  });
+}
+// Admin: a badge on the KPIs tab with the number of pending reports.
+function faltasActualizarBadge(){
+  var tab = document.querySelector('.tabs > .tab[onclick*="\'pKpis\'"]');
+  if(!tab || _panelRole !== 'admin' || !API_URL) return;
+  fetchConReintentos(API_URL + '/api/v2/faltas-graves?estado=pendiente').then(function(r){
+    var n = r.ok ? r.json.pendientes : 0;
+    tab.textContent = '🏆 KPIs' + (n > 0 ? ' ⚠' + n : '');
+  });
+}
