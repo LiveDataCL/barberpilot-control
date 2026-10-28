@@ -3757,6 +3757,7 @@ function del(id){
 }
 
 function limpiarHoy(){
+  if(_panelRole!=='admin'){toast('Solo la administración puede limpiar el día');return;}
   if(regs.length===0){toast('No hay registros');return;}
   if(!window.confirm('¿Limpiar todos los registros de hoy?\n\n⚠ Esto los eliminará también de la base de datos en la nube.\n\nTip: descarga primero el JSON como respaldo.'))return;
   // Eliminar cada registro de la BD
@@ -7902,6 +7903,8 @@ function applyRoleVisibility(){
       if(oc.indexOf("'"+adminOnlyPanes[i]+"'")!==-1){ tab.style.display=isAdmin?'':'none'; break; }
     }
   });
+  // Admin only: the header "Histórico" (days saved in this browser) and "Limpiar día" (deletes today's sales; the server refuses the encargado with 403)
+  document.querySelectorAll('.hdr-hist, button[onclick="limpiarHoy()"]').forEach(function(el){ el.style.display=isAdmin?'':'none'; });
 }
 
 // ── Fetch staff from API ──────────────────────────────────────────────────────
