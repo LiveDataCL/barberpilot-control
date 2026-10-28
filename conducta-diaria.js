@@ -284,12 +284,21 @@ function _cdMostrarRecordatorio(j, continuar){
 }
 
 // ── KPI tab: November model (points come from the server) ─────────────────────────────────────────
+// The reference ticket of the month is computed by the server (team average so far, never below the catalog price of the base Corte): the page only shows it.
+function kpiFmtPct(x){ return (x > 0 ? '+' : '') + String(x).replace('.', ',') + ' %'; }
+function kpiTicketRefHtml(t){
+  if(!t) return '';
+  return '<div style="margin:0 0 10px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--rl);font-size:12px;color:var(--text2);line-height:1.6">'
+    + '<b style="color:var(--text)">Ticket de referencia del mes: $' + fmt(t.referencia) + '</b> · '
+    + (t.equipo == null ? 'aún no hay servicios este mes (rige el piso)' : 'promedio del equipo en lo que va del mes: $' + fmt(t.equipo)) + ' · piso (precio vigente del Corte base): $' + fmt(t.piso)
+    + '<br>' + t.pts_en_referencia + ' pts con un ticket igual a la referencia · máximo con $' + fmt(t.tope_valor) + ' o más (+' + t.tope_pct + ' %) · bajo la referencia, proporcional.</div>';
+}
 function kpiTablaV2Html(k, periodo){
   var r = k.reglas, bs = k.barberos;
   var prodMax = r.produccion.pts_servicios + r.produccion.pts_facturacion + r.produccion.pts_ticket;
   var puntMax = r.puntualidad.pts_entrada + r.puntualidad.pts_salida, propMax = r.propinas.pts_cantidad + r.propinas.pts_monto;
   function th(t, sub){ return '<th class="r">' + t + '<br><small style="font-weight:400;text-transform:none;color:var(--text3)">' + sub + '</small></th>'; }
-  var h = '<div class="kpi-table-wrap"><div class="kpi-table-head"><span>Resumen del período</span><small>' + _cdEsc(periodo) + '</small></div>'
+  var h = kpiTicketRefHtml(k.ticket) + '<div class="kpi-table-wrap"><div class="kpi-table-head"><span>Resumen del período</span><small>' + _cdEsc(periodo) + '</small></div>'
     + '<table class="kpi-rt" id="kpiTabla"><thead><tr><th>Barbero</th><th class="r">Servicios</th><th class="r">Tkt prom.</th>'
     + th('Producción', prodMax + ' pts') + th('Conducta', r.conducta.pts + ' pts') + th('Puntualidad', puntMax + ' pts') + th('Venta adicional', r.venta_adicional.pts + ' pts') + th('Propinas', propMax + ' pts')
     + '<th class="r">Total</th><th class="r">Estrato</th><th class="r">Bono potencial</th><th class="r">Bono a pagar</th></tr></thead><tbody>';
@@ -299,7 +308,8 @@ function kpiTablaV2Html(k, periodo){
     h += '<tr data-bid="' + _cdEsc(b.bid) + '"' + (b.disq ? ' style="opacity:.6"' : '') + '>'
       + '<td><strong>' + _cdEsc(b.nombre) + '</strong>' + (b.disq ? '<span class="kpi-disq-badge">🚫 Descalif.</span>' : '') + '</td>'
       + '<td class="r"><span style="font-family:var(--mono);font-weight:600">' + b.ventas.servicios + '</span></td>'
-      + '<td class="r"><span style="font-family:var(--mono)">$' + fmt(b.ventas.ticket_promedio) + '</span></td>'
+      + '<td class="r"><span style="font-family:var(--mono)">$' + fmt(b.ventas.ticket_promedio) + '</span>'
+        + (b.ventas.ticket_vs_referencia_pct == null ? '' : '<br><span class="kpi-vs-ref" style="font-size:10px;color:' + (b.ventas.ticket_vs_referencia_pct >= 0 ? 'var(--ok)' : 'var(--text3)') + '">' + kpiFmtPct(b.ventas.ticket_vs_referencia_pct) + ' vs ref. · ' + String(p.ticket).replace('.', ',') + ' pts</span>') + '</td>'
       + '<td class="r"><span class="kpi-score-num">' + p.produccion + '</span></td>'
       + '<td class="r"><span class="kpi-score-num">' + p.conducta + '</span><br><span style="font-size:10px;color:var(--text3)">nota ' + String(d.nota_conducta).replace('.', ',') + ' / ' + r.conducta.escala_max + '</span></td>'
       + '<td class="r"><span class="kpi-score-num">' + p.puntualidad + '</span><br><span style="font-size:10px;color:var(--text3)">' + (d.dias_sin_entrada || 0) + ' sin entrada · ' + (d.dias_sin_salida || 0) + ' sin salida</span></td>'
@@ -322,12 +332,22 @@ function kpiConductaV2Html(k, periodo){
     + '<div id="cdPrefA4Kpi" style="margin-bottom:16px"></div>';
 }
 
-function kpiMetodologiaV2Html(r){
+function kpiMetodologiaV2Antigua(r){
+  var pr = r.produccion, pp = r.propinas, pu = r.puntualidad, va = r.venta_adicional;
+  var prodMax = pr.pts_servicios + pr.pts_facturacion + pr.pts_ticket, propMax = pp.pts_cantidad + pp.pts_monto;
+  return '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--rl);padding:16px;font-size:12px;color:var(--text2);line-height:1.7">'
+    + '<b>Producción (' + prodMax + ' pts):</b> servicios (hasta ' + pr.pts_servicios + ' pts, vs meta individual en servicios a ticket de referencia $' + fmt(pr.ticket_meta_ref) + ') + facturación (hasta ' + pr.pts_facturacion + ' pts, vs meta individual) + ticket promedio (hasta ' + pr.pts_ticket + ' pts, ref. $' + fmt(pr.ticket_ref) + ').'
+    + '<br>Puntaje máximo: ' + r.puntaje_max + '.</div>';
+}
+function kpiMetodologiaV2Html(r, t){
+  // an API that still carries the static ticket values (published before the reference-ticket release) gets the earlier wording, never "undefined pts"
+  if(r.produccion && r.produccion.ticket_pts_ref == null && r.produccion.ticket_ref != null) return kpiMetodologiaV2Antigua(r);
   var pr = r.produccion, pp = r.propinas, pu = r.puntualidad, va = r.venta_adicional;
   var prodMax = pr.pts_servicios + pr.pts_facturacion + pr.pts_ticket, propMax = pp.pts_cantidad + pp.pts_monto;
   return '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--rl);padding:16px;font-size:12px;color:var(--text2);line-height:1.7">'
     + '<div style="font-weight:700;font-size:13px;margin-bottom:8px;color:var(--text)">📋 Metodología de cálculo (' + _cdEsc(r.nombre) + ')</div>'
-    + '<b>Producción (' + prodMax + ' pts):</b> servicios (hasta ' + pr.pts_servicios + ' pts, vs meta individual en servicios a ticket de referencia $' + fmt(pr.ticket_meta_ref) + ') + facturación (hasta ' + pr.pts_facturacion + ' pts, vs meta individual) + ticket promedio (hasta ' + pr.pts_ticket + ' pts, ref. $' + fmt(pr.ticket_ref) + ').<br>'
+    + '<b>Producción (' + prodMax + ' pts):</b> servicios (hasta ' + pr.pts_servicios + ' pts, vs meta individual expresada en servicios al ticket de referencia del mes' + (t ? ', hoy $' + fmt(t.referencia) : '') + ') + facturación (hasta ' + pr.pts_facturacion + ' pts, vs meta individual) + ticket promedio (hasta ' + pr.pts_ticket + ' pts).<br>'
+    + '<b>Ticket de referencia:</b> el ticket promedio de todo el equipo en el mes (solo servicios), y nunca menos que el precio vigente del Corte base' + (t ? ' ($' + fmt(t.piso) + ')' : '') + '. Con un ticket igual a la referencia obtienes ' + pr.ticket_pts_ref + ' pts; sube en línea recta hasta ' + pr.pts_ticket + ' pts con +' + pr.ticket_tope_pct + ' % sobre la referencia' + (t ? ' ($' + fmt(t.tope_valor) + ')' : '') + '; bajo la referencia es proporcional.<br>'
     + '<b>Conducta (' + r.conducta.pts + ' pts):</b> promedio ponderado de ' + r.conducta.indicadores.length + ' indicadores de 0 a ' + r.conducta.escala_max + ', evaluados cada día; el mes es el promedio de los días de trabajo.<br>'
     + '<b>Puntualidad (' + (pu.pts_entrada + pu.pts_salida) + ' pts):</b> entrada ' + pu.pts_entrada + ' + salida ' + pu.pts_salida + ', con las marcas del servidor contra el horario del local de cada día (tolerancia de entrada ' + pu.gracia_min + ' min; cada bloque de ' + pu.bloque_min + ' min de atraso o salida anticipada resta 1/' + pu.sextos + '; desde ' + pu.cero_min + ' min, cero). Un día sin marca vale 0.<br>'
     + '<b>Venta adicional (' + va.pts + ' pts):</b> todo o nada: al menos ' + String(Math.round(va.umbral * 100)) + ' % de sus servicios con un producto vendido a su nombre.<br>'
