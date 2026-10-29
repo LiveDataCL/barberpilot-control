@@ -6859,14 +6859,23 @@ function salaAsignarDePool(queue_id, bid){
 var _sillasTimerInterval = null;
 
 // ── SILLAS: tablero compacto (todas las sillas en una vista) ──────────────────────────────────────
-// Durations come ONLY from the service catalog (CATALOGO.servicios[].duracion_min); there is no duration in this file.
+// Durations: the barber's LEARNED minutes per service come from the server (GET /queue/control → duraciones, the median of his own recent services); the service catalog
+// (CATALOGO.servicios[].duracion_min) is only the cold-start fallback. There is no duration in this file.
 var _sillasTimerInterval=_sillasTimerInterval||null;
 var _sillasAbierto=null;   // queue_id whose closing block is open
 
-// Minutes of a service by its catalog name; null when the service is not in the catalog or has no duration.
-function sillasDuracionMin(nombre){
+var _sillasDuraciones={};   // { <barber queue id>: { <service name>: minutes } } of the last GET /queue/control
+// Minutes of a service for a barber: his learned minutes when the server sent them, else the catalog duration; null when neither exists.
+function sillasDuracionMin(nombre,barberQueueId){
   var n=String(nombre==null?'':nombre).trim().toLowerCase();
   if(!n) return null;
+  var mb=barberQueueId?_sillasDuraciones[barberQueueId]:null;
+  if(mb&&typeof mb==='object'){
+    var ks=Object.keys(mb);
+    for(var j=0;j<ks.length;j++){
+      if(String(ks[j]).trim().toLowerCase()===n){ var dl=Number(mb[ks[j]]); if(dl>0) return dl; }
+    }
+  }
   var l=(CATALOGO&&CATALOGO.servicios)||[];
   for(var i=0;i<l.length;i++){
     if(String(l[i].nombre==null?'':l[i].nombre).trim().toLowerCase()===n){
@@ -6903,7 +6912,7 @@ function sillasProximaLibre(sillas,pool,ahora){
     var libreEn=s.ocupada?(s.finMs==null?null:Math.max(ahora,s.finMs)):ahora;
     (s.espera||[]).forEach(function(svc){
       if(libreEn==null) return;
-      var d=sillasDuracionMin(svc);
+      var d=sillasDuracionMin(svc,s.barber);
       libreEn=(d==null)?null:libreEn+d*60000;
     });
     if(libreEn==null) parcial=true;
@@ -6913,7 +6922,7 @@ function sillasProximaLibre(sillas,pool,ahora){
     var idx=-1;
     for(var i=0;i<t.length;i++){ if(t[i]!=null&&(idx<0||t[i]<t[idx])) idx=i; }
     if(idx<0) return;
-    var d=sillasDuracionMin(svc);
+    var d=sillasDuracionMin(svc,sillas[idx].barber);   // the pooled client goes to the chair that frees first: that barber's learned time
     if(d==null){ t[idx]=null; parcial=true; } else t[idx]+=d*60000;
   });
   var conocidos=t.filter(function(x){return x!=null;});
@@ -6956,7 +6965,7 @@ function sillasRotacionHtml(libres,activeBB,queue,horMap,ahora){
     var bd=queue.barberos[b.id]||{}, sv=bd.enServicio||null;
     if(sv){
       var st=sv.service_start?new Date(sv.service_start).getTime():0;
-      var e=sillasEstadoOcupada(st,sillasDuracionMin(sv.service),ahora);
+      var e=sillasEstadoOcupada(st,sillasDuracionMin(sv.service,bd.barber_id),ahora);
       ocup.push({b:b,fin:e.estimado?e.finMs:Infinity,txt:e.estimado?(e.tarde?'ocupado, atrasado '+e.tardeMin+' min':'ocupado, ~'+e.restanteMin+' min'):'ocupado, sin estimación'});
       return;
     }
@@ -7325,6 +7334,7 @@ function renderSillas(){
   ]).then(function(res){
     var queue=res[0]; var regRes=res[1]; var horData=res[2]; var citasRes=res[3];
     if(!queue.ok) throw new Error(queue.error||'Error cola');
+    _sillasDuraciones=(queue.duraciones&&typeof queue.duraciones==='object')?queue.duraciones:{};   // learned minutes per barber and service; absent from an older server = catalog only
     // Without today's sales the rotation order is unknown: the chairs are
     // still shown, but no "next turn" is recommended (see the strip below).
     var registros=regRes.ok?regRes.registros:[];
@@ -7372,9 +7382,9 @@ function renderSillas(){
       var bd=queue.barberos[b.id]||{}; var sv=bd.enServicio||null;
       if(!sv&&!(presente(b.id)&&!barberoAusente(bd))) return;   // absent / not arrived: not a chair that can take a client
       var st=0, dur=null;
-      if(sv){ st=sv.service_start?new Date(sv.service_start).getTime():0; dur=sillasDuracionMin(sv.service); }
+      if(sv){ st=sv.service_start?new Date(sv.service_start).getTime():0; dur=sillasDuracionMin(sv.service,bd.barber_id); }
       var e=sv?sillasEstadoOcupada(st,dur,ahora):null;
-      chairs.push({ocupada:!!sv,finMs:(e&&e.estimado)?e.finMs:null,espera:(bd.enEspera||[]).map(function(x){return x.service;})});
+      chairs.push({barber:bd.barber_id,ocupada:!!sv,finMs:(e&&e.estimado)?e.finMs:null,espera:(bd.enEspera||[]).map(function(x){return x.service;})});
     });
     var pl=sillasProximaLibre(chairs,(queue.pool||[]).map(function(x){return x.service;}),ahora);
     var plTxt=pl.min==null?'sin estimación':(pl.min===0?'ahora':'~'+pl.min+' min')+(pl.parcial?'*':'');
@@ -7424,7 +7434,7 @@ function renderSillas(){
       if(sv){
         // Ocupada
         var stMs=sv.service_start?new Date(sv.service_start).getTime():0;
-        var dur=sillasDuracionMin(sv.service);
+        var dur=sillasDuracionMin(sv.service,bd.barber_id);
         var desde=stMs?sillasHora(stMs):'—';
         h+='<div class="sc sc-ocu'+(citas[b.id]?' con-cita':'')+((bd.enEspera||[]).length?' con-espera':'')+'" id="sc-'+escHtml(b.id)+'" data-q="'+Number(sv.queue_id)+'" data-start="'+stMs+'" data-dur="'+(dur||'')+'">';
         h+='<div class="sc-top"><span class="sc-name">'+escHtml(b.nombre)+'</span></div>';
