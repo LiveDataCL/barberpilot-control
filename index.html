@@ -963,9 +963,10 @@
             <option value="Corte + Cejas">Corte + Cejas</option>
             <!-- s11 (Corte Express + Perfilado de barba) retired 2026-07-16 — removed, not just repriced. -->
           </select>
-          <input id="editor-precio" type="number" placeholder="Precio" oninput="salaEditorRecalcTotal()"
-            style="padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--mono);background:var(--surface)"/>
+          <input id="editor-precio" type="number" placeholder="Precio" readonly tabindex="-1" aria-readonly="true" title="Precio del catálogo: el precio se ajusta al cobrar"
+            style="padding:8px 10px;border:1px dashed var(--border);border-radius:var(--r);font-size:13px;font-family:var(--mono);background:var(--surface2);color:var(--text2);cursor:default"/>
         </div>
+        <div id="editorPrecioNota" style="font-size:11px;color:var(--text3);margin:-4px 0 10px">Precio del catálogo — el precio se ajusta al cobrar (en la tarjeta del cliente).</div>
         <button onclick="salaActualizarServicio()"
           style="padding:8px 18px;background:var(--ok);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans)">Actualizar servicio</button>
 
@@ -1503,6 +1504,7 @@ function borrRestaurar(){
         if(!hay) return;
       }
       el.value=_borr[k];
+      if(m[1]==='prc'&&ctx==='sala'&&typeof salaActualizarTotalCard==='function') salaActualizarTotalCard(ctx,m[2]);   // the total line follows the restored price
     });
     if(m[1]==='pago'&&typeof _pagoSelections!=='undefined') _pagoSelections[m[2]]=_borr[k];
   });
@@ -7790,20 +7792,20 @@ function salaGuardarCliente(){
 function salaActualizarServicio(){
   if(!API_URL||!_editorQueueId) return;
   var svc=(document.getElementById('editor-svc').value||'').trim();
-  var precio=parseInt(document.getElementById('editor-precio').value)||0;
   if(!svc){toast('Elige el servicio');return;}
+  var servicioAntes=(_salaEditorData[_editorQueueId]||{}).service;
   fetch(API_URL+'/queue/'+_editorQueueId,{
     method:'PUT',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({service:svc,precio:precio})
+    body:JSON.stringify({service:svc})
   }).then(function(r){return r.json();})
     .then(function(j){
       if(j.ok){
         toast('✓ Servicio actualizado');
         if(_salaEditorData[_editorQueueId]){
           _salaEditorData[_editorQueueId].service=svc;
-          _salaEditorData[_editorQueueId].precio=precio;
+          _salaEditorData[_editorQueueId].precio=SALA_PRECIOS[svc]||0;   // the catalog price: the only price the editor knows
         }
-        delete _borr['prc-'+_editorQueueId]; borrPersistir();   // the price just set here replaces whatever was typed in the closing form
+        if(svc!==servicioAntes){ delete _borr['prc-'+_editorQueueId]; borrPersistir(); }   // a new service brings its catalog price: drop the price typed for the old one
         salaCerrarEditor();
       } else toast('Error: '+(j.error||''));
     }).catch(function(e){toast('Error: '+e.message);});
