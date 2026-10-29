@@ -999,7 +999,7 @@
       <div id="cGrid"></div>
       <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
         <button onclick="printCierre58mm()" style="padding:10px 18px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer">🖨 Imprimir tickets 58mm (firma barberos)</button>
-        <button id="btnPdfResumen" onclick="descargarPdfA4()" title="Descarga Resumen_AAAA-MM-DD.pdf (A4, sin márgenes); se imprime desde el visor de PDF" style="padding:10px 18px;border:1.5px solid var(--text);background:var(--surface);border-radius:var(--r);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer">📄 Descargar resumen PDF (socios)</button>
+        <button id="btnPdfResumen" onclick="descargarPdfA4()" title="Descarga el PDF (A4, sin márgenes) con el nombre del día, ej. miércoles_28OCTUBRE2026.pdf; se imprime desde el visor de PDF" style="padding:10px 18px;border:1.5px solid var(--text);background:var(--surface);border-radius:var(--r);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer">📄 Descargar resumen PDF (socios)</button>
         <button onclick="imprimirA4()" title="Respaldo: abre el resumen en una ventana para imprimir" style="padding:10px 18px;border:1px solid var(--border);background:var(--surface);border-radius:var(--r);font-family:var(--sans);font-size:13px;cursor:pointer">🖨 Imprimir resumen A4</button>
         <button onclick="exportCSV()" style="padding:10px 18px;border:1px solid var(--border);background:var(--surface);border-radius:var(--r);font-family:var(--sans);font-size:13px;cursor:pointer">⬇ Exportar CSV</button>
       </div>
@@ -3617,7 +3617,7 @@ function generarHTMLA4(fecha, recs, gastosParam){
 // Un navegador no puede elegir la impresora. En vez de "imprimir" se descarga un PDF del MISMO resumen (mismo diseño, SIN márgenes de página) y se
 // imprime desde el visor de PDF, donde sí se elige impresora y escala. Cómo: generarHTMLA4 se dibuja en un iframe oculto de 210 mm de ancho
 // (794 px), se rasteriza al doble de resolución (SVG foreignObject → canvas), se corta en hojas A4 sin partir filas de tabla ni recuadros y cada
-// hoja va como imagen JPEG en una página A4 de un PDF escrito a mano. Nombre: Resumen_AAAA-MM-DD.pdf. El botón "Imprimir" de siempre queda como respaldo.
+// hoja va como imagen JPEG en una página A4 de un PDF escrito a mano. Nombre: <día>_<DD><MES><AAAA>[_jornada].pdf (ver pdfNombreDia). El botón "Imprimir" de siempre queda como respaldo.
 var PDF_A4_PX={w:794,h:1123};        // A4 a 96 dpi
 var PDF_A4_PT={w:595.28,h:841.89};   // A4 en puntos PDF
 var PDF_ESCALA=2;
@@ -3627,6 +3627,19 @@ function pdfFechaIso(f){
   m=/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/.exec(s);
   if(m) return m[3]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[1]).slice(-2);
   return fechaHoy;
+}
+// File names of the PDFs (owner convention): <weekday, lowercase Spanish with accents>_<DD><MONTH IN CAPITALS><YYYY>[suffix].pdf, e.g. miércoles_28OCTUBRE2026.pdf;
+// days 1-9 keep the leading zero (lunes_02NOVIEMBRE2026.pdf). The date is the closing day's date in SANTIAGO time, whatever the time zone of this computer.
+var PDF_DIAS_ES=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+var PDF_MESES_ES=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+function pdfHoySantiago(){   // today as AAAA-MM-DD in Santiago time
+  try{ return new Intl.DateTimeFormat('en-CA',{timeZone:'America/Santiago',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()); }catch(e){ return fechaHoy; }
+}
+function pdfNombreDia(iso,sufijo){   // AAAA-MM-DD → miércoles_28OCTUBRE2026 + suffix (no extension)
+  var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso||''));
+  var d=m?new Date(Date.UTC(+m[1],+m[2]-1,+m[3],12)):null;   // noon UTC: the weekday of THAT calendar date, never shifted by a time zone
+  if(!m||d.getUTCMonth()!==+m[2]-1||d.getUTCDate()!==+m[3]){ m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(pdfHoySantiago()); d=new Date(Date.UTC(+m[1],+m[2]-1,+m[3],12)); }   // an impossible date never makes a nameless file: today's name
+  return PDF_DIAS_ES[d.getUTCDay()]+'_'+m[3]+PDF_MESES_ES[+m[2]-1]+m[1]+(sufijo||'');
 }
 function pdfRenderizarDocumento(htmlDoc){
   return new Promise(function(resolve,reject){
@@ -3731,17 +3744,17 @@ function pdfDesdeHtml(html,nombre){
     toast('No se pudo generar el PDF ('+((e&&e.message)||e)+'). Usa «Imprimir» como respaldo.');
   });
 }
-// Resumen de jornada (Cierre → "Resumen A4"): Resumen_jornada_AAAA-MM-DD.pdf. fecha: texto del documento; iso: fecha del nombre (si falta se deduce de fecha)
+// Resumen de jornada (Cierre → "Resumen A4"): <día>_<DD><MES><AAAA>_jornada.pdf (ej. miércoles_28OCTUBRE2026_jornada.pdf). fecha: texto del documento; iso: fecha del nombre (si falta se deduce de fecha)
 function descargarResumenPdf(fecha,recs,gastosParam,iso){
-  return pdfDesdeHtml(generarHTMLA4(fecha,recs,gastosParam),'Resumen_jornada_'+(iso||pdfFechaIso(fecha))+'.pdf');
+  return pdfDesdeHtml(generarHTMLA4(fecha,recs,gastosParam),pdfNombreDia(iso||pdfFechaIso(fecha),'_jornada')+'.pdf');
 }
-// Cierre de caja (Caja → "Resumen A4 (socios)"): Resumen_AAAA-MM-DD.pdf; el recordatorio de marcas pendientes va antes, igual que al imprimir
+// Cierre de caja (Caja → "Descargar PDF (socios)"): <día>_<DD><MES><AAAA>.pdf (ej. miércoles_28OCTUBRE2026.pdf); el recordatorio de marcas pendientes va antes, igual que al imprimir
 function descargarPdfCajaA4(){ a4Recordatorio(function(){ printCajaA4Directo('pdf'); }); }
 function descargarPdfA4(){
   if(regs.length===0){toast('Sin registros para guardar');return;}
   a4Recordatorio(descargarPdfA4Directo);   // el recordatorio de marcas pendientes sigue antes de generar
 }
-function descargarPdfA4Directo(){ return descargarResumenPdf(new Date().toLocaleDateString('es-CL'),regs,gastos,fechaHoy); }
+function descargarPdfA4Directo(){ return descargarResumenPdf(new Date().toLocaleDateString('es-CL'),regs,gastos,pdfHoySantiago()); }
 function descargarPdfA4Hist(fecha,recs){ return descargarResumenPdf(fecha,recs,[]); }
 
 function imprimirA4(){
@@ -4189,7 +4202,7 @@ function renderCaja(){
   // Botón imprimir
   h+='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px">'
     +'<button onclick="printCaja()" style="padding:11px 20px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer">🖨 Ticket 58mm (barberos)</button>'
-    +'<button id="btnPdfCaja" onclick="descargarPdfCajaA4()" title="Descarga Resumen_AAAA-MM-DD.pdf (A4, sin márgenes); se imprime desde el visor de PDF" style="padding:11px 20px;background:var(--surface);color:var(--text);border:1.5px solid var(--text);border-radius:var(--r);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer">📄 Descargar PDF (socios)</button>'
+    +'<button id="btnPdfCaja" onclick="descargarPdfCajaA4()" title="Descarga el PDF (A4, sin márgenes) con el nombre del día, ej. miércoles_28OCTUBRE2026.pdf; se imprime desde el visor de PDF" style="padding:11px 20px;background:var(--surface);color:var(--text);border:1.5px solid var(--text);border-radius:var(--r);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer">📄 Descargar PDF (socios)</button>'
     +'<button onclick="printCajaA4()" title="Respaldo: abre el resumen en una ventana para imprimir" style="padding:11px 20px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:13px;cursor:pointer">🖨 Imprimir A4</button>'
     +'<button id="btnCopiarCierre" onclick="copiarTextoCierre()" style="padding:11px 20px;background:var(--surface);color:var(--text);border:1.5px solid var(--text);border-radius:var(--r);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer">📋 Copiar texto</button>'
     +'</div>';
@@ -4568,7 +4581,7 @@ function testSheetsConnection(){
 
 // ═══ IMPRIMIR CIERRE A4 ═══════════════════════════════════════
 function printCajaA4(){ a4Recordatorio(printCajaA4Directo); }
-function printCajaA4Directo(modo){   // modo 'pdf' → descarga Resumen_AAAA-MM-DD.pdf; sin modo → la ventana de siempre (respaldo "Imprimir")
+function printCajaA4Directo(modo){   // modo 'pdf' → descarga <día>_<DD><MES><AAAA>.pdf; sin modo → la ventana de siempre (respaldo "Imprimir")
   var fecha = new Date().toLocaleDateString('es-CL');
   var hora  = pad(new Date().getHours())+':'+pad(new Date().getMinutes());
 
@@ -4697,23 +4710,15 @@ function printCajaA4Directo(modo){   // modo 'pdf' → descarga Resumen_AAAA-MM-
     +'</div>'
     +'</div></body></html>';
 
-  // Nombre de archivo con fecha
-  var diasES=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
-  var mesesES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-  var mesesMAY=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
-  var ahora=new Date();
-  var dia=String(ahora.getDate()).padStart(2,'0');
-  var mes=mesesMAY[ahora.getMonth()];
-  var anio=ahora.getFullYear();
-  var diaSemana=diasES[ahora.getDay()];
-  var nombreArchivo=diaSemana+'_'+dia+mes+anio;
+  // Nombre de archivo con fecha (la misma función que el resto de los PDF: día de hoy en hora de Santiago)
+  var nombreArchivo=pdfNombreDia(pdfHoySantiago(),'');
 
   // Agregar meta title y botón de descarga con nombre correcto al HTML
   html=html.replace('<title>Cierre Caja</title>','<title>'+escHtml(nombreArchivo)+'</title>');
 
   html=html.replace('</head>','<title>'+escHtml(nombreArchivo)+'</title></head>');
 
-  if(modo==='pdf') return pdfDesdeHtml(html,'Resumen_'+fechaHoy+'.pdf');
+  if(modo==='pdf') return pdfDesdeHtml(html,nombreArchivo+'.pdf');
   var win=window.open('','_blank','width=900,height=700,toolbar=0,menubar=0,scrollbars=1');
   if(!win){ toast('Activa los pop-ups para abrir el A4'); return; }
   win.document.write(html);
