@@ -1930,7 +1930,7 @@ function sincronizarGastoSheets(g, accion) {
     if (accion === 'gasto') {
       // Crear gasto — via outbox so it survives Railway outages
       var iKey = crypto.randomUUID();
-      var payload = { id: g.id, fecha: g.fecha, hora: g.hora, desc: g.desc, monto: g.monto, idempotency_key: iKey };
+      var payload = { id: g.id, fecha: g.fecha, hora: g.hora, desc: g.desc, monto: g.monto, origen: g.origen || 'caja', idempotency_key: iKey };
       addToOutbox({
         idempotency_key: iKey,
         endpoint: '/gastos',
@@ -3861,10 +3861,20 @@ var BASE_MINIMA = 50000;     // theoretical fixed minimum — always leave this 
 var AJUSTE_CAJA = 0;         // signed manual adjustment vs. BASE_MINIMA — resets to 0 every new date, never carried over
 var gastos = [];          // the expenses of today that COUNT (annulled ones are never in here: every total, PDF and message reads this list)
 var gastosAnulados = [];  // today's annulled expenses (shown struck through with who and why; never added up)
+var gastosAdmin = [];     // today's ADMINISTRATIVE expenses (paid by the partners, not from the shop's cash): only the admin receives them; never in a cash total, print or PDF
 var _gastosSyncMs = 0;
 var liquidaciones = {}; // {barberoId: {efectivo, transferencia, pendiente}}
 
 // ── GASTOS ──────────────────────────────────────────────
+function origenGastoElegido(){
+  var s=document.getElementById('gastoOrigen');
+  return (_panelRole==='admin' && s && s.value==='administrativo') ? 'administrativo' : 'caja';
+}
+function badgeOrigen(o){
+  return o==='administrativo'
+    ? '<span class="badge-origen adm" style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:9px;font-size:10px;font-weight:700;background:#fdf1d6;color:#7a5200;border:1px solid #ecd08a">Administrativo</span>'
+    : '<span class="badge-origen caja" style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:9px;font-size:10px;font-weight:600;background:#eef2ee;color:#4a5a4a;border:1px solid #d3dcd3">Caja</span>';
+}
 function agregarGasto(){
   var desc  = document.getElementById('gastoDesc').value.trim();
   var monto = parseInt(document.getElementById('gastoMonto').value)||0;
@@ -3875,10 +3885,11 @@ function agregarGasto(){
     id: 'G'+now.getTime(),
     desc: desc,
     monto: monto,
+    origen: origenGastoElegido(),
     fecha: now.toLocaleDateString('es-CL'),
     hora: pad(now.getHours())+':'+pad(now.getMinutes())
   };
-  gastos.push(newGasto);
+  if(newGasto.origen==='administrativo') gastosAdmin.push(newGasto); else gastos.push(newGasto);
   guardarGastos();
   sincronizarGastoSheets(newGasto, 'gasto');
   document.getElementById('gastoDesc').value='';
@@ -3889,13 +3900,14 @@ function agregarGasto(){
 // An expense is never deleted: it is ANNULLED (who, when, why stay in the database) and stops counting everywhere. The encargado may annul only an
 // expense of today, before the cash closing; the administration any day. The server decides and answers; the page shows its real answer.
 function anularGasto(id){
-  var g=gastos.filter(function(x){return x.id===id;})[0];
+  var g=gastos.concat(gastosAdmin).filter(function(x){return x.id===id;})[0];
   if(!g) return;
   var enviado=!readOutbox().some(function(i){ return i.endpoint==='/gastos' && i.payload && i.payload.id===id && i.status!=='sent'; });
   if(!enviado || !API_URL){
     // never reached the server: there is nothing to annul there, just take it off the pending list
     if(!confirm('Este gasto aún no se envió al servidor. ¿Quitarlo?')) return;
     gastos = gastos.filter(function(x){return x.id!==id;});
+    gastosAdmin = gastosAdmin.filter(function(x){return x.id!==id;});
     guardarGastos();
     writeOutbox(readOutbox().filter(function(i){ return !(i.endpoint==='/gastos' && i.payload && i.payload.id===id && i.status!=='sent'); }));
     renderCaja();
@@ -3927,8 +3939,11 @@ function sincronizarGastosServidor(){
     var pend=readOutbox().filter(function(i){ return i.endpoint==='/gastos' && i.payload && i.status!=='sent'; }).map(function(i){return i.payload.id;});
     var enServidor={}; j.gastos.forEach(function(g){ enServidor[g.id]=true; });
     var pendientes=gastos.filter(function(g){ return !enServidor[g.id] && pend.indexOf(g.id)!==-1; });
-    gastos=j.gastos.filter(function(g){return !g.anulado;}).map(function(g){return {id:g.id,desc:g.desc,monto:g.monto,hora:g.hora};}).concat(pendientes);
-    gastosAnulados=j.gastos.filter(function(g){return g.anulado;}).map(function(g){return {id:g.id,desc:g.desc,monto:g.monto,hora:g.hora,motivo:g.anulado_motivo,por:g.anulado_por};});
+    var pendientesAdm=gastosAdmin.filter(function(g){ return !enServidor[g.id] && pend.indexOf(g.id)!==-1; });
+    var aItem=function(g){return {id:g.id,desc:g.desc,monto:g.monto,hora:g.hora,origen:g.origen||'caja'};};
+    gastos=j.gastos.filter(function(g){return !g.anulado && (g.origen||'caja')==='caja';}).map(aItem).concat(pendientes);
+    gastosAdmin=j.gastos.filter(function(g){return !g.anulado && g.origen==='administrativo';}).map(aItem).concat(pendientesAdm);
+    gastosAnulados=j.gastos.filter(function(g){return g.anulado;}).map(function(g){return {id:g.id,desc:g.desc,monto:g.monto,hora:g.hora,origen:g.origen||'caja',motivo:g.anulado_motivo,por:g.anulado_por};});
     guardarGastos();
     renderCaja();
   }).catch(function(){});
@@ -4200,6 +4215,7 @@ function renderCaja(){
     +' style="flex:1;min-width:160px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:13px" />'
     +'<input id="gastoMonto" type="number" placeholder="Monto $" min="1" step="100"'
     +' style="width:120px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--mono);font-size:13px" />'
+    +(_panelRole==='admin' ? '<select id="gastoOrigen" title="Caja: se paga con el dinero del local y entra al cierre. Administrativo: lo pagan los socios desde la cuenta administrativa y NO afecta la caja." style="padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-family:var(--sans);font-size:13px"><option value="caja">Origen: Caja</option><option value="administrativo">Origen: Administrativo</option></select>' : '')
     +'<button onclick="agregarGasto()"'
     +' style="padding:8px 16px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">+ Agregar</button>'
     +'</div>';
@@ -4219,7 +4235,7 @@ function renderCaja(){
       var g=gastos[i];
       h+='<tr style="border-bottom:1px solid var(--border)">'
         +'<td style="padding:6px 7px;font-family:var(--mono);color:var(--text3)">'+escHtml(g.hora)+'</td>'
-        +'<td style="padding:6px 7px">'+escHtml(g.desc)+'</td>'
+        +'<td style="padding:6px 7px">'+escHtml(g.desc)+badgeOrigen('caja')+'</td>'
         +'<td style="padding:6px 7px;text-align:right;font-family:var(--mono);font-weight:600;color:var(--err)">− $'+fmt(g.monto)+'</td>'
         +'<td style="padding:6px 7px"><button class="bsm dx" data-gid="'+g.id+'" title="Anular este gasto (se pide el motivo)" onclick="anularGasto(this.getAttribute(\'data-gid\'))">Anular</button></td>'
         +'</tr>';
@@ -4228,7 +4244,7 @@ function renderCaja(){
       var ga=gastosAnulados[k];
       h+='<tr class="gasto-anulado" style="border-bottom:1px solid var(--border);color:var(--text3)">'
         +'<td style="padding:6px 7px;font-family:var(--mono)">'+escHtml(ga.hora)+'</td>'
-        +'<td style="padding:6px 7px"><span style="text-decoration:line-through">'+escHtml(ga.desc)+'</span><div style="font-size:11px">ANULADO · '+escHtml(ga.motivo||'')+(ga.por?' · '+escHtml(ga.por):'')+'</div></td>'
+        +'<td style="padding:6px 7px"><span style="text-decoration:line-through">'+escHtml(ga.desc)+'</span>'+badgeOrigen(ga.origen)+'<div style="font-size:11px">ANULADO · '+escHtml(ga.motivo||'')+(ga.por?' · '+escHtml(ga.por):'')+'</div></td>'
         +'<td style="padding:6px 7px;text-align:right;font-family:var(--mono);text-decoration:line-through">$'+fmt(ga.monto)+'</td>'
         +'<td></td>'
         +'</tr>';
@@ -4240,6 +4256,24 @@ function renderCaja(){
       +'</div>';
   }
   h+='</div></div>';
+
+  // ── GASTOS ADMINISTRATIVOS (only the admin receives them; they never touch the cash) ──
+  if(_panelRole==='admin' && gastosAdmin.length>0){
+    var totalAdm=0; for(var q=0;q<gastosAdmin.length;q++) totalAdm+=gastosAdmin[q].monto;
+    h+='<div class="caja-card" id="cajaGastosAdmin" style="margin-bottom:14px">'
+      +'<div class="caja-head" style="background:#fdf1d6;color:#7a5200">🏦 Gastos administrativos del día <span style="font-weight:400;font-size:12px">· pagados por los socios, no afectan la caja</span></div>'
+      +'<div class="caja-body"><table style="width:100%;border-collapse:collapse;font-size:13px"><tbody>';
+    for(var q2=0;q2<gastosAdmin.length;q2++){
+      var ad=gastosAdmin[q2];
+      h+='<tr style="border-bottom:1px solid var(--border)">'
+        +'<td style="padding:6px 7px;font-family:var(--mono);color:var(--text3)">'+escHtml(ad.hora)+'</td>'
+        +'<td style="padding:6px 7px">'+escHtml(ad.desc)+badgeOrigen('administrativo')+'</td>'
+        +'<td style="padding:6px 7px;text-align:right;font-family:var(--mono);font-weight:600;color:#7a5200">$'+fmt(ad.monto)+'</td>'
+        +'<td style="padding:6px 7px"><button class="bsm dx" data-gid="'+ad.id+'" title="Anular este gasto (se pide el motivo)" onclick="anularGasto(this.getAttribute(\'data-gid\'))">Anular</button></td>'
+        +'</tr>';
+    }
+    h+='</tbody></table><div style="display:flex;justify-content:flex-end;padding:8px 7px 0;font-weight:700;font-size:14px"><span style="color:var(--text2);margin-right:16px">Total administrativo (fuera de la caja):</span><span style="font-family:var(--mono);color:#7a5200">$'+fmt(totalAdm)+'</span></div></div></div>';
+  }
 
   // ── RESUMEN FINAL ──
   h+='<div id="resumenFinalCaja"></div>';
