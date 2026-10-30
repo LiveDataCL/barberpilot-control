@@ -6935,31 +6935,40 @@ function sillasHora(ms){ return new Date(ms).toLocaleTimeString('es-CL',{hour:'2
 // "Próxima silla libre": when the first chair can take a new client, counting the queue waiting in Sala.
 //  sillas: [{ocupada:bool, finMs:number|null (busy chair: estimated finish), espera:[service names waiting for THAT barber]}]
 //  pool:   [service names waiting with no barber assigned yet, in arrival order]
-// A free chair is free now; a busy one at its estimated finish; each client waiting for a barber adds his catalog duration to that chair;
+// A free chair is free now; a busy one at its estimated finish; a busy chair that is already OVERDUE is NOT free: it frees "en breve" (atrasoMin, the
+// server's estimate; never 0, so "ahora" can only come from a chair that is really free); each client waiting for a barber adds his catalog duration to that chair;
 // pool clients take the earliest chair, one after another. Unknown duration -> that chair becomes "sin estimación" (null) and the result is partial.
-// Returns {min:number|null, parcial:bool}; min=0 means a chair is free right now.
-function sillasProximaLibre(sillas,pool,ahora){
-  var t=[], parcial=false;
+// Returns {min:number|null, parcial:bool, enBreve:bool}; min=0 means a chair is free right now (only a really free chair gives 0);
+// enBreve = the first chair to free is an overdue busy one.
+function sillasProximaLibre(sillas,pool,ahora,atrasoMin){
+  var t=[], atrasada=[], parcial=false, atr=(atrasoMin>0)?atrasoMin:1;   // 1 = just the next minute when an older server sends no estimate
   sillas.forEach(function(s){
-    var libreEn=s.ocupada?(s.finMs==null?null:Math.max(ahora,s.finMs)):ahora;
+    var libreEn, atras=false;
+    if(!s.ocupada) libreEn=ahora;
+    else if(s.finMs==null) libreEn=null;
+    else if(s.finMs>ahora) libreEn=s.finMs;
+    else { libreEn=ahora+atr*60000; atras=true; }
     (s.espera||[]).forEach(function(svc){
       if(libreEn==null) return;
       var d=sillasDuracionMin(svc,s.barber);
       libreEn=(d==null)?null:libreEn+d*60000;
+      atras=false;   // a client waits for this chair: the first free moment is no longer "the overdue service ends"
     });
     if(libreEn==null) parcial=true;
-    t.push(libreEn);
+    t.push(libreEn); atrasada.push(atras);
   });
   (pool||[]).forEach(function(svc){
     var idx=-1;
     for(var i=0;i<t.length;i++){ if(t[i]!=null&&(idx<0||t[i]<t[idx])) idx=i; }
     if(idx<0) return;
     var d=sillasDuracionMin(svc,sillas[idx].barber);   // the pooled client goes to the chair that frees first: that barber's learned time
+    atrasada[idx]=false;
     if(d==null){ t[idx]=null; parcial=true; } else t[idx]+=d*60000;
   });
   var conocidos=t.filter(function(x){return x!=null;});
-  if(!conocidos.length) return {min:null,parcial:true};
-  return {min:Math.max(0,Math.ceil((Math.min.apply(null,conocidos)-ahora)/60000)),parcial:parcial};
+  if(!conocidos.length) return {min:null,parcial:true,enBreve:false};
+  var mejor=-1; for(var k=0;k<t.length;k++){ if(t[k]!=null&&(mejor<0||t[k]<t[mejor])) mejor=k; }
+  return {min:Math.max(0,Math.ceil((t[mejor]-ahora)/60000)),parcial:parcial,enBreve:!!atrasada[mejor]};
 }
 
 // Minutes since midnight in Santiago for a timestamp (the shop's clock, whatever the browser's time zone).
@@ -7417,9 +7426,9 @@ function renderSillas(){
       var e=sv?sillasEstadoOcupada(st,dur,ahora):null;
       chairs.push({barber:bd.barber_id,ocupada:!!sv,finMs:(e&&e.estimado)?e.finMs:null,espera:(bd.enEspera||[]).map(function(x){return x.service;})});
     });
-    var pl=sillasProximaLibre(chairs,(queue.pool||[]).map(function(x){return x.service;}),ahora);
-    var plTxt=pl.min==null?'sin estimación':(pl.min===0?'ahora':'~'+pl.min+' min')+(pl.parcial?'*':'');
-    var plTitulo=pl.parcial?'Hay sillas o servicios sin duración en el catálogo: la estimación es parcial.':'Primera silla en liberarse según la duración del catálogo, contando la cola en Sala.';
+    var pl=sillasProximaLibre(chairs,(queue.pool||[]).map(function(x){return x.service;}),ahora,queue.atraso_min);
+    var plTxt=pl.min==null?'sin estimación':(pl.enBreve?'en breve':(pl.min===0?'ahora':'~'+pl.min+' min'))+(pl.parcial?'*':'');
+    var plTitulo=pl.parcial?'Hay sillas o servicios sin duración en el catálogo: la estimación es parcial.':(pl.enBreve?'Todas las sillas están ocupadas; la que ya pasó su hora estimada se libera en breve (estimación: ~'+(queue.atraso_min>0?queue.atraso_min:1)+' min).':'Primera silla en liberarse según la duración del catálogo, contando la cola en Sala.');
     var proximo='', proximoTitulo='';
     if(!regRes.ok){
       proximo='<span class="ss-warn">no disponible</span>';
@@ -7430,9 +7439,10 @@ function renderSillas(){
       proximoTitulo=(lastSvc[libres[0].id]?'Terminó su último servicio a las '+lastSvc[libres[0].id].slice(0,5):'Primer turno del día'+(llegadaNext?' · llegó '+llegadaNext:''))
         +(libres.length>1?' · También libre: '+libres.slice(1).map(function(b){return b.nombre;}).join(', '):'');
     } else {
-      var todosOcupados=activeBB.length>0&&activeBB.every(function(b){ return queue.barberos[b.id]&&queue.barberos[b.id].enServicio; });
-      proximo='<span class="ss-warn">'+(todosOcupados?'todos ocupados':'sin barberos presentes')+'</span>';
-      proximoTitulo=todosOcupados?'El primero en liberar su silla toma el siguiente turno':'No hay barberos disponibles en este momento';
+      // nobody is free: busy barbers ARE present, so "sin barberos presentes" was wrong; one text whatever the reason
+      var hayOcupados=nOcupados>0;
+      proximo='<span class="ss-warn">Sin barberos disponibles</span>';
+      proximoTitulo=hayOcupados?'Todos los presentes están ocupados: el primero en liberar su silla toma el siguiente turno':'No hay barberos presentes ni libres en este momento';
     }
     document.getElementById('sillasNextTurn').innerHTML=
       '<div class="ss">'+
