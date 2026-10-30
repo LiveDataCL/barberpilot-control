@@ -2450,7 +2450,7 @@ function init(){
   loadStaffConfig();
   buildBarbers();buildServices();buildProductos();buildProdBarbers();buildBarberFilters();buildSalaBidOptions();
   cargarBarberosDesdeAPI(); // unauthenticated — always runs, no panel login required
-  cargarSheetsUrl();cargar();cargarGastos();cargarLiquidaciones();cargarHorarios();renderAll();
+  cargarSheetsUrl();cargar();cargarGastos();sincronizarGastosServidor();cargarLiquidaciones();cargarHorarios();renderAll();
   // Today's sales are read from the server only with a panel session:
   // panelApplySession() starts the first read (after login, or on reload with
   // a saved session), and the 60 s refresh below is a no-op until then.
@@ -3859,7 +3859,9 @@ function exportCSV(){
 var BASE_CAJA = 50000;       // actual cash in drawer at start of day (user-editable)
 var BASE_MINIMA = 50000;     // theoretical fixed minimum — always leave this in the drawer
 var AJUSTE_CAJA = 0;         // signed manual adjustment vs. BASE_MINIMA — resets to 0 every new date, never carried over
-var gastos = [];
+var gastos = [];          // the expenses of today that COUNT (annulled ones are never in here: every total, PDF and message reads this list)
+var gastosAnulados = [];  // today's annulled expenses (shown struck through with who and why; never added up)
+var _gastosSyncMs = 0;
 var liquidaciones = {}; // {barberoId: {efectivo, transferencia, pendiente}}
 
 // ── GASTOS ──────────────────────────────────────────────
@@ -3884,24 +3886,52 @@ function agregarGasto(){
   renderCaja();
 }
 
-function eliminarGasto(id){
-  // The expense lives in the DATABASE (reports, KPIs and the partners' summary read it from there): it only counts as deleted when the SERVER says so.
-  var quitarLocal=function(){
-    gastos = gastos.filter(function(g){return g.id!==id;});
+// An expense is never deleted: it is ANNULLED (who, when, why stay in the database) and stops counting everywhere. The encargado may annul only an
+// expense of today, before the cash closing; the administration any day. The server decides and answers; the page shows its real answer.
+function anularGasto(id){
+  var g=gastos.filter(function(x){return x.id===id;})[0];
+  if(!g) return;
+  var enviado=!readOutbox().some(function(i){ return i.endpoint==='/gastos' && i.payload && i.payload.id===id && i.status!=='sent'; });
+  if(!enviado || !API_URL){
+    // never reached the server: there is nothing to annul there, just take it off the pending list
+    if(!confirm('Este gasto aún no se envió al servidor. ¿Quitarlo?')) return;
+    gastos = gastos.filter(function(x){return x.id!==id;});
     guardarGastos();
-    // a copy still waiting in the outbox must not come back to life after the delete
     writeOutbox(readOutbox().filter(function(i){ return !(i.endpoint==='/gastos' && i.payload && i.payload.id===id && i.status!=='sent'); }));
     renderCaja();
-  };
-  if(!API_URL){ quitarLocal(); return; }
-  llamarConResultado(API_URL+'/gastos/'+encodeURIComponent(id),{method:'DELETE',headers:getAuthHeaders()}).then(function(r){
+    return;
+  }
+  var motivo=prompt('Anular el gasto «'+g.desc+'» ($'+fmt(g.monto)+').\nEscribe el motivo (obligatorio, 5 a 200 caracteres):');
+  if(motivo===null) return;
+  motivo=String(motivo).trim();
+  if(motivo.length<5||motivo.length>200){ toast('⚠ El motivo debe tener entre 5 y 200 caracteres. No se anuló nada.'); return; }
+  llamarConResultado(API_URL+'/gastos/'+encodeURIComponent(id)+'/anular',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},getAuthHeaders()),body:JSON.stringify({motivo:motivo})}).then(function(r){
     if(!r.ok){
-      toast('⚠ No se eliminó el gasto: '+(r.status? r.status+' ':'')+(r.status===403 ? 'solo la administración puede eliminar gastos' : r.error)+'. Sigue en la lista.');
+      toast('⚠ No se anuló el gasto: '+(r.status? r.status+' ':'')+r.error+'. Sigue contando.');
       return;
     }
-    quitarLocal();
-    toast('Gasto eliminado ✓ — BD actualizada');
+    toast('Gasto anulado ✓ — ya no cuenta en ningún total');
+    _gastosSyncMs=0; sincronizarGastosServidor();
   });
+}
+
+// The server is the source of truth for today's expenses (the page's own copy used to be the only list, per device). Today's list comes from
+// GET /gastos/dia: what counts goes to `gastos`, annulled ones to `gastosAnulados`. Expenses typed here that the outbox has not sent yet are kept.
+function sincronizarGastosServidor(){
+  if(!API_URL) return;
+  var hoyIso=pdfHoySantiago();
+  fetch(API_URL+'/gastos/dia?fecha='+encodeURIComponent(hoyIso),{headers:getAuthHeaders()}).then(function(r){
+    return r.text().then(function(tx){ var j=null; try{ j=JSON.parse(tx); }catch(e){} return (r.ok&&j&&j.ok&&Array.isArray(j.gastos))?j:null; });
+  }).then(function(j){
+    if(!j) return;   // could not read: keep what is on screen (never replace a good list with nothing)
+    var pend=readOutbox().filter(function(i){ return i.endpoint==='/gastos' && i.payload && i.status!=='sent'; }).map(function(i){return i.payload.id;});
+    var enServidor={}; j.gastos.forEach(function(g){ enServidor[g.id]=true; });
+    var pendientes=gastos.filter(function(g){ return !enServidor[g.id] && pend.indexOf(g.id)!==-1; });
+    gastos=j.gastos.filter(function(g){return !g.anulado;}).map(function(g){return {id:g.id,desc:g.desc,monto:g.monto,hora:g.hora};}).concat(pendientes);
+    gastosAnulados=j.gastos.filter(function(g){return g.anulado;}).map(function(g){return {id:g.id,desc:g.desc,monto:g.monto,hora:g.hora,motivo:g.anulado_motivo,por:g.anulado_por};});
+    guardarGastos();
+    renderCaja();
+  }).catch(function(){});
 }
 
 function guardarGastos(){
@@ -4174,7 +4204,8 @@ function renderCaja(){
     +' style="padding:8px 16px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">+ Agregar</button>'
     +'</div>';
 
-  if(gastos.length===0){
+  if(Date.now()-_gastosSyncMs>20000){ _gastosSyncMs=Date.now(); sincronizarGastosServidor(); }   // at most every 20 s; its own redraw does not trigger another read
+  if(gastos.length===0&&gastosAnulados.length===0){
     h+='<div style="text-align:center;padding:14px;color:var(--text3);font-size:13px">Sin gastos registrados hoy</div>';
   } else {
     h+='<table style="width:100%;border-collapse:collapse;font-size:13px">'
@@ -4190,7 +4221,16 @@ function renderCaja(){
         +'<td style="padding:6px 7px;font-family:var(--mono);color:var(--text3)">'+escHtml(g.hora)+'</td>'
         +'<td style="padding:6px 7px">'+escHtml(g.desc)+'</td>'
         +'<td style="padding:6px 7px;text-align:right;font-family:var(--mono);font-weight:600;color:var(--err)">− $'+fmt(g.monto)+'</td>'
-        +'<td style="padding:6px 7px"><button class="bsm dx" data-gid="'+g.id+'" onclick="eliminarGasto(this.getAttribute(\'data-gid\'))">✕</button></td>'
+        +'<td style="padding:6px 7px"><button class="bsm dx" data-gid="'+g.id+'" title="Anular este gasto (se pide el motivo)" onclick="anularGasto(this.getAttribute(\'data-gid\'))">Anular</button></td>'
+        +'</tr>';
+    }
+    for(var k=0;k<gastosAnulados.length;k++){
+      var ga=gastosAnulados[k];
+      h+='<tr class="gasto-anulado" style="border-bottom:1px solid var(--border);color:var(--text3)">'
+        +'<td style="padding:6px 7px;font-family:var(--mono)">'+escHtml(ga.hora)+'</td>'
+        +'<td style="padding:6px 7px"><span style="text-decoration:line-through">'+escHtml(ga.desc)+'</span><div style="font-size:11px">ANULADO · '+escHtml(ga.motivo||'')+(ga.por?' · '+escHtml(ga.por):'')+'</div></td>'
+        +'<td style="padding:6px 7px;text-align:right;font-family:var(--mono);text-decoration:line-through">$'+fmt(ga.monto)+'</td>'
+        +'<td></td>'
         +'</tr>';
     }
     h+='</tbody></table>'
