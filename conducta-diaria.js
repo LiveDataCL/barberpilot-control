@@ -329,7 +329,39 @@ function kpiConductaV2Html(k, periodo){
     + '<b>Conducta diaria.</b> Desde el ' + _cdEsc(r.conducta.desde) + ' la conducta se evalúa cada día (pestaña Horarios → «Conducta de hoy»), por el encargado o la administración. '
     + 'El puntaje del mes es el promedio de los días de trabajo de cada barbero; un día sin cambios conserva el valor anterior (marcado «copiado»). '
     + 'Las correcciones de días anteriores las hace solo la administración, con justificación, y quedan en el historial.</div>'
+    + kpiConductaV2Tarjetas(k, periodo)
     + '<div id="cdPrefA4Kpi" style="margin-bottom:16px"></div>';
+}
+
+// "Evaluación cualitativa" of the November model: READ-ONLY. The monthly average of each indicator over the barber's working days and how many of those days he
+// was really evaluated. Nothing here can be edited: the conduct is built from the DAILY records (Horarios → Conducta de hoy), a monthly value would bypass them.
+function cdIrAConductaHoy(){
+  if(typeof showTabById === 'function') showTabById('pHorarios');
+  setTimeout(function(){ var b = document.getElementById('conductaHoyBox'); if(b && b.scrollIntoView) b.scrollIntoView({behavior:'smooth', block:'start'}); }, 400);
+}
+function kpiConductaV2Tarjetas(k, periodo){
+  var r = k.reglas, bs = k.barberos || [], esc = r.conducta.escala_max || 10;
+  var coma = function(x){ return String(Math.round(x * 10) / 10).replace('.', ','); };
+  var h = '<div id="kpiCondV2" style="margin-bottom:16px"><div style="font-size:13px;font-weight:700;margin-bottom:6px;color:var(--text)">Evaluación cualitativa — <span class="kpi-period-badge">' + _cdEsc(periodo) + '</span>'
+    + ' <span style="font-size:10px;font-weight:600;background:#eef2ee;color:#4a5a4a;border:1px solid #d3dcd3;border-radius:9px;padding:1px 8px;margin-left:6px">solo lectura</span></div>'
+    + '<div style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.6">Promedio del mes de cada indicador (de 0 a ' + esc + '; ⭐ = nota ÷ 2) sobre los días de trabajo de cada barbero. '
+    + 'No se edita por mes: la conducta se evalúa cada día. <button type="button" id="kpiEvaluarHoy" onclick="cdIrAConductaHoy()" style="margin-left:6px;padding:5px 12px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-family:var(--sans);font-size:12px;font-weight:600;cursor:pointer">Evaluar hoy → Horarios / Conducta de hoy</button></div>'
+    + '<div class="kpi-eval-grid">';
+  bs.forEach(function(b){
+    var d = b.detalle || {}, inds = d.conducta_indicadores;
+    h += '<div class="kpi-eval-card kpi-eval-solo-lectura" data-bid="' + _cdEsc(b.bid) + '"><div class="kpi-eval-head"><div><div class="kpi-eval-name">' + _cdEsc(b.nombre) + '</div>'
+      + '<div style="font-size:11px;color:var(--text2);font-weight:600">Conducta ' + coma(b.puntos ? b.puntos.conducta : 0) + ' / ' + r.conducta.pts + ' pts · nota ' + String(d.nota_conducta == null ? '—' : d.nota_conducta).replace('.', ',') + ' / ' + esc + '</div></div></div><div class="kpi-eval-body">';
+    if(!inds) h += '<div style="font-size:12px;color:var(--text3)">Este servidor aún no entrega el detalle por indicador.</div>';
+    else inds.forEach(function(i){
+      h += '<div class="kpi-eval-row"><div class="kpi-eval-label">' + _cdEsc(i.nombre) + '<sup style="font-size:9px;color:var(--text3)"> ×' + i.peso + '</sup></div>'
+        + '<div style="display:flex;align-items:center;gap:8px"><div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden;min-width:70px"><div style="height:100%;width:' + Math.max(0, Math.min(100, i.promedio / esc * 100)) + '%;background:#c9a84c"></div></div>'
+        + '<span class="kpi-prom" style="font-family:var(--mono);font-size:12px;font-weight:700;min-width:84px;text-align:right">' + coma(i.promedio) + ' · ⭐ ' + coma(i.promedio / 2) + '</span></div></div>';
+    });
+    h += '<div class="kpi-eval-dias" style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);font-size:12px;color:var(--text2)">'
+      + (d.dias_evaluados == null ? '' : '<b>' + d.dias_evaluados + '</b> de <b>' + d.dias_programados + '</b> días evaluados · ' + d.dias_copiados + ' copiados (conservan el valor anterior)') + '</div>'
+      + '</div></div>';
+  });
+  return h + '</div></div>';
 }
 
 function kpiMetodologiaV2Antigua(r){
