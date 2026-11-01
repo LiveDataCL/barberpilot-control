@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>Sistema de Control · Salon Men Saúl Fino</title>
+<title>Sistema de Control</title>
 <style>
   /* fuentes del sistema — sin dependencia de red */
 
@@ -568,8 +568,8 @@
   <div class="hdr-brand">
     <div class="hdr-logo">SF</div>
     <div>
-      <div class="hdr-title">Salon Men Saúl Fino</div>
-      <div class="hdr-sub">Sistema de Control · Local 222</div>
+      <div class="hdr-title" id="hdrTitle"></div>
+      <div class="hdr-sub" id="hdrSub"></div>
     </div>
   </div>
   <div class="hdr-right">
@@ -594,7 +594,7 @@
 <div id="panelLoginOverlay">
   <div class="panel-login-card">
     <h2>Sistema de Control</h2>
-    <p class="plc-sub">Salon Men Saúl Fino · Acceso de panel</p>
+    <p class="plc-sub" id="plcSub"></p>
     <input class="panel-inp" id="panelEmailInput" type="email" placeholder="Correo electrónico"
       autocomplete="username" onkeydown="if(event.key==='Enter')panelLogin()">
     <input class="panel-inp" id="panelPassInput" type="password" placeholder="Contraseña"
@@ -753,7 +753,7 @@
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
           <div style="position:relative">
             <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Teléfono (opcional)</div>
-            <input id="sala-tel" type="tel" placeholder="+56 9 1234 5678" autocomplete="off"
+            <input id="sala-tel" type="tel" placeholder="" autocomplete="off"
               style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--sans);background:var(--surface)"
               oninput="salaBuscarClienteLocal(this.value)"
               onblur="buscarClientePorTel('sala')" />
@@ -765,7 +765,7 @@
           </div>
           <div>
             <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Nombre *</div>
-            <input id="sala-nombre" type="text" placeholder="Rodrigo Villalobos"
+            <input id="sala-nombre" type="text" placeholder=""
               style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--sans);background:var(--surface)" />
           </div>
         </div>
@@ -781,18 +781,7 @@
             <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Servicio *</div>
             <select id="sala-svc" onchange="salaAutoPreio()" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--surface);font-family:var(--sans)">
               <option value="">Elegir…</option>
-              <option value="Corte">Corte</option>
-              <option value="Barba">Barba</option>
-              <option value="Corte + Barba">Corte + Barba</option>
-              <option value="Corte + Perfilado de barba">Corte + Perfilado de barba</option>
-              <option value="Perfilado de corte">Perfilado de corte</option>
-              <option value="Perfilado de cejas">Perfilado de cejas</option>
-              <option value="Barba + Cejas">Barba + Cejas</option>
-              <option value="Perfilado de barba">Perfilado de barba</option>
-              <option value="Matizado canas cabello">Matizado canas cabello</option>
-              <option value="Matizado canas barba">Matizado canas barba</option>
-              <option value="Corte + Cejas">Corte + Cejas</option>
-              <!-- s11 (Corte Express + Perfilado de barba) retired 2026-07-16 — removed, not just repriced. -->
+                          <!-- the options come from the deployment config (BP.salaServicios) or from the service catalog of the server: salaPoblarServicios() -->
             </select>
           </div>
           <div>
@@ -934,10 +923,6 @@
           <select id="editor-bid" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--surface);font-family:var(--sans)">
             <option value="">Sin cambio</option>
             <option value="any">⚡ Primer disponible</option>
-            <option value="b1">Didian</option>
-            <option value="b2">Emerson</option>
-            <option value="b5">Steven</option>
-            <option value="b6">Winder</option>
             <!-- Options refreshed dynamically by loadBB() from GET /barberos -->
           </select>
         </div>
@@ -950,18 +935,7 @@
           <select id="editor-svc" onchange="salaEditorAutoPreio()"
             style="padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--surface);font-family:var(--sans)">
             <option value="">Elegir…</option>
-            <option value="Corte">Corte</option>
-            <option value="Barba">Barba</option>
-            <option value="Corte + Barba">Corte + Barba</option>
-            <option value="Corte + Perfilado de barba">Corte + Perfilado de barba</option>
-            <option value="Perfilado de corte">Perfilado de corte</option>
-            <option value="Perfilado de cejas">Perfilado de cejas</option>
-            <option value="Barba + Cejas">Barba + Cejas</option>
-            <option value="Perfilado de barba">Perfilado de barba</option>
-            <option value="Matizado canas cabello">Matizado canas cabello</option>
-            <option value="Matizado canas barba">Matizado canas barba</option>
-            <option value="Corte + Cejas">Corte + Cejas</option>
-            <!-- s11 (Corte Express + Perfilado de barba) retired 2026-07-16 — removed, not just repriced. -->
+                        <!-- the options come from the deployment config (BP.salaServicios) or from the service catalog of the server: salaPoblarServicios() -->
           </select>
           <input id="editor-precio" type="number" placeholder="Precio" readonly tabindex="-1" aria-readonly="true" title="Precio del catálogo: el precio se ajusta al cobrar"
             style="padding:8px 10px;border:1px dashed var(--border);border-radius:var(--r);font-size:13px;font-family:var(--mono);background:var(--surface2);color:var(--text2);cursor:default"/>
@@ -1314,10 +1288,17 @@
 <div class="toastel" id="toastel"></div>
 <div class="alerta-stack" id="alertaStack"></div>
 
+<script src="config.js"></script>
 <script src="texto-seguro.js"></script>
 <script src="reportes-api.js"></script>
 <script src="conducta-diaria.js"></script>
 <script>
+// ═══ DEPLOYMENT CONFIG (config.js): API URL, business name, address, locale, time zone. One file per deployment; nothing of another business is a default in this code.
+var BP = window.BP_CONFIG;
+if (!BP || !BP.apiUrl || !BP.nombre || !BP.locale || !BP.timeZone || !BP.codigoPais || !BP.telLocalMax) { document.body.innerHTML = '<p style="font-family:sans-serif;padding:24px">Falta la configuración de este negocio (config.js). Avisa a quien instaló el sistema.</p>'; throw new Error('config.js ausente o incompleto'); }
+var BP_LOCALE = BP.locale, BP_TZ = BP.timeZone;
+document.title = 'Sistema de Control · ' + BP.nombre;
+document.addEventListener('DOMContentLoaded', function(){ var a=document.getElementById('hdrTitle'), b=document.getElementById('plcSub'); if(a) a.textContent=BP.nombre; if(b) b.textContent=BP.nombre+' · Acceso de panel'; var s=document.getElementById('hdrSub'); if(s) s.textContent='Sistema de Control'+(BP.local?' · '+BP.local:''); var tl=document.getElementById('sala-tel'); if(tl) tl.placeholder=BP.telefonoEjemplo||''; var nm=document.getElementById('sala-nombre'); if(nm) nm.placeholder=BP.nombreEjemplo||''; if(BP.salaServicios) salaPoblarServicios(BP.salaServicios); });
 // ═══ SESIÓN DEL PANEL: aviso antes de vencer y reingreso SIN recargar ═══════════════════════════════════════════
 // El token del panel dura 8 h. 10 minutos antes de vencer aparece un aviso que no bloquea ("Tu sesión vence pronto · Renovar").
 // Si una petición recibe 401 por sesión vencida o inválida NO se muestra "Unauthorized": se abre un cuadro de ingreso encima de la
@@ -1533,8 +1514,8 @@ var BB=[];
 // hardcoded here, tenant-configurable via the Amenities section (Administración).
 var BEBIDAS_DISPONIBLES=[];
 function cargarConfigDesdeServidor(){
-  var apiBase='https://barberpilot-api-production.up.railway.app';
-  fetch(apiBase+'/config/negocio/publico?tenant=saulfino')
+  var apiBase=BP.apiUrl;
+  fetch(apiBase+'/config/negocio/publico?tenant='+encodeURIComponent(BP.tenantSlug||'saulfino'))
     .then(function(r){return r.json();})
     .then(function(json){
       if(!json.ok) return;
@@ -1550,6 +1531,7 @@ function cargarConfigDesdeServidor(){
           (s.aliases||[]).forEach(function(a){_np[a]=s.precio_activo;});
         });
         SALA_PRECIOS=_np;
+        if(!BP.salaServicios) salaPoblarServicios(json.servicios.map(function(s){return s.nombre_canonico;}).filter(Boolean));   // a client: the Sala forms offer the catalog of the server
       }
       if(Array.isArray(json.barberos)&&json.barberos.length){
         // Merge, never replace — this response is active-only (same shape
@@ -1763,7 +1745,7 @@ var PRODUCTOS=[
 
 // ═══ GOOGLE SHEETS INTEGRATION ═══════════════════════════
 // Pega aquí la URL de tu Apps Script Web App deployment
-var API_URL    = 'https://barberpilot-api-production.up.railway.app'; // Railway — preconfigurado
+var API_URL    = BP.apiUrl; // from config.js
 var SHEETS_URL = ''; // legacy — ya no se usa
 
 // ═══ OUTBOX — local-first offline sync ════════════════════
@@ -2111,7 +2093,7 @@ function descargarJSON(){
   var data={
     fecha:fechaHoy,
     generado:new Date().toISOString(),
-    salon:'Salon Men Saúl Fino',
+    salon:BP.nombre,
     registros:regs,
     gastos:gastos
   };
@@ -2340,7 +2322,7 @@ function descargarJornadaHist(fd){
   var data=null;
   try{data=JSON.parse(localStorage.getItem('sfsf_'+fd));}catch(e){}
   if(!data){toast('Sin datos');return;}
-  var payload={fecha:fd,salon:'Salon Men Saúl Fino',registros:data};
+  var payload={fecha:fd,salon:BP.nombre,registros:data};
   var blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
   var url=URL.createObjectURL(blob);
   var a=document.createElement('a');
@@ -2507,7 +2489,7 @@ function tick(){
     +'<br>'+pad(now.getHours())+':'+pad(now.getMinutes());
 }
 function pad(n){return n<10?'0'+n:n;}
-function fmt(n){return Math.round(n).toLocaleString('es-CL');}
+function fmt(n){return Math.round(n).toLocaleString(BP_LOCALE);}
 function find(arr,id){for(var i=0;i<arr.length;i++)if(arr[i].id===id)return arr[i];return null;}
 
 // ═══ BUILD UI ════════════════════════════════════════════
@@ -2664,7 +2646,7 @@ function registrarProducto(){
     precio:total,pago:selProd.p,
     com:b?tp:0,bb:bb,neg:neg,
     propina:0,
-    fecha:now.toLocaleDateString('es-CL'),
+    fecha:now.toLocaleDateString(BP_LOCALE),
     hora:pad(now.getHours())+':'+pad(now.getMinutes()),
     ts:now.getTime()
   };
@@ -2812,7 +2794,7 @@ function registrar(){
     precio:s.precio,pago:p,com:com,
     bb:bb,neg:neg,
     propina:propina,
-    fecha:now.toLocaleDateString('es-CL'),
+    fecha:now.toLocaleDateString(BP_LOCALE),
     hora:pad(now.getHours())+':'+pad(now.getMinutes()),
     ts:now.getTime()
   };
@@ -2977,7 +2959,7 @@ function renderSum(){
 }
 
 function renderCierre(){
-  var fecha=new Date().toLocaleDateString('es-CL');
+  var fecha=new Date().toLocaleDateString(BP_LOCALE);
   var h='';
   var activeBB=_barberosParaImpresion(regs);
   for(var i=0;i<activeBB.length;i++){
@@ -3085,7 +3067,7 @@ function renderAprobaciones(pend){
       var pagoColor = r.pago==='efectivo'?'#4db87a':r.pago==='debito'?'#5580d4':'#c9a84c';
       h += '<div style="flex:1">';
       h += '<div style="font-size:14px;font-weight:600">'+escHtml(r.snom)+'</div>';
-      h += '<div style="font-size:12px;color:var(--text3);margin-top:3px">'+escHtml(r.hora)+' · <span style="color:'+pagoColor+'">'+_escHtml(etiquetaPago(r.pago))+'</span> · $'+Math.round(r.precio).toLocaleString('es-CL')+'</div>';
+      h += '<div style="font-size:12px;color:var(--text3);margin-top:3px">'+escHtml(r.hora)+' · <span style="color:'+pagoColor+'">'+_escHtml(etiquetaPago(r.pago))+'</span> · $'+Math.round(r.precio).toLocaleString(BP_LOCALE)+'</div>';
       // Foto comprobante si es transferencia
       if(r.pago === 'transferencia'){
         h += '<div style="margin-top:8px">';
@@ -3093,7 +3075,7 @@ function renderAprobaciones(pend){
         h += '</div>';
       }
       h += '</div>';
-      h += '<div style="font-family:var(--mono);font-size:14px;font-weight:600;color:var(--ok);min-width:70px;text-align:right">$'+bb.toLocaleString('es-CL')+'</div>';
+      h += '<div style="font-family:var(--mono);font-size:14px;font-weight:600;color:var(--ok);min-width:70px;text-align:right">$'+bb.toLocaleString(BP_LOCALE)+'</div>';
       if(_panelRole==='admin'||_panelRole==='encargado'){
         h += '<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">';
         h += '<button onclick="aprobar(\'' + escJsAttr(r.id) + '\')" style="padding:8px 14px;background:rgba(77,184,122,.15);color:#4db87a;border:1px solid rgba(77,184,122,.3);border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">✓ OK</button>';
@@ -3240,10 +3222,9 @@ function filtrar(f,el){
 function mkTktHtml(r){
   var lns=r.snom.match(/.{1,22}/g)||[r.snom];
   var h='<div style="font-family:monospace;font-size:11px;line-height:1.45;width:52mm;padding:2mm 0">'
-    +'<div style="text-align:center;font-weight:bold;font-size:14px">SALON MEN</div>'
+    +'<div style="text-align:center;font-weight:bold;font-size:14px">'+escHtml(String(BP.nombreCorto||BP.nombre).toUpperCase())+'</div>'
     +'<div style="text-align:center;font-weight:bold;font-size:13px">SAÚL FINO</div>'
-    +'<div style="text-align:center;font-size:9px;margin-top:2px">Galería Santiago Centro · Local 222</div>'
-    +'<div style="text-align:center;font-size:9px">Línea 1 Metro · Santiago</div>'
+    +(BP.ticketLineas||[]).map(function(x,i){ return '<div style="text-align:center;font-size:9px'+(i===0?';margin-top:2px':'')+'">'+escHtml(x)+'</div>'; }).join('')
     +'<div style="border-top:1px dashed #000;margin:4px 0"></div>'
 
     +'<div style="display:flex;justify-content:space-between;font-size:10px"><span>Fecha:</span><span>'+escHtml(r.fecha)+'</span></div>'
@@ -3349,7 +3330,7 @@ function verTkt(id){
 // ═══ CIERRE 58mm (todos los barberos, uno por uno) ════════
 function printCierre58mm(){
   if(regs.length===0){toast('Sin registros para imprimir');return;}
-  var fecha=new Date().toLocaleDateString('es-CL');
+  var fecha=new Date().toLocaleDateString(BP_LOCALE);
   var partes=[];
   var activeBB=_barberosParaImpresion(regs);
 
@@ -3360,8 +3341,8 @@ function printCierre58mm(){
     for(var j=0;j<br.length;j++){tot+=br[j].precio;tBB+=br[j].bb;tNeg+=br[j].neg;}
 
     var h='<div style="font-family:monospace;font-size:10px;line-height:1.45;width:52mm;page-break-after:always;padding:2mm 0">'
-      +'<div style="text-align:center;font-weight:bold;font-size:13px">SALON MEN SAÚL FINO</div>'
-      +'<div style="text-align:center;font-size:9px">Galería Santiago Centro · Local 222</div>'
+      +'<div style="text-align:center;font-weight:bold;font-size:13px">'+escHtml(BP.nombre.toUpperCase())+'</div>'
+      +'<div style="text-align:center;font-size:9px">'+escHtml((BP.ticketLineas||[])[0]||'')+'</div>'
       +'<div style="border-top:1px dashed #000;margin:4px 0"></div>'
       +'<div style="text-align:center;font-weight:bold;font-size:12px">'+escHtml(b.nombre.toUpperCase())+'</div>'
       +'<div style="text-align:center;font-size:9px">RESUMEN DE JORNADA · '+escHtml(fecha)+'</div>'
@@ -3497,9 +3478,9 @@ function generarHTMLA4(fecha, recs, gastosParam){
     +'</head><body><div class="page">'
     +'<button class="no-print" onclick="window.print()" style="position:fixed;top:16px;right:16px;padding:10px 22px;background:#1a1916;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;z-index:100">Imprimir A4</button>'
     +'<div class="hdr-doc">'
-    +'<div><div class="brand">Salon Men Saúl Fino</div>'
-    +'<div class="brand-sub">Galería Santiago Centro · Local 222 · Línea 1 Metro</div></div>'
-    +'<div class="doc-meta"><strong>Resumen de Jornada</strong><br>'+escHtml(fecha)+'<br>Generado: '+new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'})+'</div>'
+    +'<div><div class="brand">'+escHtml(BP.nombre)+'</div>'
+    +'<div class="brand-sub">'+escHtml(BP.direccionLarga||BP.direccion||'')+'</div></div>'
+    +'<div class="doc-meta"><strong>Resumen de Jornada</strong><br>'+escHtml(fecha)+'<br>Generado: '+new Date().toLocaleTimeString(BP_LOCALE,{hour:'2-digit',minute:'2-digit'})+'</div>'
     +'</div>'
     +'<div class="doc-title">Cierre de Jornada · '+escHtml(fecha)+'</div>'
     +'<div class="kpis" style="grid-template-columns:repeat(4,1fr)">'   // 4 + 3 en dos filas: con 7 columnas la última tarjeta salía cortada (cada cifra necesita más que 1/7 del ancho)
@@ -3612,7 +3593,7 @@ function generarHTMLA4(fecha, recs, gastosParam){
   h+='</div>';
 
   // FOOTER
-  h+='<div class="footer"><span>Salon Men Saúl Fino · Local 222 · Galería Santiago Centro</span>'
+  h+='<div class="footer"><span>'+escHtml(BP.nombre+(BP.direccion?' · '+BP.direccion:''))+'</span>'
     +'<span>Documento interno · Confidencial</span></div>'
     +'</div></body></html>';
   return h;
@@ -3638,7 +3619,7 @@ function pdfFechaIso(f){
 var PDF_DIAS_ES=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 var PDF_MESES_ES=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
 function pdfHoySantiago(){   // today as AAAA-MM-DD in Santiago time
-  try{ return new Intl.DateTimeFormat('en-CA',{timeZone:'America/Santiago',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()); }catch(e){ return fechaHoy; }
+  try{ return new Intl.DateTimeFormat('en-CA',{timeZone:BP_TZ,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()); }catch(e){ return fechaHoy; }
 }
 function pdfNombreDia(iso,sufijo){   // AAAA-MM-DD → miércoles_28OCTUBRE2026 + suffix (no extension)
   var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso||''));
@@ -3759,7 +3740,7 @@ function descargarPdfA4(){
   if(regs.length===0){toast('Sin registros para guardar');return;}
   a4Recordatorio(descargarPdfA4Directo);   // el recordatorio de marcas pendientes sigue antes de generar
 }
-function descargarPdfA4Directo(){ return descargarResumenPdf(new Date().toLocaleDateString('es-CL'),regs,gastos,pdfHoySantiago()); }
+function descargarPdfA4Directo(){ return descargarResumenPdf(new Date().toLocaleDateString(BP_LOCALE),regs,gastos,pdfHoySantiago()); }
 function descargarPdfA4Hist(fecha,recs){ return descargarResumenPdf(fecha,recs,[]); }
 
 function imprimirA4(){
@@ -3769,7 +3750,7 @@ function imprimirA4(){
 function imprimirA4Directo(){
   var win=window.open('','_blank','width=900,height=700,toolbar=0,menubar=0,location=0,scrollbars=1');
   if(!win){toast('Activa pop-ups para abrir el A4');return;}
-  win.document.write(generarHTMLA4(new Date().toLocaleDateString('es-CL'),regs,gastos));
+  win.document.write(generarHTMLA4(new Date().toLocaleDateString(BP_LOCALE),regs,gastos));
   win.document.close();
 }
 
@@ -3813,8 +3794,8 @@ function descargarJornadaHoy(){
   var data={
     version:1,
     fecha:fechaHoy,
-    salon:'Salon Men Saúl Fino',
-    local:'Local 222',
+    salon:BP.nombre,
+    local:BP.local,
     generado:new Date().toISOString(),
     registros:regs,
     gastos:gastos
@@ -3886,7 +3867,7 @@ function agregarGasto(){
     desc: desc,
     monto: monto,
     origen: origenGastoElegido(),
-    fecha: now.toLocaleDateString('es-CL'),
+    fecha: now.toLocaleDateString(BP_LOCALE),
     hora: pad(now.getHours())+':'+pad(now.getMinutes())
   };
   if(newGasto.origen==='administrativo') gastosAdmin.push(newGasto); else gastos.push(newGasto);
@@ -4050,7 +4031,7 @@ function actualizarFilaPendiente(bid){
 // ── RENDER CAJA ─────────────────────────────────────────
 function renderCaja(){
   var c = document.getElementById('cajaContent');
-  var fecha = new Date().toLocaleDateString('es-CL');
+  var fecha = new Date().toLocaleDateString(BP_LOCALE);
 
   // Cobros brutos por método de pago (tal como aparece en la máquina)
   var totEfectivo=0, totDebito=0, totTransf=0;
@@ -4320,7 +4301,7 @@ function renderResumenFinal(){
   // Caja final
   var cajaFinal = BASE_CAJA + totEfectivo - totalPagoEfectivo - totalGastos;
   var aDepositar = cajaFinal - BASE_MINIMA;  // siempre dejar BASE_MINIMA ($50.000) en caja
-  var fecha = new Date().toLocaleDateString('es-CL');
+  var fecha = new Date().toLocaleDateString(BP_LOCALE);
 
   var h='<div class="caja-card" style="margin-bottom:14px">'
     +'<div class="caja-head resumen">📊 Resumen de cierre — '+escHtml(fecha)+'</div>'
@@ -4467,7 +4448,7 @@ function cambiarBase(val){
 }
 
 function printCaja(){
-  var fecha=new Date().toLocaleDateString('es-CL');
+  var fecha=new Date().toLocaleDateString(BP_LOCALE);
   var hora=pad(new Date().getHours())+':'+pad(new Date().getMinutes());
   var totE=0,totD=0,totT=0,cntE=0,cntD=0,cntT=0;
   for(var i=0;i<regs.length;i++){
@@ -4503,8 +4484,8 @@ function printCaja(){
 
   var cajaFinal=BASE_CAJA+totE-totalPagoEfectivo-totalGastosPrint;
 
-  var h='<center><b>SALON MEN SAÚL FINO</b></center>'
-    +'<center>Local 222 · Gal. Santiago Centro</center>'
+  var h='<center><b>'+escHtml(BP.nombre.toUpperCase())+'</b></center>'
+    +'<center>'+escHtml(BP.ticketCorto||BP.direccion||'')+'</center>'
     +'<hr style="border-top:1px dashed #000;margin:4px 0">'
     +'<center><b>CIERRE DE CAJA · '+escHtml(fecha)+'</b></center>'
     +'<center>'+escHtml(hora)+'</center>'
@@ -4661,7 +4642,7 @@ function testSheetsConnection(){
 // ═══ IMPRIMIR CIERRE A4 ═══════════════════════════════════════
 function printCajaA4(){ a4Recordatorio(printCajaA4Directo); }
 function printCajaA4Directo(modo){   // modo 'pdf' → descarga <día>_<DD><MES><AAAA>.pdf; sin modo → la ventana de siempre (respaldo "Imprimir")
-  var fecha = new Date().toLocaleDateString('es-CL');
+  var fecha = new Date().toLocaleDateString(BP_LOCALE);
   var hora  = pad(new Date().getHours())+':'+pad(new Date().getMinutes());
 
   var totE=0,totD=0,totT=0,cntE=0,cntD=0,cntT=0;
@@ -4742,7 +4723,7 @@ function printCajaA4Directo(modo){   // modo 'pdf' → descarga <día>_<DD><MES>
     +'<button class="no-print" onclick="window.print()" style="position:fixed;top:16px;right:16px;padding:10px 22px;background:#1a1916;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;z-index:100">Imprimir / Guardar PDF</button>'
     +'<div class="page">'
     +'<div class="hdr">'
-    +'<div><div class="brand">Salon Men Saúl Fino</div><div class="brand-sub">Galería Santiago Centro · Local 222 · Línea 1 Metro</div></div>'
+    +'<div><div class="brand">'+escHtml(BP.nombre)+'</div><div class="brand-sub">'+escHtml(BP.direccionLarga||BP.direccion||'')+'</div></div>'
     +'<div class="doc-meta"><strong>Cierre de Caja</strong><br>'+escHtml(fecha)+'<br>'+escHtml(hora)+'</div>'
     +'</div>'
     +'<div class="doc-title">Cierre de jornada · '+escHtml(fecha)+'</div>'
@@ -4784,7 +4765,7 @@ function printCajaA4Directo(modo){   // modo 'pdf' → descarga <día>_<DD><MES>
     +(totalPend>0?'<div style="margin-top:8px;background:#fef9e7;border:1px solid #e8d08a;border-radius:6px;padding:10px 14px;font-size:10pt;color:#8b5e00">⚠ Quedan <strong>$'+fmt(totalPend)+'</strong> por transferir a barberos.</div>':'<div style="margin-top:8px;background:#e6f4ea;border:1px solid #c0dd97;border-radius:6px;padding:10px 14px;font-size:10pt;color:#1a6b3a">✓ Todos los barberos fueron pagados.</div>')
   html+=''
     +'<div class="footer">'
-    +'<span>Salon Men Saúl Fino · Local 222 · Galería Santiago Centro</span>'
+    +'<span>'+escHtml(BP.nombre+(BP.direccion?' · '+BP.direccion:''))+'</span>'
     +'<span>Documento interno · Generado '+escHtml(fecha)+' '+escHtml(hora)+'</span>'
     +'</div>'
     +'</div></body></html>';
@@ -4940,7 +4921,7 @@ function _horCampoHtml(b, tipo, val, meta, canEdit){
 function renderHorarios(){
   var c=document.getElementById('horariosContent');
   if(!c) return;
-  var fecha = new Date().toLocaleDateString('es-CL');
+  var fecha = new Date().toLocaleDateString(BP_LOCALE);
   if(!horarios[fechaHoy]) horarios[fechaHoy]=[];
 
   // Construir mapa de registros por barbero
@@ -5066,7 +5047,7 @@ function renderIngresarHistorico(){
     +'<option value="">Seleccionar</option>';
 
   for(var k=0;k<SS.length;k++){
-    h+='<option value="'+escAttr(SS[k].id)+'">'+_escHtml(SS[k].nombre)+' ($'+SS[k].precio.toLocaleString('es-CL')+')</option>';
+    h+='<option value="'+escAttr(SS[k].id)+'">'+_escHtml(SS[k].nombre)+' ($'+SS[k].precio.toLocaleString(BP_LOCALE)+')</option>';
   }
   h+='<option value="custom">✏ Servicio personalizado…</option>';
 
@@ -5098,7 +5079,7 @@ function renderIngresarHistorico(){
   h+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);margin-bottom:14px;overflow:hidden">'
     +'<div style="padding:11px 16px;border-bottom:1px solid var(--border);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text3);display:flex;justify-content:space-between;align-items:center">'
     +'<span>Servicios ingresados ('+histItems.length+')</span>'
-    +(histItems.length>0?'<span style="font-family:var(--mono);font-weight:700">Total: $'+histItems.reduce(function(a,r){return a+r.precio;},0).toLocaleString('es-CL')+'</span>':'')
+    +(histItems.length>0?'<span style="font-family:var(--mono);font-weight:700">Total: $'+histItems.reduce(function(a,r){return a+r.precio;},0).toLocaleString(BP_LOCALE)+'</span>':'')
     +'</div>';
 
   if(histItems.length===0){
@@ -5121,8 +5102,8 @@ function renderIngresarHistorico(){
         +'<td style="padding:7px 10px;font-weight:500">'+escHtml(r.bnom)+'</td>'
         +'<td style="padding:7px 10px;color:var(--text2)">'+escHtml(r.snom)+'</td>'
         +'<td style="padding:7px 10px;">'+_escHtml(etiquetaPago(r.pago))+'</td>'
-        +'<td style="padding:7px 10px;text-align:right;font-family:var(--mono);font-weight:600">$'+r.precio.toLocaleString('es-CL')+'</td>'
-        +'<td style="padding:7px 10px;text-align:right;font-family:var(--mono);color:var(--ok);font-weight:600">$'+r.bb.toLocaleString('es-CL')+'</td>'
+        +'<td style="padding:7px 10px;text-align:right;font-family:var(--mono);font-weight:600">$'+r.precio.toLocaleString(BP_LOCALE)+'</td>'
+        +'<td style="padding:7px 10px;text-align:right;font-family:var(--mono);color:var(--ok);font-weight:600">$'+r.bb.toLocaleString(BP_LOCALE)+'</td>'
         +'<td style="padding:7px 10px"><button class="bsm dx" onclick="eliminarItemHistorico('+Number(i)+')">✕</button></td>'
         +'</tr>';
     }
@@ -5219,7 +5200,7 @@ function descargarHistorico(){
 
   var data={
     version:1, fecha:fechaISO,
-    salon:'Salon Men Saúl Fino', local:'Local 222',
+    salon:BP.nombre, local:BP.local,
     generado:new Date().toISOString(),
     registros:regsConFecha, gastos:[]
   };
@@ -6010,15 +5991,16 @@ function salaGuardarPago(queueId, val){
   _pagoSelections[queueId] = val;
 }
 var _editorClienteId = null;
-var SALA_PRECIOS = {
-  'Corte':13000,'Corte clásico':13000,'Corte Clásico':13000,'Barba':10000,'Corte + Barba':22000,
-  'Corte + Perfilado de barba':16000,'Perfilado de corte':6000,
-  'Perfilado de cejas':4000,'Barba + Cejas':13000,
-  'Perfilado de barba':6000,'Matizado canas cabello':8000,'Matizado ganas de cabello':8000,
-  'Matizado canas barba':5000,'Matizado ganas de barba':5000,
-  'Corte + Cejas':15000
-  // 'Corte Express + Perfilado de barba' removed 2026-07-16 — retired, not repriced.
-};
+// Fills the service dropdowns of the Sala forms (new client and editor), keeping the first option and the current choice.
+function salaPoblarServicios(nombres){
+  ['sala-svc','editor-svc'].forEach(function(id){
+    var sel=document.getElementById(id); if(!sel) return;
+    var actual=sel.value, primera=sel.options.length?sel.options[0].outerHTML:'<option value="">Elegir…</option>';
+    sel.innerHTML=primera+nombres.map(function(n){ return '<option value="'+escAttr(n)+'">'+escHtml(n)+'</option>'; }).join('');
+    if(actual) sel.value=actual;
+  });
+}
+var SALA_PRECIOS = JSON.parse(JSON.stringify(BP.salaPrecios||{}));   // until the server's prices arrive; Salón Men's own list lives in config.js
 
 function salaAutoPreio(){
   var svc=document.getElementById('sala-svc').value;
@@ -6803,13 +6785,13 @@ function waUrl(phone, msg){
   if(!phone) return '';
   var d = String(phone).replace(/\D/g,'');
   if(!d) return '';
-  if(d.length<=9) d = '56'+d;
+  if(d.length<=BP.telLocalMax) d = BP.codigoPais+d;   // a local number (no country code) gets the business's country code
   return 'https://api.whatsapp.com/send?phone='+d+'&text='+encodeURIComponent(msg);
 }
 function salaWaHref(phone, name, barberNombre, enServicio){
   var msg = enServicio
-    ? '✂️ Hola '+name+', ¡es tu turno con '+barberNombre+'! Te esperamos en Salon Men Saúl Fino · Local 222.'
-    : '🔔 Hola '+name+', en unos minutos es tu turno con '+barberNombre+'. Acércate a Salon Men Saúl Fino · Local 222.';
+    ? '✂️ Hola '+name+', ¡es tu turno con '+barberNombre+'! Te esperamos en '+BP.lugar+'.'
+    : '🔔 Hola '+name+', en unos minutos es tu turno con '+barberNombre+'. Acércate a '+BP.lugar+'.';
   var url = waUrl(phone, msg);
   if(!url) return '';
   return '<a href="'+escHtml(url)+'" target="_blank" rel="noopener" title="Enviar WhatsApp" style="padding:2px 8px;font-size:11px;background:#25D366;color:#fff;border-radius:var(--r);text-decoration:none;display:inline-flex;align-items:center;font-family:var(--sans);white-space:nowrap">💬 WA</a>';
@@ -6876,7 +6858,7 @@ function renderSala(){
         // EN SERVICIO
         if(enSvc){
           var sv=b.enServicio;
-          var desde=sv.service_start?new Date(sv.service_start).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'}):'—';
+          var desde=sv.service_start?new Date(sv.service_start).toLocaleTimeString(BP_LOCALE,{hour:'2-digit',minute:'2-digit'}):'—';
           h+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:5px">EN SERVICIO</div>';
           h+=salaServicioActivoHtml(sv,b.nombre,bid,'sala',desde);
         } else {
@@ -7004,7 +6986,7 @@ function sillasEstadoOcupada(startMs,durMin,ahora){
     pct:Math.min(100,Math.max(0,(ahora-startMs)/(durMin*60000)*100))
   };
 }
-function sillasHora(ms){ return new Date(ms).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit',hour12:false}); }
+function sillasHora(ms){ return new Date(ms).toLocaleTimeString(BP_LOCALE,{hour:'2-digit',minute:'2-digit',hour12:false}); }
 
 // "Próxima silla libre": when the first chair can take a new client, counting the queue waiting in Sala.
 //  sillas: [{ocupada:bool, finMs:number|null (busy chair: estimated finish), espera:[service names waiting for THAT barber]}]
@@ -7047,7 +7029,7 @@ function sillasProximaLibre(sillas,pool,ahora,atrasoMin){
 
 // Minutes since midnight in Santiago for a timestamp (the shop's clock, whatever the browser's time zone).
 function sillasMinutosDelDia(ms){
-  var p=new Date(ms).toLocaleTimeString('en-GB',{timeZone:'America/Santiago',hour12:false,hour:'2-digit',minute:'2-digit'}).split(':');
+  var p=new Date(ms).toLocaleTimeString('en-GB',{timeZone:BP_TZ,hour12:false,hour:'2-digit',minute:'2-digit'}).split(':');
   return parseInt(p[0],10)*60+parseInt(p[1],10);
 }
 // Upcoming appointment of each barber within the next N minutes (information only: the rotation never reads it).
@@ -7901,16 +7883,10 @@ var STAFF_KEY='bp_staff_v1';
 // Commission rates are no longer kept in this browser (Stage 0 freeze,
 // 2026-10-13): they live in the server and are edited in Administración →
 // Comisiones (stage 3b), with reason, history and undo.
-var BB_DEFAULT=[
-  {id:'b1',nombre:'Didian',  active:true},
-  {id:'b2',nombre:'Emerson', active:true},
-  {id:'b4',nombre:'David',   active:false},
-  {id:'b5',nombre:'Steven',  active:true},
-  {id:'b6',nombre:'Winder',  active:true}
-];
+var BB_DEFAULT=BP.barberosRespaldo||[];   // fallback roster while the server answers: from config.js (Salón Men's own file), empty for a client
 
 // Canonical bid→name — must match constants.js in the app and BARBER_NAME_MAP in the API
-var BB_CANONICAL_NAMES = {b1:'Didian',b2:'Emerson',b5:'Steven',b6:'Winder'};
+var BB_CANONICAL_NAMES = BP.nombresCanonicos||{};
 
 function loadStaffConfig(){
   try{
@@ -8497,7 +8473,7 @@ function _svcMotivoBloqueo(){
   return '';
 }
 function _svcPuedeEditar(){return _svcMotivoBloqueo()==='';}
-function _fmtCLP(n){return '$'+Number(n).toLocaleString('es-CL');}
+function _fmtCLP(n){return '$'+Number(n).toLocaleString(BP_LOCALE);}
 function _svcLimpiarNombre(s){return String(s||'').trim().replace(/\s+/g,' ');}
 function _svcEsEnteroPositivo(txt){return /^\d+$/.test(txt)&&parseInt(txt,10)>0;}
 var _MSG_PRECIO_INVALIDO='El precio debe ser un número entero mayor que 0, sin puntos ni decimales (ej: 22000).';
@@ -8746,7 +8722,7 @@ function staffSaveProdPrecio(id,val){
   var prod=null;
   for(var i=0;i<PRODUCTOS.length;i++)if(PRODUCTOS[i].id===id){prod=PRODUCTOS[i];break;}
   if(!prod||nuevoPrecio===prod.precio)return;
-  var fmtCLP=function(n){return '$'+n.toLocaleString('es-CL');};
+  var fmtCLP=function(n){return '$'+n.toLocaleString(BP_LOCALE);};
   if(!confirm('¿Cambiar '+prod.nombre+' de '+fmtCLP(prod.precio)+' a '+fmtCLP(nuevoPrecio)+'?')){
     renderStaffProds();return;
   }
@@ -8785,7 +8761,7 @@ function staffPatchProdPrecio(id,nuevoPrecio,precioActual,confirmMagnitud){
     if(!j.ok){toast('Error al guardar precio: '+(j.error||'?'));renderStaffProds();return;}
     if(prod)prod.precio=j.precio_nuevo;
     renderStaffProds();buildProductos();
-    toast((prod?prod.nombre:id)+' actualizado a $'+j.precio_nuevo.toLocaleString('es-CL'));
+    toast((prod?prod.nombre:id)+' actualizado a $'+j.precio_nuevo.toLocaleString(BP_LOCALE));
   })
   .catch(function(){toast('Error de red al guardar precio');renderStaffProds();});
 }
@@ -8956,7 +8932,7 @@ function clientesOnSearchInput(val){
 // Strips spaces, hyphens, and a leading +56 so "91234" matches a stored
 // "+56 9 1234 5678" — comparison-only, never changes the displayed value.
 function clientesNormalizePhone(s){
-  return (s||'').replace(/[\s-]/g,'').replace(/^\+56/,'');
+  return (s||'').replace(/[\s-]/g,'').replace(new RegExp('^\\+'+BP.codigoPais),'');
 }
 function clientesMatchesSearch(c){
   if(!_clientesSearchText)return true;
@@ -9149,15 +9125,15 @@ function clientesWaButtons(c){
   var telOk=c.confianza_identidad==='alta'&&c.telefono&&c.telefono!==CLIENTES_TELEFONO_PLACEHOLDER;
   if(!telOk)return '';
   var barberoNombre=clientesBarberoNombre(c.ultimo_barbero);
-  var msgAgradecimiento='💈 Hola '+c.nombre+', ¡Fue un gusto atenderte hoy en Salon Men! Te dejo por acá el link de nuestra página en donde podrás agendar muy fácil tu próximo servicio con '+barberoNombre+'.\n¡Te esperamos!\nhttps://salonmensf.livedata.cl';
-  var msgResena='¡Hola '+c.nombre+'! Esperamos que hayas disfrutado tu corte y servicio hoy en la barbería.\nNos ayuda enormemente que nos dejes una breve opinión en Google para seguir mejorando.\nPara que no pierdas tiempo pensando qué poner, aquí tienes un par de ideas sobre lo que nos sirve mucho que menciones:\n\n✂️ ¿Qué tal quedó tu corte de cabello / arreglo de barba?\n☕ ¿Cómo sentiste la atención, la puntualidad y el ambiente?\n📍 ¿Nos recomendarías como tu barbería preferida en Santiago Centro?\n\n👉 Deja tu reseña en 30 segundos aquí: https://g.page/r/Cee_fupz7sMXEBM/review';
+  var msgAgradecimiento='💈 Hola '+c.nombre+', ¡Fue un gusto atenderte hoy en '+(BP.nombreCorto||BP.nombre)+'!'+(BP.reservaUrl?' Te dejo por acá el link de nuestra página en donde podrás agendar muy fácil tu próximo servicio con '+barberoNombre+'.':' Con gusto te atendemos de nuevo con '+barberoNombre+'.')+'\n¡Te esperamos!'+(BP.reservaUrl?'\n'+BP.reservaUrl:'');
+  var msgResena=BP.mensajeResena?BP.mensajeResena.split('{nombre}').join(c.nombre):'';   // the text (and the Google link) of THIS business; none = no review button
   // Both buttons open WhatsApp Web on this client's chat with the message pre-filled; the
   // person reviews it and presses Enviar there. Same link builder as the Sala de Espera button.
-  var uAg=waUrl(c.telefono,msgAgradecimiento), uRe=waUrl(c.telefono,msgResena);
-  if(!uAg||!uRe) return '';
+  var uAg=waUrl(c.telefono,msgAgradecimiento), uRe=msgResena?waUrl(c.telefono,msgResena):'';
+  if(!uAg||(msgResena&&!uRe)) return '';
   var est='text-decoration:none;display:inline-block;color:inherit';
   return '<a class="bsm" href="'+escHtml(uAg)+'" target="_blank" rel="noopener" style="'+est+'" title="Abrir WhatsApp Web con el agradecimiento escrito">💬 Agradecimiento</a>'
-    +'<a class="bsm" href="'+escHtml(uRe)+'" target="_blank" rel="noopener" style="'+est+'" title="Abrir WhatsApp Web con el pedido de reseña en Google escrito">⭐ Reseña Google</a>';
+    +(uRe?'<a class="bsm" href="'+escHtml(uRe)+'" target="_blank" rel="noopener" style="'+est+'" title="Abrir WhatsApp Web con el pedido de reseña en Google escrito">⭐ Reseña Google</a>':'');
 }
 
 // ── Clientes → "Enviar a la cola" ──

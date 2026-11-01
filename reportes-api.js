@@ -99,7 +99,7 @@ function pagoBarbero(lista){
   for(var i=0;i<lista.length;i++){ c+=Number(lista[i].bb)||0; p+=Number(lista[i].propina)||0; }
   return {comision:c, propina:p, total:c+p};
 }
-function _clp(n){ return '$'+Math.round(n||0).toLocaleString('es-CL'); }
+function _clp(n){ return '$'+Math.round(n||0).toLocaleString(BP_LOCALE); }
 // One sale's (or one barber's) pay in a table cell: the commission, and the
 // tip with the total below it when there is a tip.
 function pagoCeldaHtml(comision, propina){
