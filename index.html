@@ -569,7 +569,7 @@
     <div class="hdr-logo">SF</div>
     <div>
       <div class="hdr-title" id="hdrTitle"></div>
-      <div class="hdr-sub">Sistema de Control · Local 222</div>
+      <div class="hdr-sub" id="hdrSub"></div>
     </div>
   </div>
   <div class="hdr-right">
@@ -753,7 +753,7 @@
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
           <div style="position:relative">
             <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Teléfono (opcional)</div>
-            <input id="sala-tel" type="tel" placeholder="+56 9 1234 5678" autocomplete="off"
+            <input id="sala-tel" type="tel" placeholder="" autocomplete="off"
               style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--sans);background:var(--surface)"
               oninput="salaBuscarClienteLocal(this.value)"
               onblur="buscarClientePorTel('sala')" />
@@ -765,7 +765,7 @@
           </div>
           <div>
             <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Nombre *</div>
-            <input id="sala-nombre" type="text" placeholder="Rodrigo Villalobos"
+            <input id="sala-nombre" type="text" placeholder=""
               style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--sans);background:var(--surface)" />
           </div>
         </div>
@@ -781,18 +781,7 @@
             <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Servicio *</div>
             <select id="sala-svc" onchange="salaAutoPreio()" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--surface);font-family:var(--sans)">
               <option value="">Elegir…</option>
-              <option value="Corte">Corte</option>
-              <option value="Barba">Barba</option>
-              <option value="Corte + Barba">Corte + Barba</option>
-              <option value="Corte + Perfilado de barba">Corte + Perfilado de barba</option>
-              <option value="Perfilado de corte">Perfilado de corte</option>
-              <option value="Perfilado de cejas">Perfilado de cejas</option>
-              <option value="Barba + Cejas">Barba + Cejas</option>
-              <option value="Perfilado de barba">Perfilado de barba</option>
-              <option value="Matizado canas cabello">Matizado canas cabello</option>
-              <option value="Matizado canas barba">Matizado canas barba</option>
-              <option value="Corte + Cejas">Corte + Cejas</option>
-              <!-- s11 (Corte Express + Perfilado de barba) retired 2026-07-16 — removed, not just repriced. -->
+                          <!-- the options come from the deployment config (BP.salaServicios) or from the service catalog of the server: salaPoblarServicios() -->
             </select>
           </div>
           <div>
@@ -934,10 +923,6 @@
           <select id="editor-bid" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--surface);font-family:var(--sans)">
             <option value="">Sin cambio</option>
             <option value="any">⚡ Primer disponible</option>
-            <option value="b1">Didian</option>
-            <option value="b2">Emerson</option>
-            <option value="b5">Steven</option>
-            <option value="b6">Winder</option>
             <!-- Options refreshed dynamically by loadBB() from GET /barberos -->
           </select>
         </div>
@@ -950,18 +935,7 @@
           <select id="editor-svc" onchange="salaEditorAutoPreio()"
             style="padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--surface);font-family:var(--sans)">
             <option value="">Elegir…</option>
-            <option value="Corte">Corte</option>
-            <option value="Barba">Barba</option>
-            <option value="Corte + Barba">Corte + Barba</option>
-            <option value="Corte + Perfilado de barba">Corte + Perfilado de barba</option>
-            <option value="Perfilado de corte">Perfilado de corte</option>
-            <option value="Perfilado de cejas">Perfilado de cejas</option>
-            <option value="Barba + Cejas">Barba + Cejas</option>
-            <option value="Perfilado de barba">Perfilado de barba</option>
-            <option value="Matizado canas cabello">Matizado canas cabello</option>
-            <option value="Matizado canas barba">Matizado canas barba</option>
-            <option value="Corte + Cejas">Corte + Cejas</option>
-            <!-- s11 (Corte Express + Perfilado de barba) retired 2026-07-16 — removed, not just repriced. -->
+                        <!-- the options come from the deployment config (BP.salaServicios) or from the service catalog of the server: salaPoblarServicios() -->
           </select>
           <input id="editor-precio" type="number" placeholder="Precio" readonly tabindex="-1" aria-readonly="true" title="Precio del catálogo: el precio se ajusta al cobrar"
             style="padding:8px 10px;border:1px dashed var(--border);border-radius:var(--r);font-size:13px;font-family:var(--mono);background:var(--surface2);color:var(--text2);cursor:default"/>
@@ -1321,10 +1295,10 @@
 <script>
 // ═══ DEPLOYMENT CONFIG (config.js): API URL, business name, address, locale, time zone. One file per deployment; nothing of another business is a default in this code.
 var BP = window.BP_CONFIG;
-if (!BP || !BP.apiUrl || !BP.nombre || !BP.locale || !BP.timeZone) { document.body.innerHTML = '<p style="font-family:sans-serif;padding:24px">Falta la configuración de este negocio (config.js). Avisa a quien instaló el sistema.</p>'; throw new Error('config.js ausente o incompleto'); }
+if (!BP || !BP.apiUrl || !BP.nombre || !BP.locale || !BP.timeZone || !BP.codigoPais || !BP.telLocalMax) { document.body.innerHTML = '<p style="font-family:sans-serif;padding:24px">Falta la configuración de este negocio (config.js). Avisa a quien instaló el sistema.</p>'; throw new Error('config.js ausente o incompleto'); }
 var BP_LOCALE = BP.locale, BP_TZ = BP.timeZone;
 document.title = 'Sistema de Control · ' + BP.nombre;
-document.addEventListener('DOMContentLoaded', function(){ var a=document.getElementById('hdrTitle'), b=document.getElementById('plcSub'); if(a) a.textContent=BP.nombre; if(b) b.textContent=BP.nombre+' · Acceso de panel'; });
+document.addEventListener('DOMContentLoaded', function(){ var a=document.getElementById('hdrTitle'), b=document.getElementById('plcSub'); if(a) a.textContent=BP.nombre; if(b) b.textContent=BP.nombre+' · Acceso de panel'; var s=document.getElementById('hdrSub'); if(s) s.textContent='Sistema de Control'+(BP.local?' · '+BP.local:''); var tl=document.getElementById('sala-tel'); if(tl) tl.placeholder=BP.telefonoEjemplo||''; var nm=document.getElementById('sala-nombre'); if(nm) nm.placeholder=BP.nombreEjemplo||''; if(BP.salaServicios) salaPoblarServicios(BP.salaServicios); });
 // ═══ SESIÓN DEL PANEL: aviso antes de vencer y reingreso SIN recargar ═══════════════════════════════════════════
 // El token del panel dura 8 h. 10 minutos antes de vencer aparece un aviso que no bloquea ("Tu sesión vence pronto · Renovar").
 // Si una petición recibe 401 por sesión vencida o inválida NO se muestra "Unauthorized": se abre un cuadro de ingreso encima de la
@@ -1557,6 +1531,7 @@ function cargarConfigDesdeServidor(){
           (s.aliases||[]).forEach(function(a){_np[a]=s.precio_activo;});
         });
         SALA_PRECIOS=_np;
+        if(!BP.salaServicios) salaPoblarServicios(json.servicios.map(function(s){return s.nombre_canonico;}).filter(Boolean));   // a client: the Sala forms offer the catalog of the server
       }
       if(Array.isArray(json.barberos)&&json.barberos.length){
         // Merge, never replace — this response is active-only (same shape
@@ -3249,8 +3224,7 @@ function mkTktHtml(r){
   var h='<div style="font-family:monospace;font-size:11px;line-height:1.45;width:52mm;padding:2mm 0">'
     +'<div style="text-align:center;font-weight:bold;font-size:14px">'+escHtml(String(BP.nombreCorto||BP.nombre).toUpperCase())+'</div>'
     +'<div style="text-align:center;font-weight:bold;font-size:13px">SAÚL FINO</div>'
-    +'<div style="text-align:center;font-size:9px;margin-top:2px">Galería Santiago Centro · Local 222</div>'
-    +'<div style="text-align:center;font-size:9px">Línea 1 Metro · Santiago</div>'
+    +(BP.ticketLineas||[]).map(function(x,i){ return '<div style="text-align:center;font-size:9px'+(i===0?';margin-top:2px':'')+'">'+escHtml(x)+'</div>'; }).join('')
     +'<div style="border-top:1px dashed #000;margin:4px 0"></div>'
 
     +'<div style="display:flex;justify-content:space-between;font-size:10px"><span>Fecha:</span><span>'+escHtml(r.fecha)+'</span></div>'
@@ -3368,7 +3342,7 @@ function printCierre58mm(){
 
     var h='<div style="font-family:monospace;font-size:10px;line-height:1.45;width:52mm;page-break-after:always;padding:2mm 0">'
       +'<div style="text-align:center;font-weight:bold;font-size:13px">'+escHtml(BP.nombre.toUpperCase())+'</div>'
-      +'<div style="text-align:center;font-size:9px">Galería Santiago Centro · Local 222</div>'
+      +'<div style="text-align:center;font-size:9px">'+escHtml((BP.ticketLineas||[])[0]||'')+'</div>'
       +'<div style="border-top:1px dashed #000;margin:4px 0"></div>'
       +'<div style="text-align:center;font-weight:bold;font-size:12px">'+escHtml(b.nombre.toUpperCase())+'</div>'
       +'<div style="text-align:center;font-size:9px">RESUMEN DE JORNADA · '+escHtml(fecha)+'</div>'
@@ -3505,7 +3479,7 @@ function generarHTMLA4(fecha, recs, gastosParam){
     +'<button class="no-print" onclick="window.print()" style="position:fixed;top:16px;right:16px;padding:10px 22px;background:#1a1916;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;z-index:100">Imprimir A4</button>'
     +'<div class="hdr-doc">'
     +'<div><div class="brand">'+escHtml(BP.nombre)+'</div>'
-    +'<div class="brand-sub">Galería Santiago Centro · Local 222 · Línea 1 Metro</div></div>'
+    +'<div class="brand-sub">'+escHtml(BP.direccionLarga||BP.direccion||'')+'</div></div>'
     +'<div class="doc-meta"><strong>Resumen de Jornada</strong><br>'+escHtml(fecha)+'<br>Generado: '+new Date().toLocaleTimeString(BP_LOCALE,{hour:'2-digit',minute:'2-digit'})+'</div>'
     +'</div>'
     +'<div class="doc-title">Cierre de Jornada · '+escHtml(fecha)+'</div>'
@@ -4511,7 +4485,7 @@ function printCaja(){
   var cajaFinal=BASE_CAJA+totE-totalPagoEfectivo-totalGastosPrint;
 
   var h='<center><b>'+escHtml(BP.nombre.toUpperCase())+'</b></center>'
-    +'<center>Local 222 · Gal. Santiago Centro</center>'
+    +'<center>'+escHtml(BP.ticketCorto||BP.direccion||'')+'</center>'
     +'<hr style="border-top:1px dashed #000;margin:4px 0">'
     +'<center><b>CIERRE DE CAJA · '+escHtml(fecha)+'</b></center>'
     +'<center>'+escHtml(hora)+'</center>'
@@ -6017,15 +5991,16 @@ function salaGuardarPago(queueId, val){
   _pagoSelections[queueId] = val;
 }
 var _editorClienteId = null;
-var SALA_PRECIOS = {
-  'Corte':13000,'Corte clásico':13000,'Corte Clásico':13000,'Barba':10000,'Corte + Barba':22000,
-  'Corte + Perfilado de barba':16000,'Perfilado de corte':6000,
-  'Perfilado de cejas':4000,'Barba + Cejas':13000,
-  'Perfilado de barba':6000,'Matizado canas cabello':8000,'Matizado ganas de cabello':8000,
-  'Matizado canas barba':5000,'Matizado ganas de barba':5000,
-  'Corte + Cejas':15000
-  // 'Corte Express + Perfilado de barba' removed 2026-07-16 — retired, not repriced.
-};
+// Fills the service dropdowns of the Sala forms (new client and editor), keeping the first option and the current choice.
+function salaPoblarServicios(nombres){
+  ['sala-svc','editor-svc'].forEach(function(id){
+    var sel=document.getElementById(id); if(!sel) return;
+    var actual=sel.value, primera=sel.options.length?sel.options[0].outerHTML:'<option value="">Elegir…</option>';
+    sel.innerHTML=primera+nombres.map(function(n){ return '<option value="'+escAttr(n)+'">'+escHtml(n)+'</option>'; }).join('');
+    if(actual) sel.value=actual;
+  });
+}
+var SALA_PRECIOS = JSON.parse(JSON.stringify(BP.salaPrecios||{}));   // until the server's prices arrive; Salón Men's own list lives in config.js
 
 function salaAutoPreio(){
   var svc=document.getElementById('sala-svc').value;
@@ -6810,7 +6785,7 @@ function waUrl(phone, msg){
   if(!phone) return '';
   var d = String(phone).replace(/\D/g,'');
   if(!d) return '';
-  if(d.length<=9) d = '56'+d;
+  if(d.length<=BP.telLocalMax) d = BP.codigoPais+d;   // a local number (no country code) gets the business's country code
   return 'https://api.whatsapp.com/send?phone='+d+'&text='+encodeURIComponent(msg);
 }
 function salaWaHref(phone, name, barberNombre, enServicio){
@@ -7908,16 +7883,10 @@ var STAFF_KEY='bp_staff_v1';
 // Commission rates are no longer kept in this browser (Stage 0 freeze,
 // 2026-10-13): they live in the server and are edited in Administración →
 // Comisiones (stage 3b), with reason, history and undo.
-var BB_DEFAULT=[
-  {id:'b1',nombre:'Didian',  active:true},
-  {id:'b2',nombre:'Emerson', active:true},
-  {id:'b4',nombre:'David',   active:false},
-  {id:'b5',nombre:'Steven',  active:true},
-  {id:'b6',nombre:'Winder',  active:true}
-];
+var BB_DEFAULT=BP.barberosRespaldo||[];   // fallback roster while the server answers: from config.js (Salón Men's own file), empty for a client
 
 // Canonical bid→name — must match constants.js in the app and BARBER_NAME_MAP in the API
-var BB_CANONICAL_NAMES = {b1:'Didian',b2:'Emerson',b5:'Steven',b6:'Winder'};
+var BB_CANONICAL_NAMES = BP.nombresCanonicos||{};
 
 function loadStaffConfig(){
   try{
@@ -8963,7 +8932,7 @@ function clientesOnSearchInput(val){
 // Strips spaces, hyphens, and a leading +56 so "91234" matches a stored
 // "+56 9 1234 5678" — comparison-only, never changes the displayed value.
 function clientesNormalizePhone(s){
-  return (s||'').replace(/[\s-]/g,'').replace(/^\+56/,'');
+  return (s||'').replace(/[\s-]/g,'').replace(new RegExp('^\\+'+BP.codigoPais),'');
 }
 function clientesMatchesSearch(c){
   if(!_clientesSearchText)return true;
@@ -9157,14 +9126,14 @@ function clientesWaButtons(c){
   if(!telOk)return '';
   var barberoNombre=clientesBarberoNombre(c.ultimo_barbero);
   var msgAgradecimiento='💈 Hola '+c.nombre+', ¡Fue un gusto atenderte hoy en '+(BP.nombreCorto||BP.nombre)+'!'+(BP.reservaUrl?' Te dejo por acá el link de nuestra página en donde podrás agendar muy fácil tu próximo servicio con '+barberoNombre+'.':' Con gusto te atendemos de nuevo con '+barberoNombre+'.')+'\n¡Te esperamos!'+(BP.reservaUrl?'\n'+BP.reservaUrl:'');
-  var msgResena='¡Hola '+c.nombre+'! Esperamos que hayas disfrutado tu corte y servicio hoy en la barbería.\nNos ayuda enormemente que nos dejes una breve opinión en Google para seguir mejorando.\nPara que no pierdas tiempo pensando qué poner, aquí tienes un par de ideas sobre lo que nos sirve mucho que menciones:\n\n✂️ ¿Qué tal quedó tu corte de cabello / arreglo de barba?\n☕ ¿Cómo sentiste la atención, la puntualidad y el ambiente?\n📍 ¿Nos recomendarías como tu barbería preferida en Santiago Centro?\n\n👉 Deja tu reseña en 30 segundos aquí: https://g.page/r/Cee_fupz7sMXEBM/review';
+  var msgResena=BP.mensajeResena?BP.mensajeResena.split('{nombre}').join(c.nombre):'';   // the text (and the Google link) of THIS business; none = no review button
   // Both buttons open WhatsApp Web on this client's chat with the message pre-filled; the
   // person reviews it and presses Enviar there. Same link builder as the Sala de Espera button.
-  var uAg=waUrl(c.telefono,msgAgradecimiento), uRe=waUrl(c.telefono,msgResena);
-  if(!uAg||!uRe) return '';
+  var uAg=waUrl(c.telefono,msgAgradecimiento), uRe=msgResena?waUrl(c.telefono,msgResena):'';
+  if(!uAg||(msgResena&&!uRe)) return '';
   var est='text-decoration:none;display:inline-block;color:inherit';
   return '<a class="bsm" href="'+escHtml(uAg)+'" target="_blank" rel="noopener" style="'+est+'" title="Abrir WhatsApp Web con el agradecimiento escrito">💬 Agradecimiento</a>'
-    +'<a class="bsm" href="'+escHtml(uRe)+'" target="_blank" rel="noopener" style="'+est+'" title="Abrir WhatsApp Web con el pedido de reseña en Google escrito">⭐ Reseña Google</a>';
+    +(uRe?'<a class="bsm" href="'+escHtml(uRe)+'" target="_blank" rel="noopener" style="'+est+'" title="Abrir WhatsApp Web con el pedido de reseña en Google escrito">⭐ Reseña Google</a>':'');
 }
 
 // ── Clientes → "Enviar a la cola" ──
