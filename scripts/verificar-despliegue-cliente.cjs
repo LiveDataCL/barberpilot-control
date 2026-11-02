@@ -40,6 +40,7 @@ function verificar(dir) {
   listar(dir, []).forEach(function (f) {
     const rel = path.relative(dir, f).replace(/\\/g, '/');
     if (!TEXT.test(f)) return;
+    if (rel === 'scripts/verificar-despliegue-cliente.cjs' || rel === 'scripts/verificar-despliegue-cliente.test.cjs') return;   // the check and its self-test must spell out the forbidden names
     const s = fs.readFileSync(f, 'utf8');
     FORBIDDEN.forEach(function (r) { if (r.re.test(s)) fallas.push(rel + ': contains ' + r.why); });
     if (rel !== 'config.js') {

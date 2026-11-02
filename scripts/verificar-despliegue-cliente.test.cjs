@@ -27,5 +27,14 @@ caso('page with fetch but no config.js fails', { 'config.js': CFG, 'dash.html': 
 caso('the internal tenant id alone is allowed', { 'config.js': CFG.replace('"x"', '"saulfino"'), 'index.html': PAG }, false);
 caso('Agenda on without its page fails', { 'config.js': CFG.replace('"nombre"', 'agenda: true, "nombre"'), 'index.html': PAG }, true);
 caso('Agenda on with its page passes', { 'config.js': CFG.replace('"nombre"', 'agenda: true, "nombre"'), 'index.html': PAG, 'agenda-admin.html': PAG }, false);
+const SELF = fs.readFileSync(path.join(__dirname, 'verificar-despliegue-cliente.cjs'), 'utf8');
+const SELFT = fs.readFileSync(__filename, 'utf8');
+const dS = fs.mkdtempSync(path.join(os.tmpdir(), 'vdc-')); fs.mkdirSync(path.join(dS, 'scripts'));
+fs.writeFileSync(path.join(dS, 'config.js'), CFG); fs.writeFileSync(path.join(dS, 'index.html'), PAG);
+fs.writeFileSync(path.join(dS, 'scripts', 'verificar-despliegue-cliente.cjs'), SELF); fs.writeFileSync(path.join(dS, 'scripts', 'verificar-despliegue-cliente.test.cjs'), SELFT);
+fs.writeFileSync(path.join(dS, 'scripts', 'otro.cjs'), '// Salón Men');
+const fS = verificar(dS); n++;
+if (fS.length === 1 && /scripts\/otro\.cjs/.test(fS[0])) console.log('ok: the check and its self-test are not flagged for naming the forbidden names, any other script is'); else { bad++; console.error('FAIL: self-skip -> ' + JSON.stringify(fS)); }
+fs.rmSync(dS, { recursive: true, force: true });
 if (bad) { console.error(bad + ' of ' + n + ' cases failed'); process.exit(1); }
 console.log('all ' + n + ' cases pass');
