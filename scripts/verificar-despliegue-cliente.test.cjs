@@ -25,5 +25,7 @@ caso('Salón Men name in a page fails', { 'config.js': CFG, 'index.html': PAG + 
 caso('shared Pages origin fails', { 'config.js': CFG, 'index.html': PAG + '<a href="https://livedatacl.github.io/x">x</a>' }, true);
 caso('page with fetch but no config.js fails', { 'config.js': CFG, 'dash.html': '<script>fetch("/x")</script>' }, true);
 caso('the internal tenant id alone is allowed', { 'config.js': CFG.replace('"x"', '"saulfino"'), 'index.html': PAG }, false);
+caso('Agenda on without its page fails', { 'config.js': CFG.replace('"nombre"', 'agenda: true, "nombre"'), 'index.html': PAG }, true);
+caso('Agenda on with its page passes', { 'config.js': CFG.replace('"nombre"', 'agenda: true, "nombre"'), 'index.html': PAG, 'agenda-admin.html': PAG }, false);
 if (bad) { console.error(bad + ' of ' + n + ' cases failed'); process.exit(1); }
 console.log('all ' + n + ' cases pass');

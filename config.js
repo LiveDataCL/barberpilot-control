@@ -21,6 +21,9 @@ window.BP_CONFIG = {
   telLocalMax: 9,   // un número de hasta N dígitos se considera local y recibe el prefijo
   telefonoEjemplo: "+56 9 1234 5678",
   nombreEjemplo: "Rodrigo Villalobos",
+  agenda: true,   // este negocio tiene la página de Agenda (agenda-admin.html); sin esta clave la pestaña Agenda no aparece
+  ticketNombre: "Salon Men",   // primera línea del ticket (por defecto: nombreCorto)
+  ticketLinea2: "Saúl Fino",   // segunda línea del ticket (opcional)
   ticketLineas: [
     "Galería Santiago Centro · Local 222",
     "Línea 1 Metro · Santiago"
