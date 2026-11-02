@@ -7946,6 +7946,7 @@ function salaActualizarServicio(){
         }
         if(svc!==servicioAntes){ delete _borr['prc-'+_editorQueueId]; borrPersistir(); }   // a new service brings its catalog price: drop the price typed for the old one
         salaCerrarEditor();
+        try{ if(tabActiva('pSillas')) sillasCargar(); else if(tabActiva('pSala')) renderSala(); }catch(e){}   // the remaining time of the chair is recalculated now, with the server's duration of the new service (not on the next periodic refresh)
       } else toast('Error: '+(j.error||''));
     }).catch(function(e){toast('Error: '+e.message);});
 }
