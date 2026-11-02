@@ -1359,6 +1359,9 @@ var BP = window.BP_CONFIG;
 if (!BP || !BP.apiUrl || !BP.nombre || !BP.locale || !BP.timeZone || !BP.codigoPais || !BP.telLocalMax) { document.body.innerHTML = '<p style="font-family:sans-serif;padding:24px">Falta la configuración de este negocio (config.js). Avisa a quien instaló el sistema.</p>'; throw new Error('config.js ausente o incompleto'); }
 var BP_LOCALE = BP.locale, BP_TZ = BP.timeZone;
 document.title = 'Sistema de Control · ' + BP.nombre;
+// Agenda (agenda-admin.html) exists only where config.js says agenda: true; without the key its tab and header link stay hidden and nothing opens it
+var AGENDA_ON = (BP.agenda === true);
+if (!AGENDA_ON) document.addEventListener('DOMContentLoaded', function(){ var t=document.getElementById('tabAgenda'); if(t) t.style.display='none'; var l=document.querySelectorAll('[onclick*="pAgenda"]'); for(var i=0;i<l.length;i++) l[i].style.display='none'; });
 document.addEventListener('DOMContentLoaded', function(){ var a=document.getElementById('hdrTitle'), b=document.getElementById('plcSub'); if(a) a.textContent=BP.nombre; if(b) b.textContent=BP.nombre+' · Acceso de panel'; var s=document.getElementById('hdrSub'); if(s) s.textContent='Sistema de Control'+(BP.local?' · '+BP.local:''); var tl=document.getElementById('sala-tel'); if(tl) tl.placeholder=BP.telefonoEjemplo||''; var nm=document.getElementById('sala-nombre'); if(nm) nm.placeholder=BP.nombreEjemplo||''; if(BP.salaServicios) salaPoblarServicios(BP.salaServicios); });
 // ═══ SESIÓN DEL PANEL: aviso antes de vencer y reingreso SIN recargar ═══════════════════════════════════════════
 // El token del panel dura 8 h. 10 minutos antes de vencer aparece un aviso que no bloquea ("Tu sesión vence pronto · Renovar").
@@ -2408,6 +2411,7 @@ document.addEventListener('click', function(e){
 });
 
 function showTabById(id){
+  if(id==='pAgenda'&&!AGENDA_ON) return;   // this business has no Agenda page
   var all;
   all=document.querySelectorAll('.tab');for(var i=0;i<all.length;i++)all[i].classList.remove('on');
   all=document.querySelectorAll('.pane');for(var i=0;i<all.length;i++)all[i].classList.remove('on');
@@ -3226,6 +3230,7 @@ function aprobarTodos(){
 }
 
 function showTab(id,el){
+  if(id==='pAgenda'&&!AGENDA_ON) return;
   var all;
   all=document.querySelectorAll('.tab');for(var i=0;i<all.length;i++)all[i].classList.remove('on');
   all=document.querySelectorAll('.pane');for(var i=0;i<all.length;i++)all[i].classList.remove('on');
@@ -3280,11 +3285,17 @@ function filtrar(f,el){
 }
 
 // ═══ TICKET 58mm ══════════════════════════════════════════
+// Header, second line, logo and footer of the ticket come from this business's config.js (ticketNombre, ticketLinea2, ticketLogo, ticketPie); without them: its own short name and nothing else
+function ticketLogoHtml(){
+  var l=BP.ticketLogo;
+  return (typeof l==='string'&&/^brand\/[A-Za-z0-9_.-]+\.(svg|png)$/.test(l))?'<div style="text-align:center;margin-bottom:2px"><img src="'+escHtml(l)+'" alt="" style="max-width:40mm;max-height:16mm"></div>':'';
+}
 function mkTktHtml(r){
   var lns=r.snom.match(/.{1,22}/g)||[r.snom];
   var h='<div style="font-family:monospace;font-size:11px;line-height:1.45;width:52mm;padding:2mm 0">'
-    +'<div style="text-align:center;font-weight:bold;font-size:14px">'+escHtml(String(BP.nombreCorto||BP.nombre).toUpperCase())+'</div>'
-    +'<div style="text-align:center;font-weight:bold;font-size:13px">SAÚL FINO</div>'
+    +ticketLogoHtml()
+    +'<div style="text-align:center;font-weight:bold;font-size:14px">'+escHtml(String(BP.ticketNombre||BP.nombreCorto||BP.nombre).toUpperCase())+'</div>'
+    +(BP.ticketLinea2?'<div style="text-align:center;font-weight:bold;font-size:13px">'+escHtml(String(BP.ticketLinea2).toUpperCase())+'</div>':'')
     +(BP.ticketLineas||[]).map(function(x,i){ return '<div style="text-align:center;font-size:9px'+(i===0?';margin-top:2px':'')+'">'+escHtml(x)+'</div>'; }).join('')
     +'<div style="border-top:1px dashed #000;margin:4px 0"></div>'
 
@@ -3319,6 +3330,7 @@ function mkTktHtml(r){
     +'<span>Comisión $'+fmt((r.acumBB||0)-(r.acumProp||0))+'</span><span>Propina $'+fmt(r.acumProp||0)+'</span>'
     +'</div>'
     +'</div>'
+    +(BP.ticketPie?'<div style="text-align:center;font-size:9px;margin-top:4px">'+escHtml(BP.ticketPie)+'</div>':'')
     +'</div>';
   return h;
 }

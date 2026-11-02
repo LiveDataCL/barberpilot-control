@@ -36,6 +36,7 @@ function verificar(dir) {
     if (!/["']?apiUrl["']?\s*:\s*["']https:\/\/[^"']+["']/.test(c)) fallas.push('config.js has no apiUrl');
     if (!/["']?nombre["']?\s*:\s*["'][^"']+["']/.test(c)) fallas.push('config.js has no nombre');
   }
+  if (fs.existsSync(cfgPath) && /["']?agenda["']?\s*:\s*true/.test(fs.readFileSync(cfgPath, 'utf8')) && !fs.existsSync(path.join(dir, 'agenda-admin.html'))) fallas.push('config.js turns the Agenda on (agenda: true) but agenda-admin.html is not in this deployment');
   listar(dir, []).forEach(function (f) {
     const rel = path.relative(dir, f).replace(/\\/g, '/');
     if (!TEXT.test(f)) return;
