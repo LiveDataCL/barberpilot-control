@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SM monogram, hand-built redraw (cubic Bezier paths fitted by eye to scanline measurements of the 1024 px PNG; NOT an auto-trace).
+     Deviation from the PNG: the original has banded metallic highlights; this uses a 5-stop linear gradient (flat version also provided).
+     Hairlines (S top terminal, M left stem, M right diagonal) are redrawn as straight/clean edges; their width may differ by 1 to 2 px at 1024. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="186 228 652 568" role="img" aria-label="SM">
+  <title>SM monogram</title>
+  <defs>
+    <linearGradient id="cu" gradientUnits="userSpaceOnUse" x1="260" y1="240" x2="760" y2="790">
+      <stop offset="0" stop-color="#C98B52"/><stop offset=".35" stop-color="#F0A860"/><stop offset=".6" stop-color="#FBAE66"/><stop offset=".8" stop-color="#C48345"/><stop offset="1" stop-color="#A8692F"/>
+    </linearGradient>
+  </defs>
+  <g fill="url(#cu)">
+    <path d="M509.5 237L509.5 402C507 365 490 325 460 291C435 265 405 250 370 246C320 244 278 265 261 300C255 315 251 328 252 340C252 365 258 385 268 400C300 430 355 468 414 500C478 528 528 582 536 655C538 700 520 730 480 760C455 775 410 788 362 788C400 786 440 768 456 740C466 720 473 705 472 690C471 672 469 655 464 640C455 625 445 612 433 600C400 574 365 553 337 540C310 525 275 503 248 480C235 468 222 454 211 440C204 428 199 414 197 400C195 390 195 365 196 350C199 332 206 315 216 300C226 288 237 278 249 270C270 255 300 244 340 241C370 240 405 246 430 253C455 260 478 264 496 263C500 255 505 245 509.5 237Z"/>
+    <path d="M519 312L618 566L732 268L826 268C806 270 794 282 790 320L788 700C789 730 800 750 830 762L688 762C712 760 727 745 730 700L730 306L729 303L595 648L522 452C520 446 519 442 519 436Z"/>
+  </g>
+</svg>

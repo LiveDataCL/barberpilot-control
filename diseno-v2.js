@@ -9,7 +9,7 @@
 (function () {
   'use strict';
   var root = document.documentElement, FONT_TIMEOUT_MS = 2500, CSS_TIMEOUT_MS = 5000;
-  var SCREENS = ['config', 'historico', 'ingresar-historico', 'administracion', 'clientes', 'agenda', 'horarios', 'shell', 'login', 'kpis', 'resumen', 'sala', 'registros', 'sillas', 'caja'];
+  var SCREENS = ['config', 'historico', 'ingresar-historico', 'administracion', 'registrar', 'clientes', 'agenda', 'horarios', 'shell', 'login', 'kpis', 'resumen', 'sala', 'registros', 'sillas', 'caja'];
   function done(estado, motivo) { if (window.BP_DISENO) return; window.BP_DISENO = { estado: estado, motivo: motivo || '' }; if (estado !== 'v2' && motivo) { try { console.warn('[diseno-v2] se queda el diseño actual: ' + motivo); } catch (e) {} } }
 
   var cfg = window.BP_CONFIG, want = cfg && typeof cfg === 'object' ? cfg.diseno : undefined;
@@ -18,10 +18,12 @@
   if (root.getAttribute('data-diseno')) { done('v2', ''); return; }
 
   // 2. tema: only --brand-* keys with #RRGGBB values; anything else rejects the whole block
-  var tema = cfg.tema, brand = {};
+  var tema = cfg.tema, brand = {}, logo = null;
   if (tema !== undefined) {
     var src = tema && typeof tema === 'object' ? tema.brand : null;
     if (!src || typeof src !== 'object') { done('clasico', 'tema mal formado'); return; }
+    if (tema.logo !== undefined && !(typeof tema.logo === 'string' && /^brand\/[a-z0-9._-]+\.svg$/i.test(tema.logo))) { done('clasico', 'tema.logo mal formado'); return; }
+    logo = tema.logo || null;
     for (var k in src) { if (!/^--brand-[a-z0-9-]+$/.test(k) || typeof src[k] !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(src[k])) { done('clasico', 'tema mal formado (' + k + ')'); return; } brand[k] = src[k]; }
   }
   // pantallasV2: a list of known screen ids; missing means none (the tokens alone change nothing visible per screen)
@@ -44,8 +46,8 @@
 
   /* Emoji become icons only while the new design is on (the current design's markup is never touched). Works on the static markup and on what the panel's
      scripts draw later (a MutationObserver per enabled pane). The icon is a decorative span; the visible words stay, so nothing loses its label. */
-  var EMOJI = { '\u{1F4CB}': 'file-text', '\u{1F517}': 'link', '\u2601': 'cloud-upload', '\u{1F4F8}': 'camera', '\u{1F511}': 'key-round', '\u{1F4C5}': 'calendar', '\u{1F4C6}': 'calendar', '\u{1F5D3}': 'calendar', '\u{1F50D}': 'search', '\u{1F4C2}': 'folder-open', '\u{1F4C1}': 'folder-open' };
-  var PANES = { config: 'pConfig', historico: 'pHist', 'ingresar-historico': 'pHistorico', administracion: 'pStaff' };
+  var EMOJI = { '\u{1F4CB}': 'file-text', '\u{1F517}': 'link', '\u2601': 'cloud-upload', '\u{1F4F8}': 'camera', '\u{1F511}': 'key-round', '\u{1F4C5}': 'calendar', '\u{1F4C6}': 'calendar', '\u{1F5D3}': 'calendar', '\u{1F50D}': 'search', '\u{1F4C2}': 'folder-open', '\u{1F4C1}': 'folder-open', '\u{1F4B0}': 'banknote', '\u270F': 'pencil', '\u23F1': 'clock', '\u{1F464}': 'user-round', '\u21BA': 'refresh-cw' };
+  var PANES = { sillas: 'pSillas', config: 'pConfig', historico: 'pHist', 'ingresar-historico': 'pHistorico', administracion: 'pStaff' };
   var EMOJI_RE = new RegExp('(' + Object.keys(EMOJI).join('|') + ')\\uFE0F?', 'gu');
   function iconizar(raiz) {
     if (!raiz) return;
@@ -61,7 +63,70 @@
     if (ult < s.length) f.appendChild(document.createTextNode(s.slice(ult)));
     if (t.parentNode) t.parentNode.replaceChild(f, t);
   }
+  /* ── Stage A: shell, Registrar servicio, Administración. DOM touches that run only while the new design is on; the current design's markup is never touched. ── */
+  var ETIQUETA_ICONO = { 'registros del día': 'clipboard-list', 'resumen': 'layout-grid', 'sillas': 'armchair', 'sala de espera': 'hourglass', 'cierre de caja': 'wallet', 'horarios': 'clock', 'administración': 'settings', 'clientes': 'users', 'agenda': 'calendar', 'kpis': 'chart-column', 'más ▾': 'ellipsis', 'más': 'ellipsis', 'aprobar': 'check', 'cierre jornada': 'clock', 'histórico': 'folder-open', 'ingresar histórico': 'folder-open', 'config': 'settings' };
+  var LETRA = /[A-Za-zÁÉÍÓÚáéíóúÑñ]/;
+  function iconoDeEtiqueta(el) {                   // "📋 Sillas" -> icon + "Sillas" (the emoji is dropped, the words stay)
+    if (!el || el.getAttribute('data-ds-i')) return;
+    var t = el.firstChild; while (t && !(t.nodeType === 3 && LETRA.test(t.nodeValue))) t = t.nextSibling;
+    if (!t) return;
+    var txt = t.nodeValue, i = 0; while (i < txt.length && !LETRA.test(txt.charAt(i))) i++;
+    var nombre = ETIQUETA_ICONO[txt.slice(i).trim().toLowerCase()]; if (!nombre) return;
+    t.nodeValue = txt.slice(i);
+    var sp = document.createElement('span'); sp.className = 'ds-i'; sp.setAttribute('data-i', nombre); sp.setAttribute('aria-hidden', 'true'); el.insertBefore(sp, t); el.setAttribute('data-ds-i', '1');
+  }
+  function iconoNuevo(nombre) { var sp = document.createElement('span'); sp.className = 'ds-i'; sp.setAttribute('data-i', nombre); sp.setAttribute('aria-hidden', 'true'); return sp; }
+  function dsShell() {
+    [].forEach.call(document.querySelectorAll('.tabs .tab, .hdr-hist'), iconoDeEtiqueta);
+    var br = document.querySelector('.hdr-brand');
+    if (br && !br.querySelector('.ds-menu-btn')) {                  // phones and tablets: the menu button opens the Registrar servicio drawer
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'ds-menu-btn'; b.setAttribute('aria-label', 'Registrar servicio'); b.setAttribute('aria-expanded', 'false'); b.appendChild(iconoNuevo('menu'));
+      b.addEventListener('click', function () { cajon(root.getAttribute('data-ds-drawer') !== 'open'); }); br.insertBefore(b, br.firstChild);
+      var sc = document.createElement('div'); sc.className = 'ds-scrim'; sc.addEventListener('click', function () { cajon(false); }); document.body.appendChild(sc);
+      document.addEventListener('keydown', function (e) { if (e.key === 'Escape') cajon(false); });
+      function cajon(abrir) { if (abrir) root.setAttribute('data-ds-drawer', 'open'); else root.removeAttribute('data-ds-drawer'); b.setAttribute('aria-expanded', String(!!abrir)); }
+    }
+  }
+  var ICONO_RIEL = { 'ir a barbero': 'user-round', 'ir a servicio': 'scissors', 'ir a forma de pago': 'credit-card', 'ir a propina': 'heart', 'ir a venta de producto': 'shopping-bag' };
+  function dsMontos() {                            // what the barber receives with each method for the chosen service: the panel's own formula (Math.round(precio * tasa))
+    var s = (typeof find === 'function' && typeof sel === 'object' && typeof SS !== 'undefined') ? find(SS, sel.s) : null;
+    [].forEach.call(document.querySelectorAll('#secPago .pbtn[data-pay]'), function (b) {
+      var pc = b.querySelector('.pc'), pn = b.querySelector('.pn'); if (!pc) return;
+      var tasa = (typeof tasaComision === 'function') ? tasaComision(b.getAttribute('data-pay')) : null;
+      if (s && tasa != null && typeof fmt === 'function') { pc.textContent = '$' + fmt(Math.round(s.precio * tasa)) + ' al barbero'; b.setAttribute('aria-label', (pn ? pn.textContent : '') + ', ' + pc.textContent); }
+      else { pc.textContent = ''; b.removeAttribute('aria-label'); }
+    });
+  }
+  function dsRegistrar() {
+    var inner = document.getElementById('plInner'); if (!inner || inner.querySelector('.ds-h')) return;
+    var h = document.createElement('h2'); h.className = 'ds-h'; h.textContent = 'Registrar servicio'; inner.insertBefore(h, inner.firstChild);
+    [].forEach.call(inner.querySelectorAll('.slbl'), function (l) { var m = /^([0-9]+) · (.*)$/.exec(l.textContent); if (m) { l.textContent = ''; var n = document.createElement('span'); n.className = 'ds-n'; n.textContent = m[1]; l.appendChild(n); l.appendChild(document.createTextNode(m[2])); } });
+    [].forEach.call(document.querySelectorAll('.pl-rail-btn'), function (b) { var ic = ICONO_RIEL[(b.getAttribute('aria-label') || '').toLowerCase()]; if (ic) { b.textContent = ''; b.appendChild(iconoNuevo(ic)); } });
+    [].forEach.call(document.querySelectorAll('#secProductoSale span'), function (s) { if (s.textContent.trim() === 'Ceras') s.textContent = 'Productos'; });
+    ['updPrev', 'aplicarMetodosPagoUI'].forEach(function (n) { var f = window[n]; if (typeof f === 'function' && !f.__ds) { var g = function () { var r = f.apply(this, arguments); try { dsMontos(); } catch (e) {} return r; }; g.__ds = true; window[n] = g; } });
+    dsMontos();
+  }
+  var COLUMNA = { 'personal': 0, 'períodos de trabajo': 0, 'meta mensual del local': 1, 'comisiones': 1, 'servicios': 1, 'productos': 2, 'amenities': 2 };
+  function dsAdmin() {                              // Administración: sections go into 3 columns (CSS shows them as 3, 2 or 1 depending on the width)
+    var cont = document.querySelector('#pStaff > div'); if (!cont || cont.querySelector('.ds-cols')) return;
+    var tok = document.getElementById('staffTokenSection');
+    if (tok && !tok.querySelector('.ds-tok-toggle')) {
+      tok.classList.add('ds-tok', 'ds-closed'); var b = document.createElement('button'); b.type = 'button'; b.className = 'ds-tok-toggle'; b.setAttribute('aria-expanded', 'false'); b.appendChild(iconoNuevo('settings')); b.appendChild(document.createTextNode('Token de administrador')); b.appendChild(iconoNuevo('chevron-down'));
+      b.addEventListener('click', function () { var c = tok.classList.toggle('ds-closed'); b.setAttribute('aria-expanded', String(!c)); }); tok.insertBefore(b, tok.firstChild);
+    }
+    var cols = [0, 1, 2].map(function () { var c = document.createElement('div'); c.className = 'ds-col'; return c; }), wrap = document.createElement('div'); wrap.className = 'ds-cols';
+    [].slice.call(cont.children).forEach(function (k) {
+      if (k === tok) return;
+      var hd = k.querySelector('.staff-section-hdr'), titulo = hd ? hd.textContent.replace('✓ Guardado', '').trim().toLowerCase() : '', c = COLUMNA[titulo.split('\n')[0].trim()];
+      if (hd) k.classList.add('ds-sec');
+      cols[c === undefined ? 2 : c].appendChild(k);
+    });
+    cols.forEach(function (c) { wrap.appendChild(c); }); cont.appendChild(wrap);
+  }
   function iconos(lista) {
+    var pend = { shell: dsShell, registrar: dsRegistrar, administracion: dsAdmin };
+    function etapaA() { lista.forEach(function (p) { if (pend[p]) { try { pend[p](); } catch (e) { try { console.warn('[diseno-v2] ' + p + ': ' + e.message); } catch (x) {} } } }); }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', etapaA); else etapaA();
     function iniciar() { lista.forEach(function (p) { var id = PANES[p], el = id && document.getElementById(id); if (!el) return; iconizar(el); try { new MutationObserver(function (ms) { ms.forEach(function (m) { for (var i = 0; i < m.addedNodes.length; i++) iconizar(m.addedNodes[i]); if (m.type === 'characterData') iconizar(m.target); }); }).observe(el, { childList: true, subtree: true, characterData: true }); } catch (e) {} }); }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar); else iniciar();
   }
@@ -70,6 +135,7 @@
     .then(function () {
       if (window.BP_DISENO) return;                                     // the overall guard already settled: stay as it is
       for (var k in brand) root.style.setProperty(k, brand[k]);           // --brand-* only
+      if (logo) { try { root.style.setProperty('--ds-logo', 'url("' + new URL(logo, location.href).href + '")'); } catch (e) {} }
       if (pantallas.length) root.setAttribute('data-diseno-pantallas', pantallas.join(' '));
       root.setAttribute('data-diseno', 'v2'); done('v2', ''); iconos(pantallas);
     })
