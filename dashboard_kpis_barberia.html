@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dashboard KPIs · Salon Men Saúl Fino</title>
+<title>Dashboard KPIs</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap');
@@ -204,8 +204,8 @@ table.data-table .total-row td{background:var(--text)!important;color:#fff!impor
   <div class="hdr-brand">
     <div class="hdr-logo">SF</div>
     <div>
-      <div class="hdr-name">Salon Men Saúl Fino · Dashboard KPIs</div>
-      <div class="hdr-sub">Local 222 · Galería Santiago Centro</div>
+      <div class="hdr-name" id="hdrNombre">Dashboard KPIs</div>
+      <div class="hdr-sub" id="hdrDireccion"></div>
     </div>
   </div>
   <div class="hdr-right no-print" style="display:flex;align-items:center;gap:8px">
@@ -278,6 +278,7 @@ table.data-table .total-row td{background:var(--text)!important;color:#fff!impor
 
 <div class="toast" id="toast"></div>
 
+<script src="config.js"></script>
 <script src="texto-seguro.js"></script>
 <script src="reportes-api.js"></script>
 <script>
@@ -288,7 +289,11 @@ var jornadas = [];
 var filtPeriod = 'esta-sem';
 var filtBarbero = 'todos';
 var charts = {};
-var API_URL = 'https://barberpilot-api-production.up.railway.app';
+var CFG = window.BP_CONFIG;
+if (!CFG || !CFG.apiUrl || !CFG.tenantSlug || !CFG.nombre) { document.body.innerHTML = '<p style="font-family:sans-serif;padding:24px">Falta la configuración de este negocio (config.js).</p>'; throw new Error('config.js missing'); }
+var API_URL = CFG.apiUrl;   // from config.js: this page never names a server of its own
+document.title = 'Dashboard KPIs · ' + CFG.nombre;
+(function () { var a = document.getElementById('hdrNombre'), b = document.getElementById('hdrDireccion'); if (a) a.textContent = CFG.nombre + ' · Dashboard KPIs'; if (b) b.textContent = CFG.direccion || ''; })();
 // Session: the control panel's login (same site, sessionStorage 'panelJwt').
 // The period reads need an admin session; other roles get a Spanish 403
 // message, shown as-is. No shared dashboard token is used any more.
@@ -318,7 +323,7 @@ function renderBarberoFiltros(){
     }).join('');
 }
 function cargarBarberosKPI(){
-  fetch('https://barberpilot-api-production.up.railway.app/config/negocio/publico?tenant=saulfino')
+  fetch(API_URL + '/config/negocio/publico?tenant=' + encodeURIComponent(CFG.tenantSlug))
     .then(function(r){return r.json();})
     .then(function(json){
       if(!json.ok) return;
@@ -900,8 +905,8 @@ function buildHTML(js, regs){
 
   // ── Footer
   h+='<div style="text-align:center;padding:20px 0 8px;font-size:11px;color:var(--text4)">'
-    +'Salon Men Saúl Fino · Local 222 · Galería Santiago Centro · '
-    +'<span style="font-family:var(--mono)">'+new Date().toLocaleDateString('es-CL')+'</span></div>';
+    +escHtml(CFG.nombre + (CFG.direccion ? ' · ' + CFG.direccion : '')) + ' · '
+    +'<span style="font-family:var(--mono)">'+new Date().toLocaleDateString(CFG.locale || undefined)+'</span></div>';
 
   return h;
 }
