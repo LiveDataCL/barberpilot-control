@@ -6061,7 +6061,7 @@ function salaPoblarServicios(nombres){
     if(actual) sel.value=actual;
   });
 }
-var SALA_PRECIOS = JSON.parse(JSON.stringify(BP.salaPrecios||{}));   // until the server's prices arrive; Salón Men's own list lives in config.js
+var SALA_PRECIOS = JSON.parse(JSON.stringify(BP.salaPrecios||{}));   // until the server's prices arrive; a business's own list lives in its config.js
 
 function salaAutoPreio(){
   var svc=document.getElementById('sala-svc').value;
@@ -7944,7 +7944,7 @@ var STAFF_KEY='bp_staff_v1';
 // Commission rates are no longer kept in this browser (Stage 0 freeze,
 // 2026-10-13): they live in the server and are edited in Administración →
 // Comisiones (stage 3b), with reason, history and undo.
-var BB_DEFAULT=BP.barberosRespaldo||[];   // fallback roster while the server answers: from config.js (Salón Men's own file), empty for a client
+var BB_DEFAULT=BP.barberosRespaldo||[];   // fallback roster while the server answers: from this business's own config.js, empty when it has none
 
 // Canonical bid→name — must match constants.js in the app and BARBER_NAME_MAP in the API
 var BB_CANONICAL_NAMES = BP.nombresCanonicos||{};

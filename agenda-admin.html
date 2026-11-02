@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Agenda · Salon Men Saúl Fino</title>
+<title>Agenda</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -270,7 +270,7 @@ button{cursor:pointer}
     <div class="hdr-logo">SF</div>
     <div>
       <div class="hdr-title">Panel de Agenda</div>
-      <div class="hdr-sub">Salon Men Saúl Fino</div>
+      <div class="hdr-sub"></div>
     </div>
   </div>
   <div class="hdr-center">
@@ -481,7 +481,11 @@ button{cursor:pointer}
 <script>
 'use strict';
 
-const API = 'https://barberpilot-api-production.up.railway.app';
+var CFG = window.BP_CONFIG;
+if (!CFG || !CFG.apiUrl || !CFG.tenantSlug || !CFG.nombre) { document.body.innerHTML = '<p style="font-family:sans-serif;padding:24px">Falta la configuración de este negocio (config.js).</p>'; throw new Error('config.js missing'); }
+const API = CFG.apiUrl;   // from config.js: this page never names a server of its own
+document.title = 'Agenda · ' + CFG.nombre;
+(function () { var h = document.querySelector('.hdr-sub'); if (h) h.textContent = CFG.nombre; })();
 
 // ── Embedded mode (inside index.html iframe) ──────────────────
 const IS_EMBEDDED = new URLSearchParams(location.search).get('embedded') === '1' || window.parent !== window;
@@ -517,7 +521,7 @@ function renderPills(){
   pb.querySelectorAll('.pill').forEach(function(p){p.classList.toggle('on',p.dataset.bid===filter);});
 }
 function cargarBarberos(){
-  fetch('https://barberpilot-api-production.up.railway.app/config/negocio/publico?tenant=saulfino')
+  fetch(API + '/config/negocio/publico?tenant=' + encodeURIComponent(CFG.tenantSlug))
     .then(function(r){return r.json();})
     .then(function(json){
       if(!json.ok) return;
