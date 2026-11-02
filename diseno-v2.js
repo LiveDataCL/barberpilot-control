@@ -41,13 +41,37 @@
       if (!r[0].length || !r[1].length || !document.fonts.check('400 14px Inter') || !document.fonts.check('700 16px Bitter')) throw new Error('las fuentes no están disponibles');
     });
   }
+
+  /* Emoji become icons only while the new design is on (the current design's markup is never touched). Works on the static markup and on what the panel's
+     scripts draw later (a MutationObserver per enabled pane). The icon is a decorative span; the visible words stay, so nothing loses its label. */
+  var EMOJI = { '\u{1F4CB}': 'file-text', '\u{1F517}': 'link', '\u2601': 'cloud-upload', '\u{1F4F8}': 'camera', '\u{1F511}': 'key-round', '\u{1F4C5}': 'calendar', '\u{1F4C6}': 'calendar', '\u{1F5D3}': 'calendar', '\u{1F50D}': 'search', '\u{1F4C2}': 'folder-open', '\u{1F4C1}': 'folder-open' };
+  var PANES = { config: 'pConfig', historico: 'pHist', 'ingresar-historico': 'pHistorico', administracion: 'pStaff' };
+  var EMOJI_RE = new RegExp('(' + Object.keys(EMOJI).join('|') + ')\\uFE0F?', 'gu');
+  function iconizar(raiz) {
+    if (!raiz) return;
+    if (raiz.nodeType === 3) { if (EMOJI_RE.test(raiz.nodeValue)) { EMOJI_RE.lastIndex = 0; reemplazar(raiz); } EMOJI_RE.lastIndex = 0; return; }
+    if (raiz.nodeType !== 1 || /^(SCRIPT|STYLE|TEXTAREA|OPTION)$/.test(raiz.tagName) || (raiz.classList && raiz.classList.contains('ds-i'))) return;
+    var w = document.createTreeWalker(raiz, NodeFilter.SHOW_TEXT, null), lista = [], t;
+    while ((t = w.nextNode())) { if (t.parentNode && !/^(SCRIPT|STYLE|TEXTAREA|OPTION)$/.test(t.parentNode.tagName) && EMOJI_RE.test(t.nodeValue)) lista.push(t); EMOJI_RE.lastIndex = 0; }
+    lista.forEach(reemplazar);
+  }
+  function reemplazar(t) {
+    var s = t.nodeValue, f = document.createDocumentFragment(), ult = 0, m; EMOJI_RE.lastIndex = 0;
+    while ((m = EMOJI_RE.exec(s))) { if (m.index > ult) f.appendChild(document.createTextNode(s.slice(ult, m.index))); var sp = document.createElement('span'); sp.className = 'ds-i'; sp.setAttribute('data-i', EMOJI[m[1]]); sp.setAttribute('aria-hidden', 'true'); f.appendChild(sp); ult = m.index + m[0].length; }
+    if (ult < s.length) f.appendChild(document.createTextNode(s.slice(ult)));
+    if (t.parentNode) t.parentNode.replaceChild(f, t);
+  }
+  function iconos(lista) {
+    function iniciar() { lista.forEach(function (p) { var id = PANES[p], el = id && document.getElementById(id); if (!el) return; iconizar(el); try { new MutationObserver(function (ms) { ms.forEach(function (m) { for (var i = 0; i < m.addedNodes.length; i++) iconizar(m.addedNodes[i]); if (m.type === 'characterData') iconizar(m.target); }); }).observe(el, { childList: true, subtree: true, characterData: true }); } catch (e) {} }); }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar); else iniciar();
+  }
   var link = null;
   loadCss().then(function (l) { link = l; return Promise.race([loadFonts(), timeout(FONT_TIMEOUT_MS, 'carga de fuentes')]); })
     .then(function () {
       if (window.BP_DISENO) return;                                     // the overall guard already settled: stay as it is
       for (var k in brand) root.style.setProperty(k, brand[k]);           // --brand-* only
       if (pantallas.length) root.setAttribute('data-diseno-pantallas', pantallas.join(' '));
-      root.setAttribute('data-diseno', 'v2'); done('v2', '');
+      root.setAttribute('data-diseno', 'v2'); done('v2', ''); iconos(pantallas);
     })
     .catch(function (e) { if (link && link.parentNode) link.parentNode.removeChild(link); done('clasico', e && e.message ? e.message : 'error'); });
   // overall guard: if neither branch settled (a stalled stylesheet request), the page simply stays as it is

@@ -128,3 +128,231 @@ html[data-diseno="v2"]{
   --color-primary: var(--brand-primary); --color-accent: var(--brand-accent-ui); --color-bg: var(--surface); --color-text: var(--text); --color-muted: var(--text-3);
   --color-pending: var(--state-sinllegada); --color-synced: var(--state-exito); --color-error: var(--state-error);
 }
+
+/* ═══ Stage 1: Config, Histórico, Administración. The numbered classes (.s1-N) come from moving the panes' inline styles into classes (convert_inline.cjs);
+   their classic rules live in index.html and are byte-for-byte what the inline styles were. Roles: titles 2 14 22 8, helper text 3 20 21 23 26 33 34, field label 5,
+   primary buttons 6 19 28, secondary buttons 12 17 37, instruction card 7, code chip 10, link 9, inputs 18 27 36. ═══ */
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff {font-family: var(--font-data); color: var(--text); font-size: var(--fs-14); line-height: var(--lh-14); font-variant-numeric: var(--num)}
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .s1-2,
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .s1-14,
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .s1-22,
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .s1-8,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .s1-2,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .s1-14,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .s1-22,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .s1-8,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .s1-2,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .s1-14,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .s1-22,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .s1-8 {font-family: var(--font-display); font-weight: 700; font-size: var(--fs-16); line-height: var(--lh-16); color: var(--text); margin-bottom: var(--sp-3); text-wrap: balance}
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .s1-3,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .s1-3,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .s1-3 {color: var(--text-2); font-size: var(--fs-14); line-height: var(--lh-14); margin-bottom: var(--sp-4); max-width: 65ch}
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .s1-20,
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .s1-21,
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .s1-23,
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .s1-26,
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .s1-33,
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .s1-34,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .s1-20,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .s1-21,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .s1-23,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .s1-26,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .s1-33,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .s1-34,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .s1-20,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .s1-21,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .s1-23,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .s1-26,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .s1-33,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .s1-34 {color: var(--text-3); font-size: var(--fs-12); line-height: var(--lh-12)}
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .s1-5,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .s1-5,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .s1-5 {font-size: var(--fs-12); line-height: var(--lh-12); font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--text-2); margin-bottom: var(--sp-1)}
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .s1-6,
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .s1-19,
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .s1-28,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .s1-6,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .s1-19,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .s1-28,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .s1-6,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .s1-19,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .s1-28 {display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2); height: var(--h-control); padding: 0 var(--sp-4); background: var(--brand-primary); color: var(--brand-on-primary); border: 1px solid transparent; border-radius: var(--r-control); font-family: var(--font-data); font-size: var(--fs-14); line-height: var(--lh-14); font-weight: 600; cursor: pointer}
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .s1-28,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .s1-28,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .s1-28 {height: var(--h-control-sm); padding: 0 var(--sp-3); font-size: var(--fs-12)}
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .s1-6:hover,
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .s1-19:hover,
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .s1-28:hover,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .s1-6:hover,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .s1-19:hover,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .s1-28:hover,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .s1-6:hover,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .s1-19:hover,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .s1-28:hover {background: var(--brand-primary-hover)}
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .s1-12,
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .s1-17,
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .s1-37,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .s1-12,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .s1-17,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .s1-37,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .s1-12,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .s1-17,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .s1-37 {display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2); height: var(--h-control); padding: 0 var(--sp-4); background: var(--surface); color: var(--brand-primary); border: 1px solid var(--border-strong); border-radius: var(--r-control); font-family: var(--font-data); font-size: var(--fs-14); line-height: var(--lh-14); font-weight: 600; cursor: pointer}
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .s1-17,
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .s1-37,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .s1-17,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .s1-37,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .s1-17,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .s1-37 {height: var(--h-control-sm); padding: 0 var(--sp-3); font-size: var(--fs-12)}
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .s1-12:hover,
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .s1-17:hover,
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .s1-37:hover,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .s1-12:hover,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .s1-17:hover,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .s1-37:hover,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .s1-12:hover,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .s1-17:hover,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .s1-37:hover {background: var(--brand-primary-tint)}
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .s1-7,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .s1-7,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .s1-7 {background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-surface); padding: var(--sp-4); font-size: var(--fs-12); line-height: var(--lh-16)}
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .s1-10,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .s1-10,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .s1-10 {background: var(--surface); border: 1px solid var(--border); padding: 0 var(--sp-1); border-radius: var(--r-control); font-family: var(--mono)}
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .s1-9,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .s1-9,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .s1-9 {color: var(--brand-accent-text); text-underline-offset: 2px}
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .s1-18,
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .s1-27,
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .s1-36,
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig input:not([type=checkbox]):not([type=radio]):not([type=file]),
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig select,
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .panel-inp,
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .staff-input,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .s1-18,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .s1-27,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .s1-36,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist input:not([type=checkbox]):not([type=radio]):not([type=file]),
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist select,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .panel-inp,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .staff-input,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .s1-18,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .s1-27,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .s1-36,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff input:not([type=checkbox]):not([type=radio]):not([type=file]),
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff select,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .panel-inp,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .staff-input {height: var(--h-control); padding: 0 var(--sp-3); background: var(--surface); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--r-control); font-family: var(--font-data); font-size: var(--fs-14); line-height: var(--lh-14)}
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig input:focus-visible,
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig select:focus-visible,
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig button:focus-visible,
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig textarea:focus-visible,
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig a:focus-visible,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist input:focus-visible,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist select:focus-visible,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist button:focus-visible,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist textarea:focus-visible,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist a:focus-visible,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff input:focus-visible,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff select:focus-visible,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff button:focus-visible,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff textarea:focus-visible,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff a:focus-visible {outline: 2px solid var(--brand-primary); outline-offset: 2px}
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .s1-13,
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .s1-42,
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .staff-section-hdr,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .s1-13,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .s1-42,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .staff-section-hdr,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .s1-13,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .s1-42,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .staff-section-hdr {border-color: var(--border)}
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .staff-token-box,
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .staff-add-card,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .staff-token-box,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .staff-add-card,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .staff-token-box,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .staff-add-card {background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-surface)}
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .staff-section-hdr,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .staff-section-hdr,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .staff-section-hdr {font-family: var(--font-display); font-size: var(--fs-16); line-height: var(--lh-16); font-weight: 700}
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .staff-row,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .staff-row,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .staff-row {border-bottom: 1px solid var(--border); min-height: var(--h-row)}
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .staff-add-btn,
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .staff-reset-btn,
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .hist-periodo-btn,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .staff-add-btn,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .staff-reset-btn,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .hist-periodo-btn,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .staff-add-btn,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .staff-reset-btn,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .hist-periodo-btn {height: var(--h-control-sm); padding: 0 var(--sp-3); background: var(--surface); color: var(--brand-primary); border: 1px solid var(--border-strong); border-radius: var(--r-control); font-family: var(--font-data); font-size: var(--fs-12); font-weight: 600}
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .hist-periodo-btn.on,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .hist-periodo-btn.on,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .hist-periodo-btn.on {background: var(--brand-primary); color: var(--brand-on-primary); border-color: var(--brand-primary)}
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .staff-del-btn,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .staff-del-btn,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .staff-del-btn {width: var(--h-control-sm); height: var(--h-control-sm); border: 1px solid var(--border-strong); border-radius: var(--r-control); color: var(--text-3)}
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .staff-freeze-note,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .staff-freeze-note,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .staff-freeze-note {background: var(--state-sinllegada-bg); color: var(--state-sinllegada); border: 1px solid var(--border); border-radius: var(--r-surface)}
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .staff-saved,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .staff-saved,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .staff-saved {background: var(--state-exito-bg); color: var(--state-exito)}
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .empty,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .empty,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .empty {color: var(--text-3); padding: var(--sp-7) var(--sp-4)}
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .ds-i,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .ds-i,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .ds-i {font-size: 0; line-height: 0; display: inline-block; width: var(--icon-md); height: var(--icon-md); vertical-align: -4px; margin-right: var(--sp-2); background-color: currentColor; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain}
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .ds-i[data-i="file-text"],
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .ds-i[data-i="file-text"],
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .ds-i[data-i="file-text"] {-webkit-mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M6%2022a2%202%200%200%201-2-2V4a2%202%200%200%201%202-2h8a2.4%202.4%200%200%201%201.704.706l3.588%203.588A2.4%202.4%200%200%201%2020%208v12a2%202%200%200%201-2%202z%27%20%2F%3E%3Cpath%20d%3D%27M14%202v5a1%201%200%200%200%201%201h5%27%20%2F%3E%3Cpath%20d%3D%27M10%209H8%27%20%2F%3E%3Cpath%20d%3D%27M16%2013H8%27%20%2F%3E%3Cpath%20d%3D%27M16%2017H8%27%20%2F%3E%3C%2Fsvg%3E"); mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M6%2022a2%202%200%200%201-2-2V4a2%202%200%200%201%202-2h8a2.4%202.4%200%200%201%201.704.706l3.588%203.588A2.4%202.4%200%200%201%2020%208v12a2%202%200%200%201-2%202z%27%20%2F%3E%3Cpath%20d%3D%27M14%202v5a1%201%200%200%200%201%201h5%27%20%2F%3E%3Cpath%20d%3D%27M10%209H8%27%20%2F%3E%3Cpath%20d%3D%27M16%2013H8%27%20%2F%3E%3Cpath%20d%3D%27M16%2017H8%27%20%2F%3E%3C%2Fsvg%3E")}
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .ds-i[data-i="link"],
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .ds-i[data-i="link"],
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .ds-i[data-i="link"] {-webkit-mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M10%2013a5%205%200%200%200%207.54.54l3-3a5%205%200%200%200-7.07-7.07l-1.72%201.71%27%20%2F%3E%3Cpath%20d%3D%27M14%2011a5%205%200%200%200-7.54-.54l-3%203a5%205%200%200%200%207.07%207.07l1.71-1.71%27%20%2F%3E%3C%2Fsvg%3E"); mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M10%2013a5%205%200%200%200%207.54.54l3-3a5%205%200%200%200-7.07-7.07l-1.72%201.71%27%20%2F%3E%3Cpath%20d%3D%27M14%2011a5%205%200%200%200-7.54-.54l-3%203a5%205%200%200%200%207.07%207.07l1.71-1.71%27%20%2F%3E%3C%2Fsvg%3E")}
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .ds-i[data-i="cloud-upload"],
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .ds-i[data-i="cloud-upload"],
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .ds-i[data-i="cloud-upload"] {-webkit-mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M12%2013v8%27%20%2F%3E%3Cpath%20d%3D%27M4%2014.899A7%207%200%201%201%2015.71%208h1.79a4.5%204.5%200%200%201%202.5%208.242%27%20%2F%3E%3Cpath%20d%3D%27m8%2017%204-4%204%204%27%20%2F%3E%3C%2Fsvg%3E"); mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M12%2013v8%27%20%2F%3E%3Cpath%20d%3D%27M4%2014.899A7%207%200%201%201%2015.71%208h1.79a4.5%204.5%200%200%201%202.5%208.242%27%20%2F%3E%3Cpath%20d%3D%27m8%2017%204-4%204%204%27%20%2F%3E%3C%2Fsvg%3E")}
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .ds-i[data-i="camera"],
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .ds-i[data-i="camera"],
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .ds-i[data-i="camera"] {-webkit-mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M13.997%204a2%202%200%200%201%201.76%201.05l.486.9A2%202%200%200%200%2018.003%207H20a2%202%200%200%201%202%202v9a2%202%200%200%201-2%202H4a2%202%200%200%201-2-2V9a2%202%200%200%201%202-2h1.997a2%202%200%200%200%201.759-1.048l.489-.904A2%202%200%200%201%2010.004%204z%27%20%2F%3E%3Ccircle%20cx%3D%2712%27%20cy%3D%2713%27%20r%3D%273%27%20%2F%3E%3C%2Fsvg%3E"); mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M13.997%204a2%202%200%200%201%201.76%201.05l.486.9A2%202%200%200%200%2018.003%207H20a2%202%200%200%201%202%202v9a2%202%200%200%201-2%202H4a2%202%200%200%201-2-2V9a2%202%200%200%201%202-2h1.997a2%202%200%200%200%201.759-1.048l.489-.904A2%202%200%200%201%2010.004%204z%27%20%2F%3E%3Ccircle%20cx%3D%2712%27%20cy%3D%2713%27%20r%3D%273%27%20%2F%3E%3C%2Fsvg%3E")}
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .ds-i[data-i="key-round"],
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .ds-i[data-i="key-round"],
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .ds-i[data-i="key-round"] {-webkit-mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M2.586%2017.414A2%202%200%200%200%202%2018.828V21a1%201%200%200%200%201%201h3a1%201%200%200%200%201-1v-1a1%201%200%200%201%201-1h1a1%201%200%200%200%201-1v-1a1%201%200%200%201%201-1h.172a2%202%200%200%200%201.414-.586l.814-.814a6.5%206.5%200%201%200-4-4z%27%20%2F%3E%3Ccircle%20cx%3D%2716.5%27%20cy%3D%277.5%27%20r%3D%27.5%27%20fill%3D%27currentColor%27%20%2F%3E%3C%2Fsvg%3E"); mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M2.586%2017.414A2%202%200%200%200%202%2018.828V21a1%201%200%200%200%201%201h3a1%201%200%200%200%201-1v-1a1%201%200%200%201%201-1h1a1%201%200%200%200%201-1v-1a1%201%200%200%201%201-1h.172a2%202%200%200%200%201.414-.586l.814-.814a6.5%206.5%200%201%200-4-4z%27%20%2F%3E%3Ccircle%20cx%3D%2716.5%27%20cy%3D%277.5%27%20r%3D%27.5%27%20fill%3D%27currentColor%27%20%2F%3E%3C%2Fsvg%3E")}
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .ds-i[data-i="calendar"],
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .ds-i[data-i="calendar"],
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .ds-i[data-i="calendar"] {-webkit-mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M8%202v3%27%20%2F%3E%3Cpath%20d%3D%27M16%202v3%27%20%2F%3E%3Crect%20x%3D%273%27%20y%3D%273%27%20width%3D%2718%27%20height%3D%2718%27%20rx%3D%272%27%20%2F%3E%3Cpath%20d%3D%27M3%209h18%27%20%2F%3E%3C%2Fsvg%3E"); mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M8%202v3%27%20%2F%3E%3Cpath%20d%3D%27M16%202v3%27%20%2F%3E%3Crect%20x%3D%273%27%20y%3D%273%27%20width%3D%2718%27%20height%3D%2718%27%20rx%3D%272%27%20%2F%3E%3Cpath%20d%3D%27M3%209h18%27%20%2F%3E%3C%2Fsvg%3E")}
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .ds-i[data-i="search"],
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .ds-i[data-i="search"],
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .ds-i[data-i="search"] {-webkit-mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27m21%2021-4.34-4.34%27%20%2F%3E%3Ccircle%20cx%3D%2711%27%20cy%3D%2711%27%20r%3D%278%27%20%2F%3E%3C%2Fsvg%3E"); mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27m21%2021-4.34-4.34%27%20%2F%3E%3Ccircle%20cx%3D%2711%27%20cy%3D%2711%27%20r%3D%278%27%20%2F%3E%3C%2Fsvg%3E")}
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .ds-i[data-i="folder-open"],
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .ds-i[data-i="folder-open"],
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .ds-i[data-i="folder-open"] {-webkit-mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27m6%2014%201.5-2.9A2%202%200%200%201%209.24%2010H20a2%202%200%200%201%201.94%202.5l-1.54%206a2%202%200%200%201-1.95%201.5H4a2%202%200%200%201-2-2V5a2%202%200%200%201%202-2h3.9a2%202%200%200%201%201.69.9l.81%201.2a2%202%200%200%200%201.67.9H18a2%202%200%200%201%202%202v2%27%20%2F%3E%3C%2Fsvg%3E"); mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27m6%2014%201.5-2.9A2%202%200%200%201%209.24%2010H20a2%202%200%200%201%201.94%202.5l-1.54%206a2%202%200%200%201-1.95%201.5H4a2%202%200%200%201-2-2V5a2%202%200%200%201%202-2h3.9a2%202%200%200%201%201.69.9l.81%201.2a2%202%200%200%200%201.67.9H18a2%202%200%200%201%202%202v2%27%20%2F%3E%3C%2Fsvg%3E")}
+@media (max-width: 1023px) {
+  html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig > div { max-width: none; }
+}
+@media (max-width: 1023px) {
+  html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist > div { max-width: none; }
+}
+@media (max-width: 1023px) {
+  html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff > div { max-width: none; }
+}
+
+/* Stage 1: rows of controls wrap and inputs may shrink, so nothing pushes past the screen width on phones */
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .staff-row,
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig .staff-token-row,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .staff-row,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist .staff-token-row,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .staff-row,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff .staff-token-row {flex-wrap: wrap}
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig input,
+html[data-diseno="v2"][data-diseno-pantallas~="config"] #pConfig select,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist input,
+html[data-diseno="v2"][data-diseno-pantallas~="historico"] #pHist select,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff input,
+html[data-diseno="v2"][data-diseno-pantallas~="administracion"] #pStaff select {min-width: 0; max-width: 100%}
