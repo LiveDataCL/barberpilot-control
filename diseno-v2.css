@@ -1,0 +1,130 @@
+/* diseno-v2.css: the new visual system for the panel (BarberPilot Phase 2, approved). INERT unless diseno-v2.js sets html[data-diseno="v2"];
+   without that attribute no rule in this file matches anything (the @font-face rules only declare files; nothing requests them).
+   Source of truth for the token values: barberpilot-tests/review/diseno/v2/tokens.css. Tenants override ONLY the --brand-* group. */
+/* BarberPilot panel tokens, Phase 2. The PLATFORM DEFAULT is the neutral "BarberPilot" theme defined here.
+   A tenant (for example SALÓN MEN) overrides ONLY the --brand-* group, from its tenant config (themes.json in this mockup;
+   applyTenantTheme() in the real panel). Components read only layer-2 tokens, never raw values.
+   Layer 1  raw palette: the only place hex values exist.
+   Layer 2  semantic tokens. Layer 3 (tenant) = the --brand-* overrides.
+   Rules: spacing on a 4/8 grid; one type scale (12 14 16 20 24 32); 2 shadow levels (overlays only); page background is a
+   near-neutral; brand accents are never small text unless --brand-accent-text; motion 100 to 200 ms, opacity/transform only. */
+@font-face{font-family:"Bitter";src:url("fonts/Bitter-latin.woff2") format("woff2");font-weight:100 900;font-display:swap}
+@font-face{font-family:"Inter";src:url("fonts/Inter-latin.woff2") format("woff2");font-weight:100 900;font-display:swap}
+
+html[data-diseno="v2"]{
+  /* ── Layer 1: platform neutrals (never tenant-specific) ── */
+  --blanco: #FFFFFF;
+  --papel: #F5F6F7;
+  --tinta: #1A1F24;
+  --n-700: #383E44;
+  --n-600: #4B535B;
+  --n-500: #5D666F;
+  --n-line: #D6DADF;
+  --n-line-strong: #7A838C;
+  --n-wash: #EDEFF2;
+  /* ── Layer 1: default brand palette, "BarberPilot" (neutral ink blue) ── */
+  --bp-ink: #20364B;
+  --bp-ink-hover: #2C4A66;
+  --bp-ink-deep: #121F2B;
+  --bp-tint: #E9EEF3;
+  --bp-tint-2: #D0DAE4;
+  --bp-blue: #2F73A8;
+  --bp-blue-dark: #1F5E8F;
+  --bp-blue-light: #7DB7E2;
+  /* ── Layer 1: semantic status colours (word + icon + colour, never colour alone; never tenant-overridable) ── */
+  --st-libre: #17704A;       --st-libre-bg: #E2F1E8;
+  --st-ocupado: #1F4F85;     --st-ocupado-bg: #E3ECF7;
+  --st-ausente: #5E5A66;     --st-ausente-bg: #ECEAEF;
+  --st-sinllegada: #7A5200;  --st-sinllegada-bg: #FBEFD2;
+  --st-alerta: #8A3F0A;      --st-alerta-bg: #FCE6D3;
+  --st-exito: #17704A;       --st-exito-bg: #E2F1E8;
+  --st-error: #A82E26;       --st-error-bg: #FADDDA;
+  --st-offline: #2E3A46;     --st-offline-bg: #E4E9EE;
+
+  /* ── Layer 2 / 3: brand (the only group a tenant may override) ── */
+  --brand-primary: var(--bp-ink);
+  --brand-primary-hover: var(--bp-ink-hover);
+  --brand-primary-deep: var(--bp-ink-deep);
+  --brand-primary-tint: var(--bp-tint);
+  --brand-primary-tint-2: var(--bp-tint-2);
+  --brand-on-primary: var(--blanco);              /* text on primary */
+  --brand-accent-ui: var(--bp-blue);              /* indicators, rules, borders: never small text */
+  --brand-accent-text: var(--bp-blue-dark);       /* the only accent allowed as small text */
+  --brand-accent-on-dark: var(--bp-blue-light);   /* rules on the primary colour; never text */
+
+  /* ── Layer 2: surfaces and text ── */
+  --bg: var(--papel);
+  --surface: var(--blanco);
+  --surface-2: var(--n-wash);
+  --border: var(--n-line);
+  --border-strong: var(--n-line-strong);
+  --text: var(--tinta);
+  --text-2: var(--n-700);
+  --text-3: var(--n-600);
+  --text-4: var(--n-500);
+
+  /* ── Layer 2: states ── */
+  --state-libre: var(--st-libre);          --state-libre-bg: var(--st-libre-bg);
+  --state-ocupado: var(--st-ocupado);      --state-ocupado-bg: var(--st-ocupado-bg);
+  --state-ausente: var(--st-ausente);      --state-ausente-bg: var(--st-ausente-bg);
+  --state-sinllegada: var(--st-sinllegada);--state-sinllegada-bg: var(--st-sinllegada-bg);
+  --state-alerta: var(--st-alerta);        --state-alerta-bg: var(--st-alerta-bg);
+  --state-exito: var(--st-exito);          --state-exito-bg: var(--st-exito-bg);
+  --state-error: var(--st-error);          --state-error-bg: var(--st-error-bg);
+  --state-offline: var(--st-offline);      --state-offline-bg: var(--st-offline-bg);
+
+  /* ── Typography: one scale, six sizes, no outliers ── */
+  --font-display: "Bitter", "Rockwell", Georgia, serif;           /* headings and the chair timer only */
+  --font-data: "Inter", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+  --fs-12: 12px; --lh-12: 16px;
+  --fs-14: 14px; --lh-14: 20px;
+  --fs-16: 16px; --lh-16: 24px;
+  /* the three display sizes are fluid (clamp) and snapped to whole pixels; at 1280 px and wider they are exactly 20 / 24 / 32 */
+  --fs-20: round(clamp(18px, 0.5vw + 14px, 20px), 1px); --lh-20: 28px;
+  --fs-24: round(clamp(20px, 0.8vw + 14px, 24px), 1px); --lh-24: 32px;
+  --fs-32: round(clamp(28px, 1.2vw + 16px, 32px), 1px); --lh-32: 40px;
+  --num: tabular-nums lining-nums;
+
+  /* ── Spacing: 4/8 grid. The fluid gutter is snapped to the grid with round() ── */
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 32px; --sp-7: 48px;
+  --gutter: round(down, clamp(12px, 3.2vw, 24px), 4px);
+  /* ── Sizes on the grid; touch devices and short screens override them below ── */
+  --h-control: 40px; --h-control-sm: 32px; --h-row: 40px; --h-row-2: 48px; --h-header: 56px; --h-tabs: 44px;
+  --w-panel: 304px; --w-rail: 64px;
+  /* ── Radius by hierarchy: controls 4, surfaces 8, dialogs 12, chips pill ── */
+  --r-control: 4px; --r-surface: 8px; --r-dialog: 12px; --r-pill: 999px;
+  /* ── Elevation: cards have none (border only); overlays have two levels ── */
+  --shadow-pop: 0 4px 16px rgba(18,31,43,.16);
+  --shadow-modal: 0 16px 40px rgba(18,31,43,.24);
+  --scrim: rgba(18,31,43,.52);
+  /* ── z-index scale ── */
+  --z-sticky: 10; --z-rail: 20; --z-pop: 60; --z-drawer-scrim: 80; --z-drawer: 90; --z-scrim: 100; --z-modal: 110; --z-toast: 120;
+  /* ── Motion: 100 to 200 ms, never layout properties ── */
+  --dur-fast: 100ms; --dur-base: 150ms; --dur-max: 200ms;
+  --ease: cubic-bezier(.2,.7,.2,1);
+  /* ── Icons: one family (Lucide), one stroke, two sizes ── */
+  --icon-sm: 16px; --icon-md: 20px; --icon-stroke: 2;
+}
+/* Touch devices: every control is at least 44 px; rows get taller. */
+@media (pointer: coarse){
+  html[data-diseno="v2"]{--h-control: 48px; --h-control-sm: 44px; --h-row: 56px; --h-tabs: 48px}
+}
+/* Short desktop screens (the register laptop is 1366x768 and its browser leaves about 600 px): compact header, tabs and rows. */
+@media (max-height: 700px) and (pointer: fine){
+  html[data-diseno="v2"]{--h-header: 48px; --h-tabs: 40px; --h-row: 36px}
+}
+@media (prefers-reduced-motion: reduce){
+  html[data-diseno="v2"]{--dur-fast:.01ms;--dur-base:.01ms;--dur-max:.01ms}
+  html[data-diseno="v2"] *,html[data-diseno="v2"] *::before,html[data-diseno="v2"] *::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
+}
+
+/* ── Compatibility layer: the 25 custom properties the live panel already uses are mapped onto the new tokens, ONLY inside the v2 scope,
+      so existing var(--x) uses restyle without edits (screen rules come in the later stages). ── */
+html[data-diseno="v2"]{
+  --surface2: var(--surface-2); --border2: var(--border-strong); --text2: var(--text-2); --text3: var(--text-3); --soft: var(--surface-2);
+  --ok: var(--state-exito); --info: var(--state-ocupado); --warn: var(--state-sinllegada); --err: var(--state-error);
+  --r: var(--r-control); --rl: var(--r-surface);
+  --mono: "Consolas","Courier New",monospace; --sans: var(--font-data);
+  --color-primary: var(--brand-primary); --color-accent: var(--brand-accent-ui); --color-bg: var(--surface); --color-text: var(--text); --color-muted: var(--text-3);
+  --color-pending: var(--state-sinllegada); --color-synced: var(--state-exito); --color-error: var(--state-error);
+}
