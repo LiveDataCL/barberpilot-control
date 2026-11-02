@@ -1,5 +1,5 @@
 // Configuración de ESTE negocio. Un archivo por despliegue: el código del panel no trae ningún dato de otro negocio.
-// Salón Men Saúl Fino (valores actuales, copiados del código anterior). Para un cliente nuevo este archivo se genera con scripts/generar-config-control.js.
+// Salón Men (valores actuales, copiados del código anterior). Para un cliente nuevo este archivo se genera con scripts/generar-config-control.js.
 window.BP_CONFIG = {
   diseno: "v2",   // "clasico" = el diseño de hoy; "v2" = el diseño nuevo (diseno-v2.js). Para volver atrás: "clasico" o borrar esta línea
   permitirOverrideDiseno: true,   // vista previa: con ?diseno=v2 en la dirección se ve el diseño nuevo en esa visita; sin el parámetro, nadie lo ve. Para quitarlo: false o borrar esta línea
@@ -7,10 +7,10 @@ window.BP_CONFIG = {
   tema: { logo: "brand/monograma-salonmen.svg", brand: { "--brand-primary": "#0E3B2E", "--brand-primary-hover": "#145040", "--brand-primary-deep": "#08261D", "--brand-primary-tint": "#E8F0EC", "--brand-primary-tint-2": "#CFE0D8", "--brand-on-primary": "#FAEBC2", "--brand-accent-ui": "#A56A30", "--brand-accent-text": "#845120", "--brand-accent-on-dark": "#C48345" } },   // colores de Salón Men (solo --brand-*)
   apiUrl: "https://barberpilot-api-production.up.railway.app",   // servidor de este negocio
   tenantSlug: "saulfino",   // identificador interno del negocio en su propio servidor
-  nombre: "Salon Men Saúl Fino",
-  nombreCorto: "Salon Men",
+  nombre: "Salón Men",
+  nombreCorto: "Salón Men",
   local: "Local 222",
-  lugar: "Salon Men Saúl Fino · Local 222",
+  lugar: "Salón Men · Local 222",
   direccion: "Local 222 · Galería Santiago Centro",
   direccionLarga: "Galería Santiago Centro · Local 222 · Línea 1 Metro",
   reservaUrl: "https://salonmensf.livedata.cl",
@@ -24,8 +24,7 @@ window.BP_CONFIG = {
   mostrarCreditoLiveData: true,   // "Desarrollado por LiveData" en el ingreso y en "Acerca de" (false: no aparece en ninguna parte)
   creditoLiveDataUrl: "https://www.livedata.cl",   // vacío = el crédito se ve sin enlace
   agenda: true,   // este negocio tiene la página de Agenda (agenda-admin.html); sin esta clave la pestaña Agenda no aparece
-  ticketNombre: "Salon Men",   // primera línea del ticket (por defecto: nombreCorto)
-  ticketLinea2: "Saúl Fino",   // segunda línea del ticket (opcional)
+  ticketNombre: "Salón Men",   // primera línea del ticket (por defecto: nombreCorto); sin segunda línea (ticketLinea2 es opcional)
   ticketLineas: [
     "Galería Santiago Centro · Local 222",
     "Línea 1 Metro · Santiago"
