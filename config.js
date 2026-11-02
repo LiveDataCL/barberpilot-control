@@ -1,7 +1,7 @@
 // Configuración de ESTE negocio. Un archivo por despliegue: el código del panel no trae ningún dato de otro negocio.
 // Salón Men Saúl Fino (valores actuales, copiados del código anterior). Para un cliente nuevo este archivo se genera con scripts/generar-config-control.js.
 window.BP_CONFIG = {
-  diseno: "clasico",   // "clasico" = el diseño de hoy; "v2" = el diseño nuevo (diseno-v2.js). Para volver atrás: "clasico" o borrar esta línea
+  diseno: "v2",   // "clasico" = el diseño de hoy; "v2" = el diseño nuevo (diseno-v2.js). Para volver atrás: "clasico" o borrar esta línea
   permitirOverrideDiseno: true,   // vista previa: con ?diseno=v2 en la dirección se ve el diseño nuevo en esa visita; sin el parámetro, nadie lo ve. Para quitarlo: false o borrar esta línea
   pantallasV2: ["shell", "registrar", "sillas", "config", "historico", "administracion", "registros", "resumen", "sala", "clientes", "agenda", "horarios", "kpis", "login", "ingresar-historico", "cierre", "aprobar"],   // pantallas que ya tienen el diseño nuevo (solo cuenta cuando diseno es "v2")
   tema: { logo: "brand/monograma-salonmen.svg", brand: { "--brand-primary": "#0E3B2E", "--brand-primary-hover": "#145040", "--brand-primary-deep": "#08261D", "--brand-primary-tint": "#E8F0EC", "--brand-primary-tint-2": "#CFE0D8", "--brand-on-primary": "#FAEBC2", "--brand-accent-ui": "#A56A30", "--brand-accent-text": "#845120", "--brand-accent-on-dark": "#C48345" } },   // colores de Salón Men (solo --brand-*)
