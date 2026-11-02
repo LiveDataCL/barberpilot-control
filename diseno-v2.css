@@ -767,3 +767,74 @@ html[data-diseno="v2"][data-diseno-pantallas~="clientes"] #pClientes .rt td:firs
 html[data-diseno="v2"][data-diseno-pantallas~="clientes"] #pClientes .rt td:last-child { white-space: normal !important; max-width: 164px; }
 html[data-diseno="v2"][data-diseno-pantallas~="clientes"] #pClientes .rt td:last-child > * { margin: 2px 4px 2px 0; }
 @media (max-width: 1023px) { html[data-diseno="v2"][data-diseno-pantallas~="clientes"] #pClientes .rt td:last-child { max-width: none; } }
+
+/* ═══ Stage B (4/6): Agenda (agenda-admin.html). Its own variables are mapped to the new tokens; the barber colours b1 to b4 stay (they identify people). ═══ */
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda {--gold: var(--brand-accent-ui); --gold-lt: var(--brand-primary-tint); --sh1: none; --sh2: var(--shadow-pop); --sh3: var(--shadow-modal); --bg: var(--bg); background: var(--bg); font-family: var(--font-data)}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda body {font-family: var(--font-data); font-size: var(--fs-14)}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .hdr {background: var(--brand-primary); color: var(--brand-on-primary); border-bottom: 2px solid var(--brand-accent-ui); height: var(--h-header); padding: 0 var(--gutter)}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .hdr-logo {width: 40px; height: 34px; border-radius: 0; background: var(--ds-logo, none) center / contain no-repeat; color: transparent; font-size: 0}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .hdr-title {font-family: var(--font-display); font-size: var(--fs-16); line-height: var(--lh-16); font-weight: 700; letter-spacing: 0}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .hdr-sub {font-size: var(--fs-12); opacity: .85; letter-spacing: 0}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .date-nav {background: var(--brand-primary-hover); border-radius: var(--r-control); padding: 2px}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .dnav-btn {border-radius: var(--r-control); color: var(--brand-on-primary)}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .date-lbl {font-family: var(--font-display); font-size: var(--fs-16); letter-spacing: 0}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .btn-today,
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .view-btn,
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .hdr-link {height: var(--h-control-sm); border-radius: var(--r-control); font: 600 var(--fs-12)/var(--lh-12) var(--font-data); letter-spacing: 0; color: var(--brand-on-primary); background: transparent; border: 1px solid var(--brand-accent-on-dark); padding: 0 var(--sp-3); display: inline-flex; align-items: center}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .view-toggle {background: transparent; gap: var(--sp-1); border-radius: 0; padding: 0}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .view-btn.on {background: var(--brand-on-primary); color: var(--brand-primary); border-color: var(--brand-on-primary)}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .refresh-lbl {font-size: var(--fs-12); opacity: .9}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .pills-bar {background: var(--surface); border-bottom: 1px solid var(--border); padding: var(--sp-2) var(--gutter); gap: var(--sp-2)}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .pill {height: var(--h-control-sm); display: inline-flex; align-items: center; padding: 0 var(--sp-3); border: 1px solid var(--border-strong); border-radius: var(--r-control); background: var(--surface); color: var(--text-2); font: 600 var(--fs-12)/var(--lh-12) var(--font-data)}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .pill:hover {background: var(--brand-primary-tint)}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .pill.on {background: var(--brand-primary); color: var(--brand-on-primary); border-color: var(--brand-primary)}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .sum-bar {background: var(--bg); padding: var(--sp-3) var(--gutter); gap: var(--sp-3)}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .kpi {background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-surface); padding: var(--sp-3) var(--sp-4); box-shadow: none}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .kpi-lbl {font: 600 var(--fs-12)/var(--lh-12) var(--font-data); letter-spacing: 0; text-transform: none; color: var(--text-3)}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .kpi-val {font-family: var(--font-display); font-size: var(--fs-24); line-height: var(--lh-24); color: var(--text)}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .kpi-val.c-ok {color: var(--state-exito)}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .cal-outer,
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .wk-wrap {background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-surface); box-shadow: none}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .b-col-hdr,
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .wk-th {background: var(--brand-primary-tint); color: var(--text); border-color: var(--border)}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .b-nm {font-family: var(--font-display); font-weight: 700}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .b-cnt,
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .tslot-lbl {color: var(--text-3); font-size: var(--fs-12)}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .srow {border-color: var(--border)}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .srow:hover {background: var(--brand-primary-tint)}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .now-line {color: var(--state-error)}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .now-bar,
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .now-dot {background: var(--state-error)}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .apt-card {border-radius: var(--r-control); box-shadow: none; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text)}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .apt-card.pendiente {background: var(--state-sinllegada-bg); border-color: var(--state-sinllegada); color: var(--text)}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .apt-card.confirmado {background: var(--state-libre-bg); border-color: var(--state-libre); color: var(--text)}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .apt-card.en_curso {background: var(--state-ocupado-bg); border-color: var(--state-ocupado); color: var(--text)}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .apt-card.completado {background: var(--surface-2); border-color: var(--border-strong); color: var(--text-2)}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .apt-card.cancelado {background: var(--surface-2); border-color: var(--border); color: var(--text-3); text-decoration: line-through}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .apt-nm {font: 600 var(--fs-14)/var(--lh-14) var(--font-data)}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .apt-svc,
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .apt-hr {font-size: var(--fs-12); color: var(--text-2)}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .blk-overlay {background: var(--surface-2); border: 1px dashed var(--border-strong); border-radius: var(--r-control); color: var(--text-2)}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .modal {border-radius: var(--r-dialog); box-shadow: var(--shadow-modal); background: var(--surface)}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .m-title {font-family: var(--font-display); font-size: var(--fs-20); line-height: var(--lh-20); font-weight: 700}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .btn {height: var(--h-control); border-radius: var(--r-control); font: 600 var(--fs-14)/var(--lh-14) var(--font-data); padding: 0 var(--sp-4)}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .b-ok {background: var(--brand-primary); color: var(--brand-on-primary); border: 1px solid transparent}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .b-err {background: var(--state-error); color: var(--surface); border: 1px solid transparent}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .b-dk,
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .b-ghost {background: var(--surface); color: var(--brand-primary); border: 1px solid var(--border-strong)}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .fg input,
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .fg select,
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .fg textarea {height: var(--h-control); border: 1px solid var(--border-strong); border-radius: var(--r-control); font: 400 var(--fs-14)/var(--lh-14) var(--font-data); padding: 0 var(--sp-3); background: var(--surface); color: var(--text)}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .flbl {font: 600 var(--fs-12)/var(--lh-12) var(--font-data); color: var(--text-2); letter-spacing: 0; text-transform: none}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .ebadge {border-radius: var(--r-pill); font: 600 var(--fs-12)/var(--lh-12) var(--font-data); letter-spacing: 0}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .toast {border-radius: var(--r-surface); font: 600 var(--fs-14)/var(--lh-14) var(--font-data); box-shadow: var(--shadow-pop)}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda :focus-visible {outline: 2px solid var(--brand-accent-ui); outline-offset: 2px}
+
+/* Stage B (4/6) polish: inside the panel's iframe the Agenda does not repeat the brand, and its header wraps on phones */
+html[data-diseno="v2"].ds-embedded[data-diseno-pantallas~="agenda"].ds-page-agenda .hdr-brand { display: none; }
+@media (max-width: 1023px) {
+  html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .hdr { height: auto; flex-wrap: wrap; padding: var(--sp-2) var(--sp-3); gap: var(--sp-2); }
+  html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .hdr-center { flex: 1 1 100%; justify-content: space-between; flex-wrap: wrap; gap: var(--sp-2); }
+  html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .date-lbl { min-width: 0; font-size: var(--fs-14); }
+  html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .hdr-right { flex: 1 1 100%; justify-content: space-between; }
+}
