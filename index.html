@@ -5623,7 +5623,7 @@ function _renderKpisInnerSinGuarda(){
   h+='<div class="kpi-cards-row">'
     +'<div class="kpi-mini"><div class="kpi-mini-label">Puntaje promedio</div><div class="kpi-mini-val">'+prom+'<span style="font-size:13px;color:var(--text3)">/'+r.puntaje_max+'</span></div></div>'
     +(k.ticket?'<div class="kpi-mini"><div class="kpi-mini-label">Ticket de referencia</div><div class="kpi-mini-val" id="kpiTicketRef">$'+fmt(k.ticket.referencia)+'</div></div>':'')
-    +'<div class="kpi-mini"><div class="kpi-mini-label">Servicios del mes</div><div class="kpi-mini-val">'+bs.reduce(function(a,b){return a+b.ventas.servicios;},0)+'</div></div>'
+    +'<div class="kpi-mini"><div class="kpi-mini-label">Servicios del mes</div><div class="kpi-mini-val">'+bs.reduce(function(a,b){return a+(Number(b.ventas.servicios)||0);},0)+'</div></div>'
     +'<div class="kpi-mini"><div class="kpi-mini-label">Bonos potenciales</div><div class="kpi-mini-val" id="kpiPotencialTotal">$'+fmt(k.bonos.potencial_total)+'</div></div>'
     +'<div class="kpi-mini"><div class="kpi-mini-label">Bonos a pagar</div><div class="kpi-mini-val" id="kpiAPagarTotal" style="color:'+(k.bonos.a_pagar_total>0?'var(--ok)':'var(--text3)')+'">$'+fmt(k.bonos.a_pagar_total)+'</div></div>'
     +'</div>';
