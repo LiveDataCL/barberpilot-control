@@ -912,3 +912,106 @@ html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #cdCorrecci
 html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #horariosContent > div > table td {padding-left: var(--sp-2) !important; padding-right: var(--sp-2) !important}
   html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #horariosContent > div > table th {white-space: normal !important; font-size: 11px !important}
 }
+
+/* ═══ Stage B (6/6): KPIs. Real classes are restyled; the boxes the renderers draw with inline styles use !important (logged in TECH_DEBT). ═══ */
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis {container-type: inline-size}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-page {max-width: none}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis [style*="text-transform:uppercase"] {text-transform: none !important; letter-spacing: 0 !important; font-size: var(--fs-12) !important; line-height: var(--lh-12) !important; font-weight: 600 !important; color: var(--text-3) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-period {gap: var(--sp-3); margin-bottom: var(--sp-4)}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-period-label {text-transform: none; letter-spacing: 0; font-size: var(--fs-12); line-height: var(--lh-12); font-weight: 600; color: var(--text-3); margin-right: 0}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-period select {min-height: var(--h-control); box-sizing: border-box; border: 1px solid var(--border-strong); border-radius: var(--r-control); font: 400 var(--fs-14)/var(--lh-14) var(--font-data); padding: 0 var(--sp-3); background: var(--surface); color: var(--text); min-width: 200px; cursor: pointer}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-period-badge {background: var(--brand-primary-tint) !important; color: var(--text-2) !important; border-radius: var(--r-pill); font: 600 var(--fs-12)/var(--lh-12) var(--font-data) !important; padding: 4px var(--sp-3)}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-cards-row {grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--sp-3); margin-bottom: var(--sp-5)}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-mini {background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-surface); padding: var(--sp-3) var(--sp-4)}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-mini-label {text-transform: none; letter-spacing: 0; font-size: var(--fs-12); line-height: var(--lh-12); font-weight: 600; color: var(--text-3); margin-bottom: var(--sp-1)}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-mini-val {font-family: var(--font-display); font-size: var(--fs-24); line-height: var(--lh-24); font-weight: 700; font-variant-numeric: tabular-nums}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis #kpiMetaBox {background: var(--surface) !important; border: 1px solid var(--border) !important; border-radius: var(--r-surface) !important; box-shadow: none; padding: var(--sp-4) !important; margin-bottom: var(--sp-5) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis #kpiMetaBox > div:first-child > div:first-child {font-family: var(--font-display) !important; font-size: var(--fs-20) !important; line-height: var(--lh-20) !important; font-weight: 700 !important; letter-spacing: 0 !important; text-transform: none !important; color: var(--text) !important; margin-bottom: var(--sp-3) !important; margin-bottom: 0 !important}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis #kpiAjustarMetaBtn {min-height: var(--h-control-sm) !important; padding: 0 var(--sp-3) !important; background: var(--surface) !important; color: var(--brand-primary) !important; border: 1px solid var(--border-strong) !important; border-radius: var(--r-control) !important; font: 600 var(--fs-12)/var(--lh-12) var(--font-data) !important; cursor: pointer}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis #kpiMetaBox [style*="height:8px"] {height: 10px !important; border-radius: var(--r-pill) !important; background: var(--brand-primary-tint-2) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis #kpiMetaBox [style*="height:8px"] > div {border-radius: var(--r-pill) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis #kpiMetaValores,
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis #kpiMetaBox span[style*="color:var(--text2)"] {font-size: var(--fs-14) !important; line-height: var(--lh-14) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis #kpiMetaAvance {font-family: var(--font-data) !important; font-variant-numeric: tabular-nums; font-size: var(--fs-14) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis #kpiEstadoBonos {font-size: var(--fs-14) !important; line-height: var(--lh-14) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-page > div[style*="margin-bottom:18px"] > div:first-child {font-family: var(--font-display) !important; font-size: var(--fs-20) !important; line-height: var(--lh-20) !important; font-weight: 700 !important; letter-spacing: 0 !important; text-transform: none !important; color: var(--text) !important; margin-bottom: var(--sp-1) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-page > div[style*="margin-bottom:18px"] > div:last-child {font-size: var(--fs-14) !important; line-height: var(--lh-14) !important; color: var(--text-2) !important; max-width: 96ch !important}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-page > div[style*="background:var(--surface2)"] {background: var(--surface-2) !important; border: 1px solid var(--border) !important; border-radius: var(--r-surface) !important; padding: var(--sp-4) !important; font-size: var(--fs-14) !important; line-height: var(--lh-14) !important; color: var(--text-2) !important; margin-bottom: var(--sp-4) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-page > div[style*="background:var(--surface2)"] > div:first-child[style*="font-weight:700"] {font-family: var(--font-display) !important; font-size: var(--fs-16) !important; color: var(--text) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis #kpiCondV2 > div:first-child {font-family: var(--font-display) !important; font-size: var(--fs-20) !important; line-height: var(--lh-20) !important; color: var(--text) !important; display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; margin-bottom: var(--sp-2) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis #kpiCondV2 > div:first-child span[style*="eef2ee"] {background: var(--surface-2) !important; color: var(--text-2) !important; border: 1px solid var(--border) !important; border-radius: var(--r-pill) !important; font: 600 var(--fs-12)/var(--lh-12) var(--font-data) !important; padding: 2px var(--sp-3) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis #kpiCondV2 > div[style*="font-size:12px"] {font-size: var(--fs-14) !important; line-height: var(--lh-14) !important; color: var(--text-2) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis #kpiEvaluarHoy {min-height: var(--h-control) !important; padding: 0 var(--sp-4) !important; border-radius: var(--r-control) !important; font: 600 var(--fs-14)/var(--lh-14) var(--font-data) !important; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; background: var(--brand-primary) !important; color: var(--brand-on-primary) !important; border: 1px solid transparent !important}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis #kpiEvaluarHoy:hover {background: var(--brand-primary-hover) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-table-wrap {background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-surface); overflow-x: auto; margin-bottom: var(--sp-5)}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-table-head {background: var(--brand-primary-tint); color: var(--text); padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border)}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-table-head span {font-family: var(--font-display); font-size: var(--fs-16); line-height: var(--lh-16); font-weight: 700}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-table-head small {font: 600 var(--fs-12)/var(--lh-12) var(--font-data); opacity: 1; color: var(--text-2)}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-rt {width: 100%; border-collapse: collapse}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-rt th {background: var(--surface) !important; color: var(--text-2); font: 600 var(--fs-12)/var(--lh-12) var(--font-data); letter-spacing: 0; text-transform: none; padding: var(--sp-3) 6px; border-bottom: 1px solid var(--border)}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-rt th small {font-size: 11px !important; text-transform: none !important; color: var(--text-3) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-rt td {padding: var(--sp-3) 6px; border-bottom: 1px solid var(--border); font-size: var(--fs-14); vertical-align: middle; font-variant-numeric: tabular-nums}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-rt td [style*="font-size:10px"] {font-size: 11px !important; line-height: 1.3 !important; color: var(--text-3) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-rt td:first-child {font-family: var(--font-display); white-space: nowrap}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-rt tbody tr:hover td {background: var(--brand-primary-tint)}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-score-num {font-family: var(--font-data) !important; font-size: var(--fs-14) !important; font-weight: 700}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-total {font-family: var(--font-display) !important; font-size: var(--fs-20) !important; line-height: var(--lh-20)}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-potencial,
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-apagar {font-family: var(--font-data) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-disq-badge {background: var(--state-error-bg); color: var(--state-error); border-radius: var(--r-pill); font: 600 var(--fs-12)/var(--lh-12) var(--font-data); padding: 2px var(--sp-2)}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-grade {border-radius: var(--r-pill); font: 700 var(--fs-12)/var(--lh-12) var(--font-data); letter-spacing: 0; padding: 4px var(--sp-3); white-space: nowrap}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-grade.S {background: var(--state-alerta-bg); color: var(--state-alerta)}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-grade.A {background: var(--state-exito-bg); color: var(--state-exito)}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-grade.B {background: var(--state-ocupado-bg); color: var(--state-ocupado)}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-grade.C {background: var(--state-offline-bg); color: var(--state-offline)}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-grade.D,
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-grade.X {background: var(--state-error-bg); color: var(--state-error)}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-eval-grid {grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: var(--sp-4); margin-bottom: var(--sp-5)}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-eval-card {background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-surface); min-width: 0}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-eval-head {background: var(--brand-primary-tint); padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border)}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-eval-name {font-family: var(--font-display); font-size: var(--fs-16); line-height: var(--lh-16)}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-eval-head [style*="font-size:11px"] {font-size: var(--fs-12) !important; color: var(--text-2) !important; font-weight: 600}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-eval-body {padding: var(--sp-3) var(--sp-4)}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-eval-row {padding: var(--sp-2) 0; border-bottom: 1px solid var(--border); font-size: var(--fs-14); gap: var(--sp-3)}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-eval-label {color: var(--text-2); font-size: var(--fs-14)}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-prom {font-family: var(--font-data) !important; font-variant-numeric: tabular-nums; font-size: var(--fs-12) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-eval-dias {font-size: var(--fs-12) !important; line-height: var(--lh-12) !important; color: var(--text-2) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-bonus-section {background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-surface); padding: var(--sp-4); margin-bottom: var(--sp-5)}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-bonus-title {font-family: var(--font-display); font-size: var(--fs-20); line-height: var(--lh-20); margin-bottom: var(--sp-3)}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-bonus-section > div[style*="font-size:12px"] {font-size: var(--fs-14) !important; line-height: var(--lh-14) !important; color: var(--text-2) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-bonus-grid {grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--sp-3)}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-bonus-card {background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-surface); padding: var(--sp-3) var(--sp-4)}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-bonus-name {font-family: var(--font-display); font-size: var(--fs-16); line-height: var(--lh-16)}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-bonus-amount {font-family: var(--font-display); font-size: var(--fs-24); line-height: var(--lh-24); color: var(--state-exito)}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-bonus-card [style*="font-size:11px"],
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-bonus-card [style*="font-size:10px"],
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-bonus-card [style*="font-size:12px"] {font-size: var(--fs-12) !important; line-height: var(--lh-12) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis #faltasGravesAdmin > div {background: var(--surface) !important; border: 1px solid var(--border) !important; border-radius: var(--r-surface) !important; box-shadow: none; padding: var(--sp-4) !important; margin-bottom: var(--sp-5) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis #faltasGravesAdmin > div > div:first-child {font-family: var(--font-display) !important; font-size: var(--fs-16) !important; text-transform: none !important; letter-spacing: 0 !important}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis #faltasGravesAdmin textarea {min-height: var(--h-control) !important; box-sizing: border-box; border: 1px solid var(--border-strong) !important; border-radius: var(--r-control) !important; font: 400 var(--fs-14)/var(--lh-14) var(--font-data) !important; padding: 0 var(--sp-3) !important; background: var(--surface) !important; color: var(--text) !important; padding: var(--sp-2) var(--sp-3) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis #faltasGravesAdmin button {min-height: var(--h-control) !important; padding: 0 var(--sp-4) !important; border-radius: var(--r-control) !important; font: 600 var(--fs-14)/var(--lh-14) var(--font-data) !important; cursor: pointer; display: inline-flex; align-items: center; justify-content: center}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis #faltasGravesAdmin .fg-aplicar {background: var(--state-error) !important; color: var(--surface) !important; border: 1px solid transparent !important}
+html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis #faltasGravesAdmin .fg-desestimar {background: var(--surface) !important; color: var(--brand-primary) !important; border: 1px solid var(--border-strong) !important}
+@media (max-width: 1023px) {
+  html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-cards-row {grid-template-columns: repeat(2, minmax(0, 1fr))}
+  html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-eval-grid {grid-template-columns: minmax(0, 1fr)}
+  html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-table-wrap {border: 0; background: transparent; overflow: visible}
+  html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-table-head {border: 1px solid var(--border); border-radius: var(--r-surface); margin-bottom: var(--sp-3)}
+  html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-rt,
+  html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-rt tbody {display: block}
+  html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-rt thead {display: none}
+  html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-rt tbody tr {display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2) var(--sp-4); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-surface); padding: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-3)}
+  html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-rt tbody tr td {display: block; padding: 0 !important; border: 0 !important; text-align: left !important; background: transparent !important}
+  html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-rt tbody tr td:first-child {grid-column: 1 / -1; font-size: var(--fs-16); padding-bottom: var(--sp-2) !important; border-bottom: 1px solid var(--border) !important}
+  html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-rt tbody tr td:nth-child(2)::before {content: "Servicios"; display: block; font: 600 var(--fs-12)/var(--lh-12) var(--font-data); color: var(--text-3); margin-bottom: 2px}
+  html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-rt tbody tr td:nth-child(3)::before {content: "Ticket promedio"; display: block; font: 600 var(--fs-12)/var(--lh-12) var(--font-data); color: var(--text-3); margin-bottom: 2px}
+  html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-rt tbody tr td:nth-child(4)::before {content: "Producción"; display: block; font: 600 var(--fs-12)/var(--lh-12) var(--font-data); color: var(--text-3); margin-bottom: 2px}
+  html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-rt tbody tr td:nth-child(5)::before {content: "Conducta"; display: block; font: 600 var(--fs-12)/var(--lh-12) var(--font-data); color: var(--text-3); margin-bottom: 2px}
+  html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-rt tbody tr td:nth-child(6)::before {content: "Puntualidad"; display: block; font: 600 var(--fs-12)/var(--lh-12) var(--font-data); color: var(--text-3); margin-bottom: 2px}
+  html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-rt tbody tr td:nth-child(7)::before {content: "Venta adicional"; display: block; font: 600 var(--fs-12)/var(--lh-12) var(--font-data); color: var(--text-3); margin-bottom: 2px}
+  html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-rt tbody tr td:nth-child(8)::before {content: "Propinas"; display: block; font: 600 var(--fs-12)/var(--lh-12) var(--font-data); color: var(--text-3); margin-bottom: 2px}
+  html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-rt tbody tr td:nth-child(9)::before {content: "Total"; display: block; font: 600 var(--fs-12)/var(--lh-12) var(--font-data); color: var(--text-3); margin-bottom: 2px}
+  html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-rt tbody tr td:nth-child(10)::before {content: "Estrato"; display: block; font: 600 var(--fs-12)/var(--lh-12) var(--font-data); color: var(--text-3); margin-bottom: 2px}
+  html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-rt tbody tr td:nth-child(11)::before {content: "Bono potencial"; display: block; font: 600 var(--fs-12)/var(--lh-12) var(--font-data); color: var(--text-3); margin-bottom: 2px}
+  html[data-diseno="v2"][data-diseno-pantallas~="kpis"] #pKpis .kpi-rt tbody tr td:nth-child(12)::before {content: "Bono a pagar"; display: block; font: 600 var(--fs-12)/var(--lh-12) var(--font-data); color: var(--text-3); margin-bottom: 2px}
+}
