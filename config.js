@@ -1,6 +1,7 @@
 // Configuración de ESTE negocio. Un archivo por despliegue: el código del panel no trae ningún dato de otro negocio.
 // Salón Men Saúl Fino (valores actuales, copiados del código anterior). Para un cliente nuevo este archivo se genera con scripts/generar-config-control.js.
 window.BP_CONFIG = {
+  diseno: "clasico",   // "clasico" = el diseño de hoy; "v2" = el diseño nuevo (diseno-v2.js). Para volver atrás: "clasico" o borrar esta línea
   apiUrl: "https://barberpilot-api-production.up.railway.app",   // servidor de este negocio
   tenantSlug: "saulfino",   // identificador interno del negocio en su propio servidor
   nombre: "Salon Men Saúl Fino",
