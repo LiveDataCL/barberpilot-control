@@ -46,8 +46,8 @@
 
   /* Emoji become icons only while the new design is on (the current design's markup is never touched). Works on the static markup and on what the panel's
      scripts draw later (a MutationObserver per enabled pane). The icon is a decorative span; the visible words stay, so nothing loses its label. */
-  var EMOJI = { '\u{1F4CB}': 'file-text', '\u{1F517}': 'link', '\u2601': 'cloud-upload', '\u{1F4F8}': 'camera', '\u{1F511}': 'key-round', '\u{1F4C5}': 'calendar', '\u{1F4C6}': 'calendar', '\u{1F5D3}': 'calendar', '\u{1F50D}': 'search', '\u{1F4C2}': 'folder-open', '\u{1F4C1}': 'folder-open', '\u{1F4B0}': 'banknote', '\u270F': 'pencil', '\u23F1': 'clock', '\u{1F464}': 'user-round', '\u21BA': 'refresh-cw' };
-  var PANES = { sillas: 'pSillas', config: 'pConfig', historico: 'pHist', 'ingresar-historico': 'pHistorico', administracion: 'pStaff' };
+  var EMOJI = { '\u{1F4CB}': 'file-text', '\u{1F517}': 'link', '\u2601': 'cloud-upload', '\u{1F4F8}': 'camera', '\u{1F511}': 'key-round', '\u{1F4C5}': 'calendar', '\u{1F4C6}': 'calendar', '\u{1F5D3}': 'calendar', '\u{1F50D}': 'search', '\u{1F4C2}': 'folder-open', '\u{1F4C1}': 'folder-open', '\u{1F4B0}': 'banknote', '\u270F': 'pencil', '\u23F1': 'clock', '\u{1F464}': 'user-round', '\u21BA': 'refresh-cw', '\u2715': 'x', '\u{1F504}': 'refresh-cw', '\u{1F4BE}': 'save' };
+  var PANES = { registros: 'pReg', resumen: 'pSum', sillas: 'pSillas', config: 'pConfig', historico: 'pHist', 'ingresar-historico': 'pHistorico', administracion: 'pStaff' };
   var EMOJI_RE = new RegExp('(' + Object.keys(EMOJI).join('|') + ')\\uFE0F?', 'gu');
   function iconizar(raiz) {
     if (!raiz) return;
