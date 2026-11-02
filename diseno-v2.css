@@ -1181,3 +1181,16 @@ html[data-diseno="v2"] :is(.sc-aus-btn, .sc-editar, .sc-cerrar, .staff-action-bt
   html[data-diseno="v2"] .layout :is(button, select, textarea, input:not([type=checkbox]):not([type=radio]):not([type=range])) {min-height: var(--h-control) !important}
   html[data-diseno="v2"] :is(.sc-aus-btn, .sc-editar, .sc-cerrar, .staff-action-btn) {min-width: var(--h-control)}
 }
+
+/* Stage C3: Agenda page leftovers (emoji as icon, 40 px header buttons, sentence-case labels) */
+html[data-diseno="v2"] .ds-i[data-i="armchair"] {-webkit-mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M19%209V6a2%202%200%200%200-2-2H7a2%202%200%200%200-2%202v3%27%20%2F%3E%20%3Cpath%20d%3D%27M3%2016a2%202%200%200%200%202%202h14a2%202%200%200%200%202-2v-5a2%202%200%200%200-4%200v1.5a.5.5%200%200%201-.5.5h-9a.5.5%200%200%201-.5-.5V11a2%202%200%200%200-4%200z%27%20%2F%3E%20%3Cpath%20d%3D%27M5%2018v2%27%20%2F%3E%20%3Cpath%20d%3D%27M19%2018v2%27%20%2F%3E%3C%2Fsvg%3E"); mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M19%209V6a2%202%200%200%200-2-2H7a2%202%200%200%200-2%202v3%27%20%2F%3E%20%3Cpath%20d%3D%27M3%2016a2%202%200%200%200%202%202h14a2%202%200%200%200%202-2v-5a2%202%200%200%200-4%200v1.5a.5.5%200%200%201-.5.5h-9a.5.5%200%200%201-.5-.5V11a2%202%200%200%200-4%200z%27%20%2F%3E%20%3Cpath%20d%3D%27M5%2018v2%27%20%2F%3E%20%3Cpath%20d%3D%27M19%2018v2%27%20%2F%3E%3C%2Fsvg%3E")}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .hdr button, html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .mob-nav-btn, html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .dnav-btn {min-height: var(--h-control); text-transform: none; letter-spacing: 0}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .dnav-btn, html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .mob-nav-btn {min-width: var(--h-control)}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .view-btn, html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .btn-today, html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .hdr-link {text-transform: none; letter-spacing: 0; min-height: var(--h-control)}
+html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .hdr button .ds-i {margin-right: var(--sp-1)}
+@media (max-width: 1023px) {
+  html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .sum-bar {display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible}
+  html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .sum-bar .kpi {min-width: 0; width: auto}
+  html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .pills-bar {flex-wrap: wrap; overflow: visible}
+  html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .pill {min-height: var(--h-control)}
+}
