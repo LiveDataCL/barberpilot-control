@@ -838,3 +838,77 @@ html[data-diseno="v2"].ds-embedded[data-diseno-pantallas~="agenda"].ds-page-agen
   html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .date-lbl { min-width: 0; font-size: var(--fs-14); }
   html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .hdr-right { flex: 1 1 100%; justify-content: space-between; }
 }
+
+/* ═══ Stage B (5/6): Horarios + Conducta de hoy. Everything is drawn by scripts with inline styles and no classes: structural selectors with !important (logged in TECH_DEBT). ═══ */
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios {container-type: inline-size}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #horariosContent {max-width: none}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #horariosContent > p {max-width: 96ch; font-size: var(--fs-14) !important; line-height: var(--lh-14) !important; color: var(--text-2) !important; margin: 0 0 var(--sp-4) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #horariosContent > div[style*="flex-direction:column"] {display: grid !important; grid-template-columns: repeat(auto-fill, minmax(460px, 1fr)); gap: var(--sp-4) !important; margin-bottom: var(--sp-6) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #horariosContent > div[style*="flex-direction:column"] > div {background: var(--surface) !important; border: 1px solid var(--border) !important; border-radius: var(--r-surface) !important; box-shadow: none; min-width: 0}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #horariosContent > div[style*="flex-direction:column"] > div > div:first-child {background: var(--brand-primary-tint) !important; color: var(--text) !important; padding: var(--sp-3) var(--sp-4) !important; border-bottom: 1px solid var(--border)}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #horariosContent > div[style*="flex-direction:column"] > div > div:first-child > span:first-child {font-family: var(--font-display) !important; font-size: var(--fs-16) !important; line-height: var(--lh-16) !important; font-weight: 700 !important}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #horariosContent > div[style*="flex-direction:column"] > div > div:first-child > span:last-child {font-family: var(--font-data) !important; font-size: var(--fs-12) !important; opacity: 1 !important; color: var(--text-2) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #horariosContent > div[style*="flex-direction:column"] > div > div:nth-child(2) {grid-template-columns: minmax(0, 1fr) !important; gap: var(--sp-4) !important; padding: var(--sp-4) !important; align-items: start !important}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #horariosContent > div[style*="flex-direction:column"] > div > div:nth-child(2) > div:nth-child(3) {grid-column: 1 / -1; display: flex; align-items: baseline; justify-content: space-between; text-align: left !important; border-top: 1px solid var(--border); padding-top: var(--sp-3)}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #horariosContent > div[style*="flex-direction:column"] > div > div:nth-child(2) > div:nth-child(3) > div:first-child {margin: 0 !important}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #horariosContent > div[style*="flex-direction:column"] > div > div:nth-child(2) > div:nth-child(3) > div:last-child {font-family: var(--font-data) !important; font-variant-numeric: tabular-nums; font-size: var(--fs-20) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios [style*="text-transform:uppercase"] {text-transform: none !important; letter-spacing: 0 !important; font-size: var(--fs-12) !important; line-height: var(--lh-12) !important; font-weight: 600 !important; color: var(--text-3) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #horariosContent > div[style*="font-size:11px"][style*="font-weight:700"],
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #conductaHoyBox > div > div:first-child,
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #faltaGraveBox > div > div:first-child,
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #cdCorreccion > div:first-child {font-family: var(--font-display) !important; font-size: var(--fs-20) !important; line-height: var(--lh-20) !important; font-weight: 700 !important; letter-spacing: 0 !important; text-transform: none !important; color: var(--text) !important; margin-bottom: var(--sp-3) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios input[type="time"] {min-height: var(--h-control) !important; box-sizing: border-box !important; border: 1px solid var(--border-strong); border-radius: var(--r-control) !important; font-family: var(--font-data) !important; font-size: var(--fs-14) !important; padding: 0 var(--sp-3) !important; font-family: var(--font-data) !important; font-variant-numeric: tabular-nums; width: 128px; color: var(--text) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios input[id^="hmot-"] {min-height: var(--h-control) !important; box-sizing: border-box !important; border: 1px solid var(--border-strong); border-radius: var(--r-control) !important; font-family: var(--font-data) !important; font-size: var(--fs-14) !important; padding: 0 var(--sp-3) !important; font-size: var(--fs-12) !important; color: var(--text) !important; background: var(--surface) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios button[onclick^="marcarHora"], button[onclick^="guardarHoraDeCampo"] {min-height: var(--h-control) !important; padding: 0 var(--sp-3) !important; border-radius: var(--r-control) !important; font: 600 var(--fs-12)/var(--lh-12) var(--font-data) !important; display: inline-flex !important; align-items: center; justify-content: center}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios button[onclick^="marcarHora"] {background: var(--brand-primary) !important; color: var(--brand-on-primary) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios button[onclick^="marcarHora"]:hover {background: var(--brand-primary-hover) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #horariosContent button:disabled,
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #conductaHoyBox button:disabled {opacity: .5; cursor: not-allowed !important}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #horariosContent > div[style*="overflow:hidden"]:not([style*="flex"]) {background: var(--surface) !important; border: 1px solid var(--border) !important; border-radius: var(--r-surface) !important; overflow-x: auto !important}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #horariosContent > div > table {width: 100%}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #horariosContent > div > table thead tr {background: var(--brand-primary-tint) !important; border-bottom: 1px solid var(--border) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #horariosContent > div > table th {padding: var(--sp-3) var(--sp-4) !important; white-space: nowrap}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #horariosContent > div > table td {padding: 0 var(--sp-4) !important; height: 48px; font-family: var(--font-data) !important; font-variant-numeric: tabular-nums; font-size: var(--fs-14) !important; white-space: nowrap}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #horariosContent > div > table td:first-child {font-family: var(--font-display) !important; font-weight: 700 !important}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #conductaHoyBox > div {margin-top: var(--sp-6) !important; border-top: 1px solid var(--border) !important; padding-top: var(--sp-5) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #conductaHoyBox p,
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #faltaGraveBox p,
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #cdCorreccion p {font-size: var(--fs-14) !important; line-height: var(--lh-14) !important; color: var(--text-2) !important; max-width: 96ch}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #conductaHoyBox > div > div[style*="flex-direction:column"] {display: grid !important; grid-template-columns: repeat(auto-fill, minmax(460px, 1fr)); gap: var(--sp-4) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios .cd-card {background: var(--surface) !important; border: 1px solid var(--border) !important; border-radius: var(--r-surface) !important; padding: var(--sp-4) !important; min-width: 0}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios .cd-card > div:first-child b {font-family: var(--font-display); font-size: var(--fs-16); line-height: var(--lh-16)}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios .cd-estado {font-size: var(--fs-12) !important; font-weight: 600}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios .cd-card > div[style*="display:grid"] {grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important; gap: var(--sp-2) var(--sp-5) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios .cd-card label {font-size: var(--fs-14) !important; min-height: var(--h-control)}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios select.cd-sel {min-height: var(--h-control) !important; min-width: 64px; box-sizing: border-box; border: 1px solid var(--border-strong) !important; border-radius: var(--r-control) !important; background: var(--surface); font: 400 var(--fs-14)/var(--lh-14) var(--font-data) !important; font-variant-numeric: tabular-nums; padding: 0 var(--sp-2) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios button.cd-guardar {min-height: var(--h-control) !important; padding: 0 var(--sp-4) !important; background: var(--brand-primary) !important; color: var(--brand-on-primary) !important; border-radius: var(--r-control) !important; font: 600 var(--fs-14)/var(--lh-14) var(--font-data) !important; max-width: 100%}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios button.cd-guardar:hover:not(:disabled) {background: var(--brand-primary-hover) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #faltaGraveBox > div,
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #cdCorreccion {margin-top: var(--sp-6) !important; border-radius: var(--r-surface) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #cdCorreccion {background: var(--surface-2) !important; border: 1px solid var(--border) !important; padding: var(--sp-4) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #faltaGraveBox select,
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #faltaGraveBox input,
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #faltaGraveBox textarea,
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #cdCorreccion input,
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #cdCorreccion textarea,
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #cdCorreccion select {border: 1px solid var(--border-strong) !important; border-radius: var(--r-control) !important; font: 400 var(--fs-14)/var(--lh-14) var(--font-data) !important; padding: var(--sp-2) var(--sp-3) !important; background: var(--surface) !important; color: var(--text) !important; box-sizing: border-box}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #faltaGraveBox select,
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #faltaGraveBox input,
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #cdCorreccion input[type="date"] {min-height: var(--h-control) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #faltaGraveBox button,
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #cdCorreccion button {min-height: var(--h-control) !important; padding: 0 var(--sp-4) !important; border-radius: var(--r-control) !important; font: 600 var(--fs-14)/var(--lh-14) var(--font-data) !important; cursor: pointer}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #cdCorreccion button[onclick^="cdCargarDia"],
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #cdCorreccion button[onclick^="cdVerHistorial"] {background: var(--surface) !important; color: var(--brand-primary) !important; border: 1px solid var(--border-strong) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #fgEnviar,
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #cdCorreccion button[onclick^="cdGuardarCorreccion"] {background: var(--state-error) !important; color: var(--surface) !important; border: 1px solid transparent !important}
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #cdHistBox table,
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #cdCorreccion table {font-size: var(--fs-12)}
+@media (max-width: 1023px) {
+  html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #horariosContent > div[style*="flex-direction:column"],
+  html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #conductaHoyBox > div > div[style*="flex-direction:column"] {grid-template-columns: minmax(0, 1fr) !important}
+  html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #horariosContent > div[style*="flex-direction:column"] > div > div:nth-child(2) {grid-template-columns: minmax(0, 1fr) !important}
+  html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios input[type="time"] {width: 100%}
+  html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #horariosContent > div > table th,
+html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #horariosContent > div > table td {padding-left: var(--sp-2) !important; padding-right: var(--sp-2) !important}
+  html[data-diseno="v2"][data-diseno-pantallas~="horarios"] #pHorarios #horariosContent > div > table th {white-space: normal !important; font-size: 11px !important}
+}
