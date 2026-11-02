@@ -78,6 +78,7 @@
   function iconoNuevo(nombre) { var sp = document.createElement('span'); sp.className = 'ds-i'; sp.setAttribute('data-i', nombre); sp.setAttribute('aria-hidden', 'true'); return sp; }
   function dsShell() {
     [].forEach.call(document.querySelectorAll('.tabs .tab, .hdr-hist'), iconoDeEtiqueta);
+    try { dsAcerca(); } catch (e) {}
     var br = document.querySelector('.hdr-brand');
     if (br && !br.querySelector('.ds-menu-btn')) {                  // phones and tablets: the menu button opens the Registrar servicio drawer
       var b = document.createElement('button'); b.type = 'button'; b.className = 'ds-menu-btn'; b.setAttribute('aria-label', 'Registrar servicio'); b.setAttribute('aria-expanded', 'false'); b.appendChild(iconoNuevo('menu'));
@@ -129,7 +130,44 @@
     [].slice.call(p.children).forEach(function (k, i) { (i < 3 ? l : r).appendChild(k); });
     w.appendChild(l); w.appendChild(r); p.appendChild(w);
   }
-  function dsHorarios() {                           // the reason field's placeholder is a long sentence that is cut off in a field this wide: same meaning, shorter (new design only)
+  function dsCredito() {                            // "Desarrollado por LiveData": login screen and "Acerca de" only. mostrarCreditoLiveData defaults to true; a non-boolean follows the default; false renders nothing at all
+    var s = cfg.mostrarCreditoLiveData;
+    if (s !== undefined && typeof s !== 'boolean') { try { console.warn('[diseno-v2] mostrarCreditoLiveData no es booleano: se usa el valor por defecto'); } catch (e) {} s = true; }
+    if (s === false) return null;
+    var u = cfg.creditoLiveDataUrl, enlace = typeof u === 'string' && /^https:\/\/[^\s"'<>]+$/.test(u);   // only an https address makes a link; anything else shows the credit as plain text
+    var d = document.createElement('div'), h = document.createElement(enlace ? 'a' : 'span'); d.className = 'ds-credit';
+    if (enlace) { h.href = u; h.target = '_blank'; h.rel = 'noopener'; } else h.className = 'ds-nolink';
+    h.appendChild(document.createTextNode('Desarrollado por '));
+    var im = document.createElement('img'); im.src = 'brand/livedata-wordmark-light-surface.png'; im.alt = 'LiveData'; im.height = 12; h.appendChild(im); d.appendChild(h); return d;
+  }
+  function dsLogin() {                              // login screen: the business's brand band on top, the credit in a quiet footer row of the card
+    var card = document.querySelector('#panelLoginOverlay .panel-login-card'); if (!card || card.querySelector('.ds-login-brand')) return;
+    var b = document.createElement('div'), m = document.createElement('span'), n = document.createElement('span'); b.className = 'ds-login-brand'; m.className = 'ds-login-mono'; m.setAttribute('aria-hidden', 'true'); n.textContent = cfg.nombre || ''; b.appendChild(m); b.appendChild(n); card.insertBefore(b, card.firstChild);
+    var c = dsCredito(); if (c) { var f = document.createElement('div'); f.className = 'ds-login-foot'; f.appendChild(c); card.appendChild(f); }
+  }
+  function dsAcerca() {                             // last entry of "Más": a small dialog with the business name, the version (only if config.js gives one) and the credit
+    var menu = document.getElementById('tabMasMenu'); if (!menu || menu.querySelector('.ds-acerca')) return;
+    var version = typeof cfg.appVersion === 'string' ? cfg.appVersion : '', hay = !!dsCredito();
+    if (!hay && !version) return;                   // nothing to show: no entry
+    var sep = document.createElement('div'), it = document.createElement('div'); sep.className = 'ds-menu-sep'; it.className = 'tab-dropdown-item ds-acerca'; it.setAttribute('role', 'button'); it.tabIndex = 0; it.textContent = 'Acerca de';
+    function abrir() {
+      if (typeof closeTabMas === 'function') closeTabMas();
+      if (document.getElementById('dsAcerca')) return;
+      var disp = document.querySelector('#tabMasWrap > .tab'), ant = document.activeElement; if (!ant || menu.contains(ant)) { ant = disp; if (ant) ant.tabIndex = -1; }   // the menu entry is hidden by then: focus goes back to the "Más" button
+      var sc = document.createElement('div'), card = document.createElement('div'), t = document.createElement('h2'), p = document.createElement('p'), x = document.createElement('button');
+      sc.id = 'dsAcerca'; sc.className = 'ds-acerca-scrim'; sc.setAttribute('role', 'dialog'); sc.setAttribute('aria-modal', 'true'); sc.setAttribute('aria-labelledby', 'dsAcercaT'); card.className = 'ds-acerca-card';
+      t.id = 'dsAcercaT'; t.textContent = 'Acerca de'; p.className = 'ds-acerca-name'; p.textContent = cfg.nombre || ''; card.appendChild(t); card.appendChild(p);
+      if (version) { var v = document.createElement('p'); v.className = 'ds-acerca-ver'; v.textContent = 'Versión ' + version; card.appendChild(v); }
+      var c = dsCredito(); if (c) card.appendChild(c);
+      x.type = 'button'; x.className = 'ds-acerca-x'; x.textContent = 'Cerrar'; card.appendChild(x); sc.appendChild(card); document.body.appendChild(sc);
+      function cerrar() { document.removeEventListener('keydown', tecla); if (sc.parentNode) sc.parentNode.removeChild(sc); try { if (ant && ant.focus) ant.focus(); } catch (e) {} }
+      function tecla(e) { if (e.key === 'Escape') cerrar(); else if (e.key === 'Tab') { var f = [].slice.call(sc.querySelectorAll('a, button')); if (!f.length) return; var i = f.indexOf(document.activeElement); e.preventDefault(); f[(i + (e.shiftKey ? -1 : 1) + f.length) % f.length].focus(); } }
+      x.addEventListener('click', cerrar); sc.addEventListener('click', function (e) { if (e.target === sc) cerrar(); }); document.addEventListener('keydown', tecla); x.focus();
+    }
+    it.addEventListener('click', abrir); it.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrir(); } });
+    menu.appendChild(sep); menu.appendChild(it);
+  }
+  function dsHorarios() {                         // the reason field's placeholder is a long sentence that is cut off in a field this wide: same meaning, shorter (new design only)
     var c = document.getElementById('horariosContent'); if (!c) return;
     function corto() { [].forEach.call(c.querySelectorAll('input[id^="hmot-"]'), function (i) { var p = i.getAttribute('placeholder') || '', q = p.replace(/^Motivo del ajuste \(obligatorio si difiere más de (\d+) min de ahora\)$/, 'Motivo (obligatorio si difiere más de $1 min)'); if (q !== p) i.setAttribute('placeholder', q); }); }
     corto(); try { new MutationObserver(corto).observe(c, { childList: true, subtree: true }); } catch (e) {}
@@ -141,7 +179,7 @@
     seguir(); try { new MutationObserver(seguir).observe(fr, { attributes: true, attributeFilter: ['src'] }); } catch (e) {}
   }
   function iconos(lista) {
-    var pend = { shell: dsShell, registrar: dsRegistrar, administracion: dsAdmin, sala: dsSala, agenda: dsAgenda, horarios: dsHorarios };
+    var pend = { shell: dsShell, registrar: dsRegistrar, administracion: dsAdmin, sala: dsSala, agenda: dsAgenda, horarios: dsHorarios, login: dsLogin };
     function etapaA() { lista.forEach(function (p) { if (pend[p]) { try { pend[p](); } catch (e) { try { console.warn('[diseno-v2] ' + p + ': ' + e.message); } catch (x) {} } } }); }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', etapaA); else etapaA();
     function iniciar() { lista.forEach(function (p) { var id = PANES[p], el = id && document.getElementById(id); if (!el) return; iconizar(el); try { new MutationObserver(function (ms) { ms.forEach(function (m) { for (var i = 0; i < m.addedNodes.length; i++) iconizar(m.addedNodes[i]); if (m.type === 'characterData') iconizar(m.target); }); }).observe(el, { childList: true, subtree: true, characterData: true }); } catch (e) {} }); }
