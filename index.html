@@ -560,6 +560,49 @@
   .panel-user-chip{display:flex;align-items:center;gap:8px;font-size:11px;opacity:.75}
   .panel-logout-btn{font-size:11px;padding:4px 10px;border:1px solid rgba(255,255,255,.3);border-radius:20px;background:transparent;color:#fff;cursor:pointer;font-family:var(--sans)}
   .panel-role-badge{background:rgba(255,255,255,.15);padding:1px 7px;border-radius:20px;font-size:10px;font-weight:700;letter-spacing:.04em}
+  /* s1: inline styles of the Config, Histórico and Administración panes, moved into classes (same declarations) so the new design can restyle them */
+  #pConfig .s1-1{max-width:600px}
+  #pConfig .s1-2{font-size:15px;font-weight:600;margin-bottom:14px}
+  #pConfig .s1-3{color:var(--text2);font-size:13px;margin-bottom:18px;line-height:1.6}
+  #pConfig .s1-4{margin-bottom:14px}
+  #pConfig .s1-5{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text3);margin-bottom:6px}
+  #pConfig .s1-6{padding:9px 18px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer}
+  #pConfig .s1-7{background:var(--surface2);border:1px solid var(--border);border-radius:var(--rl);padding:16px;font-size:12px;line-height:1.8}
+  #pConfig .s1-8{font-weight:700;margin-bottom:8px;font-size:13px}
+  #pConfig .s1-9{color:var(--info)}
+  #pConfig .s1-10{background:var(--border);padding:1px 5px;border-radius:3px}
+  #pConfig .s1-11{margin-top:14px}
+  #pConfig .s1-12{padding:9px 18px;border:1.5px solid var(--border);background:var(--surface);border-radius:var(--r);font-family:var(--sans);font-size:13px;cursor:pointer}
+  #pConfig .s1-13{margin-top:28px;border-top:1px solid var(--border);padding-top:22px}
+  #pConfig .s1-14{font-size:15px;font-weight:600;margin-bottom:6px}
+  #pConfig .s1-15{max-width:360px}
+  #pHist .s1-16{margin-bottom:14px}
+  #pHist .s1-17{padding:7px 12px;background:var(--surface);color:var(--text2);border:1px solid var(--border);border-radius:var(--r);font-size:12px;font-weight:600;cursor:pointer;margin-left:auto}
+  #pHist .s1-18{padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--surface)}
+  #pHist .s1-19{padding:8px 16px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer}
+  #pHist .s1-20{font-size:12px;color:var(--text3)}
+  #pHist .s1-21{color:var(--text3)}
+  #pHist .s1-22{font-size:15px;font-weight:600;color:var(--text2);margin-bottom:6px}
+  #pHist .s1-23{font-size:13px;color:var(--text3)}
+  #pStaff .s1-24{max-width:620px;padding-bottom:40px}
+  #pStaff .s1-25{font-weight:600;font-size:12px;margin-bottom:2px}
+  #pStaff .s1-26{color:var(--text3);font-size:12px}
+  #pStaff .s1-27{flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;font-family:var(--mono)}
+  #pStaff .s1-28{padding:7px 14px;font-size:12px;background:var(--text);color:#fff;border:none;border-radius:var(--r);cursor:pointer;font-family:var(--sans);font-weight:600}
+  #pStaff .s1-29{margin-bottom:26px}
+  #pStaff .s1-30{font-size:11px}
+  #pStaff .s1-31{margin-top:14px}
+  #pStaff .s1-32{font-size:12px;font-weight:600;margin-bottom:10px}
+  #pStaff .s1-33{font-size:11px;color:var(--text3);margin-bottom:4px}
+  #pStaff .s1-34{color:var(--text3);font-size:10px}
+  #pStaff .s1-35{font-family:var(--mono)}
+  #pStaff .s1-36{flex:1;padding:9px;font-size:12px}
+  #pStaff .s1-37{padding:9px 14px;font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;font-family:var(--sans)}
+  #pStaff .s1-38{flex:2}
+  #pStaff .s1-39{max-width:100px}
+  #pStaff .s1-40{padding:9px 14px;font-size:12px;white-space:nowrap}
+  #pStaff .s1-41{flex:1}
+  #pStaff .s1-42{padding-top:12px;border-top:1px solid var(--border);text-align:right}
 </style>
 </head>
 <body>
@@ -984,57 +1027,57 @@
     </div>
 
     <div class="pane" id="pConfig">
-      <div style="max-width:600px">
-        <div style="font-size:15px;font-weight:600;margin-bottom:14px">Configuración · Google Sheets</div>
-        <p style="color:var(--text2);font-size:13px;margin-bottom:18px;line-height:1.6">
+      <div class="s1-1">
+        <div class="s1-2">Configuración · Google Sheets</div>
+        <p class="s1-3">
           Para sincronizar los registros en tiempo real con Google Sheets y que los socios puedan ver el dashboard en vivo, 
           pega aquí la URL de tu Apps Script Web App.
         </p>
-        <div style="margin-bottom:14px">
-          <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text3);margin-bottom:6px">URL del Apps Script Web App</div>
+        <div class="s1-4">
+          <div class="s1-5">URL del Apps Script Web App</div>
           <div style="display:flex;gap:8px">
             <input id="sheetsUrlInput" type="text" placeholder="https://script.google.com/macros/s/.../exec"
               style="flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-family:var(--mono);background:var(--surface)"
               oninput="previewSheetsUrl(this.value)" />
-            <button onclick="guardarSheetsUrl()" style="padding:9px 18px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer">Guardar</button>
+            <button class="s1-6" onclick="guardarSheetsUrl()">Guardar</button>
           </div>
           <div id="sheetsUrlStatus" style="font-size:11px;margin-top:6px;color:var(--text3)">Sin configurar</div>
         </div>
-        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--rl);padding:16px;font-size:12px;line-height:1.8">
-          <div style="font-weight:700;margin-bottom:8px;font-size:13px">📋 Instrucciones de configuración</div>
-          <b>Paso 1</b> — Abre <a href="https://sheets.google.com" target="_blank" style="color:var(--info)">Google Sheets</a> y crea una hoja llamada <code style="background:var(--border);padding:1px 5px;border-radius:3px">Registros</code><br>
+        <div class="s1-7">
+          <div class="s1-8">📋 Instrucciones de configuración</div>
+          <b>Paso 1</b> — Abre <a class="s1-9" href="https://sheets.google.com" target="_blank">Google Sheets</a> y crea una hoja llamada <code class="s1-10">Registros</code><br>
           <b>Paso 2</b> — En la hoja, ve a <b>Extensiones → Apps Script</b><br>
-          <b>Paso 3</b> — Borra el contenido y pega el código del archivo <code style="background:var(--border);padding:1px 5px;border-radius:3px">apps_script.gs</code><br>
+          <b>Paso 3</b> — Borra el contenido y pega el código del archivo <code class="s1-10">apps_script.gs</code><br>
           <b>Paso 4</b> — Clic en <b>Implementar → Nueva implementación</b> → Tipo: <b>Aplicación web</b><br>
           <b>Paso 5</b> — Ejecutar como: <b>Yo</b> · Quién tiene acceso: <b>Cualquier persona</b><br>
           <b>Paso 6</b> — Copia la URL generada y pégala arriba<br>
           <b>Paso 7</b> — El dashboard de socios lee la misma hoja. Comparte el link del dashboard.
         </div>
-        <div style="margin-top:14px">
-          <button onclick="testSheetsConnection()" style="padding:9px 18px;border:1.5px solid var(--border);background:var(--surface);border-radius:var(--r);font-family:var(--sans);font-size:13px;cursor:pointer">
+        <div class="s1-11">
+          <button class="s1-12" onclick="testSheetsConnection()">
             🔗 Probar conexión
           </button>
-          <button onclick="migrarHistoricoNube()" style="padding:9px 18px;border:1.5px solid var(--border);background:var(--surface);border-radius:var(--r);font-family:var(--sans);font-size:13px;cursor:pointer">
+          <button class="s1-12" onclick="migrarHistoricoNube()">
             ☁ Migrar datos a la nube
           </button>
         </div>
 
         <!-- ── Avatares del equipo ── -->
-        <div style="margin-top:28px;border-top:1px solid var(--border);padding-top:22px">
-          <div style="font-size:15px;font-weight:600;margin-bottom:6px">📸 Avatares del equipo</div>
-          <p style="color:var(--text2);font-size:13px;margin-bottom:18px;line-height:1.6">
+        <div class="s1-13">
+          <div class="s1-14">📸 Avatares del equipo</div>
+          <p class="s1-3">
             Sube la foto de cada barbero. La app la descarga automáticamente al hacer login.
           </p>
           <div id="avatarGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px"></div>
         </div>
 
         <div id="panelChangePassSection" style="margin-top:28px;border-top:1px solid var(--border);padding-top:22px;display:none">
-          <div style="font-size:15px;font-weight:600;margin-bottom:6px">🔑 Cambiar contraseña</div>
-          <div style="max-width:360px">
+          <div class="s1-14">🔑 Cambiar contraseña</div>
+          <div class="s1-15">
             <input class="panel-inp" id="cpCurrent" type="password" placeholder="Contraseña actual">
             <input class="panel-inp" id="cpNew" type="password" placeholder="Nueva contraseña (mín. 8 caracteres)">
             <input class="panel-inp" id="cpConfirm" type="password" placeholder="Confirmar nueva contraseña">
-            <button onclick="panelChangePassword()" style="padding:9px 18px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer">Actualizar contraseña</button>
+            <button class="s1-6" onclick="panelChangePassword()">Actualizar contraseña</button>
             <div id="cpMsg" style="font-size:12px;margin-top:8px;min-height:16px"></div>
           </div>
         </div>
@@ -1042,43 +1085,43 @@
     </div>
 
     <div class="pane" id="pHist">
-      <div style="margin-bottom:14px">
+      <div class="s1-16">
         <!-- Pestañas de período -->
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
           <button class="hist-periodo-btn on" data-periodo="dia"    onclick="selHistPeriodo(this)">📅 Día</button>
           <button class="hist-periodo-btn"    data-periodo="semana" onclick="selHistPeriodo(this)">📆 Semana</button>
           <button class="hist-periodo-btn"    data-periodo="mes"    onclick="selHistPeriodo(this)">🗓 Mes</button>
           <button class="hist-periodo-btn"    data-periodo="custom" onclick="selHistPeriodo(this)">🔍 Personalizado</button>
-          <label style="padding:7px 12px;background:var(--surface);color:var(--text2);border:1px solid var(--border);border-radius:var(--r);font-size:12px;font-weight:600;cursor:pointer;margin-left:auto">
+          <label class="s1-17">
             📂 JSON local
             <input type="file" accept=".json" id="fileInput" style="display:none" onchange="cargarArchivo(event)">
           </label>
         </div>
         <!-- Panel día -->
         <div id="histPanelDia" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-          <input type="date" id="histFechaCloud" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--surface)">
-          <button onclick="cargarDesdeNube()" style="padding:8px 16px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer">☁ Cargar día</button>
+          <input class="s1-18" type="date" id="histFechaCloud">
+          <button class="s1-19" onclick="cargarDesdeNube()">☁ Cargar día</button>
         </div>
         <!-- Panel semana -->
         <div id="histPanelSemana" style="display:none;gap:6px;align-items:center;flex-wrap:wrap">
-          <input type="date" id="histFechaSem" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--surface)">
-          <button onclick="cargarSemana()" style="padding:8px 16px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer">☁ Cargar semana</button>
-          <span style="font-size:12px;color:var(--text3)">Selecciona cualquier día de la semana</span>
+          <input class="s1-18" type="date" id="histFechaSem">
+          <button class="s1-19" onclick="cargarSemana()">☁ Cargar semana</button>
+          <span class="s1-20">Selecciona cualquier día de la semana</span>
         </div>
         <!-- Panel mes -->
         <div id="histPanelMes" style="display:none;gap:6px;align-items:center;flex-wrap:wrap">
-          <input type="month" id="histMes" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--surface)">
-          <button onclick="cargarMes()" style="padding:8px 16px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer">☁ Cargar mes</button>
+          <input class="s1-18" type="month" id="histMes">
+          <button class="s1-19" onclick="cargarMes()">☁ Cargar mes</button>
         </div>
         <!-- Panel custom -->
         <div id="histPanelCustom" style="display:none;gap:6px;align-items:center;flex-wrap:wrap">
-          <input type="date" id="histDesde" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--surface)">
-          <span style="color:var(--text3)">→</span>
-          <input type="date" id="histHasta" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:13px;background:var(--surface)">
-          <button onclick="cargarPeriodo()" style="padding:8px 16px;background:var(--text);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer">☁ Cargar período</button>
+          <input class="s1-18" type="date" id="histDesde">
+          <span class="s1-21">→</span>
+          <input class="s1-18" type="date" id="histHasta">
+          <button class="s1-19" onclick="cargarPeriodo()">☁ Cargar período</button>
         </div>
       </div>
-      <div id="histContainer"><div class="empty"><div class="empty-ico">☁</div><div style="font-size:15px;font-weight:600;color:var(--text2);margin-bottom:6px">Consulta el histórico</div><div style="font-size:13px;color:var(--text3)">Selecciona un período y carga desde la nube.</div></div></div>
+      <div id="histContainer"><div class="empty"><div class="empty-ico">☁</div><div class="s1-22">Consulta el histórico</div><div class="s1-23">Selecciona un período y carga desde la nube.</div></div></div>
     </div>
 
     <div class="pane" id="pCaja">
@@ -1097,46 +1140,46 @@
     </div>
 
     <div class="pane" id="pStaff">
-      <div style="max-width:620px;padding-bottom:40px">
+      <div class="s1-24">
 
         <!-- Admin token -->
         <div class="staff-token-box" id="staffTokenSection">
-          <div style="font-weight:600;font-size:12px;margin-bottom:2px">Token de administrador</div>
-          <div style="color:var(--text3);font-size:12px">Necesario para gestionar barberos. Cópialo de Railway Variables (<code>DASHBOARD_READ_TOKEN</code>).</div>
+          <div class="s1-25">Token de administrador</div>
+          <div class="s1-26">Necesario para gestionar barberos. Cópialo de Railway Variables (<code>DASHBOARD_READ_TOKEN</code>).</div>
           <div class="staff-token-row">
-            <input id="staffTokenInput" type="password" placeholder="Pega el token aquí" style="flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;font-family:var(--mono)">
-            <button onclick="staffSetToken()" style="padding:7px 14px;font-size:12px;background:var(--text);color:#fff;border:none;border-radius:var(--r);cursor:pointer;font-family:var(--sans);font-weight:600">Guardar</button>
+            <input class="s1-27" id="staffTokenInput" type="password" placeholder="Pega el token aquí">
+            <button class="s1-28" onclick="staffSetToken()">Guardar</button>
           </div>
           <div id="staffTokenStatus" style="margin-top:6px;font-size:11px;color:var(--text3)">Sin token — gestión de barberos deshabilitada</div>
         </div>
 
         <!-- Personal (from API) -->
-        <div style="margin-bottom:26px">
+        <div class="s1-29">
           <div class="staff-section-hdr">
             <span>Personal <span class="staff-saved" id="staffSaved">✓ Guardado</span></span>
-            <button class="staff-add-btn" onclick="staffRefreshFromAPI()" style="font-size:11px">↺ Actualizar</button>
+            <button class="staff-add-btn s1-30" onclick="staffRefreshFromAPI()">↺ Actualizar</button>
           </div>
           <div id="staffBB"></div>
-          <div id="staffOrden" style="margin-top:14px"></div>
+          <div class="s1-31" id="staffOrden"></div>
 
           <!-- Agregar barbero -->
           <div class="staff-add-card" id="staffAddCard" style="display:none">
-            <div style="font-size:12px;font-weight:600;margin-bottom:10px">Nuevo barbero</div>
+            <div class="s1-32">Nuevo barbero</div>
             <div class="staff-add-grid">
               <div>
-                <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Nombre</div>
+                <div class="s1-33">Nombre</div>
                 <input id="newBarberName" type="text" placeholder="Ej: Carlos" class="staff-input">
               </div>
               <div>
-                <div style="font-size:11px;color:var(--text3);margin-bottom:4px">ID (bid) <span style="color:var(--text3);font-size:10px">único, sin espacios</span></div>
-                <input id="newBarberBid" type="text" placeholder="Ej: b5" class="staff-input" style="font-family:var(--mono)">
+                <div class="s1-33">ID (bid) <span class="s1-34">único, sin espacios</span></div>
+                <input id="newBarberBid" type="text" placeholder="Ej: b5" class="staff-input s1-35">
               </div>
               <div>
-                <div style="font-size:11px;color:var(--text3);margin-bottom:4px">PIN (4-6 dígitos)</div>
+                <div class="s1-33">PIN (4-6 dígitos)</div>
                 <input id="newBarberPin" type="password" placeholder="••••" class="staff-input" inputmode="numeric" maxlength="6">
               </div>
               <div>
-                <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Rol</div>
+                <div class="s1-33">Rol</div>
                 <select id="newBarberRole" class="staff-input">
                   <option value="barber">Barbero</option>
                   <option value="owner">Dueño</option>
@@ -1144,15 +1187,15 @@
               </div>
             </div>
             <div style="display:flex;gap:8px">
-              <button onclick="staffSubmitNewBarber()" class="staff-add-btn" style="flex:1;padding:9px;font-size:12px">✓ Crear barbero</button>
-              <button onclick="staffHideAddCard()" style="padding:9px 14px;font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;font-family:var(--sans)">Cancelar</button>
+              <button onclick="staffSubmitNewBarber()" class="staff-add-btn s1-36">✓ Crear barbero</button>
+              <button class="s1-37" onclick="staffHideAddCard()">Cancelar</button>
             </div>
           </div>
           <button onclick="staffShowAddCard()" id="staffShowAddBtn" class="staff-add-btn" style="margin-top:10px;width:100%;padding:10px;font-size:12px;background:var(--surface2)">+ Agregar barbero</button>
         </div>
 
         <!-- Períodos de trabajo (solo lectura) -->
-        <div style="margin-bottom:26px">
+        <div class="s1-29">
           <div class="staff-section-hdr">
             <span>Períodos de trabajo</span>
             <span class="staff-note">Activo desde / hasta · solo lectura</span>
@@ -1161,7 +1204,7 @@
         </div>
 
         <!-- Meta mensual del local -->
-        <div style="margin-bottom:26px">
+        <div class="s1-29">
           <div class="staff-section-hdr">
             <span>Meta mensual del local</span>
             <span class="staff-note">Facturación de servicios · ajuste con motivo</span>
@@ -1170,7 +1213,7 @@
         </div>
 
         <!-- Comisiones -->
-        <div style="margin-bottom:26px">
+        <div class="s1-29">
           <div class="staff-section-hdr">
             <span>Comisiones</span>
             <span class="staff-note">% que recibe el barbero por método de pago</span>
@@ -1179,7 +1222,7 @@
         </div>
 
         <!-- Servicios -->
-        <div style="margin-bottom:26px">
+        <div class="s1-29">
           <div class="staff-section-hdr">
             <span>Servicios</span>
             <button class="staff-add-btn" id="staffAddSvcBtn" onclick="staffMostrarFormSvc()">+ Agregar</button>
@@ -1188,33 +1231,33 @@
         </div>
 
         <!-- Productos -->
-        <div style="margin-bottom:26px">
+        <div class="s1-29">
           <div class="staff-section-hdr">
             <span>Productos</span>
             <span class="staff-note">Vendidos en el checkout (Venta de Producto)</span>
           </div>
           <div id="staffProds"></div>
           <div style="display:flex;gap:8px;margin-top:10px">
-            <input id="newProductoNombre" type="text" placeholder="Ej: Cera extra fuerte" class="staff-input" style="flex:2">
-            <input id="newProductoPrecio" type="number" min="0" step="500" placeholder="Precio" class="staff-input" style="max-width:100px">
-            <button onclick="staffAddProd()" class="staff-add-btn" style="padding:9px 14px;font-size:12px;white-space:nowrap">+ Agregar</button>
+            <input id="newProductoNombre" type="text" placeholder="Ej: Cera extra fuerte" class="staff-input s1-38">
+            <input id="newProductoPrecio" type="number" min="0" step="500" placeholder="Precio" class="staff-input s1-39">
+            <button onclick="staffAddProd()" class="staff-add-btn s1-40">+ Agregar</button>
           </div>
         </div>
 
         <!-- Amenities (bebidas de cortesía) -->
-        <div style="margin-bottom:26px">
+        <div class="s1-29">
           <div class="staff-section-hdr">
             <span>Amenities</span>
             <span class="staff-note">Bebidas ofrecidas en el check-in</span>
           </div>
           <div id="staffBebidas"></div>
           <div style="display:flex;gap:8px;margin-top:10px">
-            <input id="newBebidaInput" type="text" placeholder="Ej: Té helado" class="staff-input" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();staffAddBebida();}">
-            <button onclick="staffAddBebida()" class="staff-add-btn" style="padding:9px 14px;font-size:12px;white-space:nowrap">+ Agregar</button>
+            <input id="newBebidaInput" type="text" placeholder="Ej: Té helado" class="staff-input s1-41" onkeydown="if(event.key==='Enter'){event.preventDefault();staffAddBebida();}">
+            <button onclick="staffAddBebida()" class="staff-add-btn s1-40">+ Agregar</button>
           </div>
         </div>
 
-        <div style="padding-top:12px;border-top:1px solid var(--border);text-align:right">
+        <div class="s1-42">
           <button class="staff-reset-btn" onclick="staffReset()">↩ Restaurar valores por defecto</button>
         </div>
       </div>
