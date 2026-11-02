@@ -1194,3 +1194,10 @@ html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .hdr butt
   html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .pills-bar {flex-wrap: wrap; overflow: visible}
   html[data-diseno="v2"][data-diseno-pantallas~="agenda"].ds-page-agenda .pill {min-height: var(--h-control)}
 }
+
+/* Más menu: while open it lives in <body> (fixed under its button), so it keeps its own look here */
+html[data-diseno="v2"] body > #tabMasMenu {background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-surface); box-shadow: var(--shadow-pop); padding: var(--sp-1); min-width: 220px; font-family: var(--font-data)}
+html[data-diseno="v2"] body > #tabMasMenu .tab-dropdown-item {display: flex; align-items: center; gap: var(--sp-2); min-height: var(--h-control); padding: 0 var(--sp-3); color: var(--text); font: 600 var(--fs-14)/var(--lh-14) var(--font-data); border: 0; border-radius: var(--r-control); background: transparent; cursor: pointer; white-space: nowrap}
+html[data-diseno="v2"] body > #tabMasMenu .tab-dropdown-item:hover, html[data-diseno="v2"] body > #tabMasMenu .tab-dropdown-item:focus-visible {background: var(--brand-primary-tint); outline: none}
+html[data-diseno="v2"] body > #tabMasMenu .tab-dropdown-item.on {background: var(--brand-primary-tint)}
+html[data-diseno="v2"] #tabMasWrap > .tab:focus-visible {outline: 2px solid var(--brand-accent-ui); outline-offset: -2px}

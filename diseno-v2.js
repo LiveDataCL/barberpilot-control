@@ -78,7 +78,7 @@
   function iconoNuevo(nombre) { var sp = document.createElement('span'); sp.className = 'ds-i'; sp.setAttribute('data-i', nombre); sp.setAttribute('aria-hidden', 'true'); return sp; }
   function dsShell() {
     [].forEach.call(document.querySelectorAll('.tabs .tab, .hdr-hist'), iconoDeEtiqueta);
-    try { dsAcerca(); } catch (e) {}
+    try { dsAcerca(); } catch (e) {} try { dsMas(); } catch (e) {}
     var br = document.querySelector('.hdr-brand');
     if (br && !br.querySelector('.ds-menu-btn')) {                  // phones and tablets: the menu button opens the Registrar servicio drawer
       var b = document.createElement('button'); b.type = 'button'; b.className = 'ds-menu-btn'; b.setAttribute('aria-label', 'Registrar servicio'); b.setAttribute('aria-expanded', 'false'); b.appendChild(iconoNuevo('menu'));
@@ -145,7 +145,39 @@
     var b = document.createElement('div'), m = document.createElement('span'), n = document.createElement('span'); b.className = 'ds-login-brand'; m.className = 'ds-login-mono'; m.setAttribute('aria-hidden', 'true'); n.textContent = cfg.nombre || ''; b.appendChild(m); b.appendChild(n); card.insertBefore(b, card.firstChild);
     var c = dsCredito(); if (c) { var f = document.createElement('div'); f.className = 'ds-login-foot'; f.appendChild(c); card.appendChild(f); }
   }
-  function dsAcerca() {                             // last entry of "Más": a small dialog with the business name, the version (only if config.js gives one) and the credit
+  function dsMas() {                                // "Más": its dropdown hangs under a tab row that scrolls sideways, and that row clips it (overflow-x makes overflow-y clip too): while open the menu lives in <body>, fixed under its button
+    var wrap = document.getElementById('tabMasWrap'), m = document.getElementById('tabMasMenu'); if (!wrap || !m || wrap.__ds) return; wrap.__ds = true;
+    var btn = wrap.querySelector('.tab'); if (!btn) return;
+    btn.tabIndex = 0; btn.setAttribute('role', 'button'); btn.setAttribute('aria-haspopup', 'menu'); btn.setAttribute('aria-expanded', 'false'); m.setAttribute('role', 'menu');
+    function abierto() { return m.style.display !== 'none' && m.style.display !== ''; }
+    function items() { return [].slice.call(m.querySelectorAll('.tab-dropdown-item')); }
+    function preparar() { items().forEach(function (it) { it.setAttribute('role', 'menuitem'); it.tabIndex = -1; }); }
+    function colocar() {
+      if (!abierto()) return; var b = btn.getBoundingClientRect(); if (m.parentNode !== document.body) document.body.appendChild(m);
+      m.style.position = 'fixed'; m.style.top = Math.round(b.bottom + 4) + 'px'; m.style.left = 'auto'; m.style.right = Math.max(8, Math.round(innerWidth - b.right)) + 'px'; m.style.zIndex = '9000'; m.style.maxHeight = Math.max(120, innerHeight - Math.round(b.bottom) - 16) + 'px'; m.style.overflowY = 'auto';
+    }
+    var abrir0 = window.toggleTabMas, cerrar0 = window.closeTabMas;
+    window.toggleTabMas = function () { var r = abrir0.apply(this, arguments); preparar(); colocar(); btn.setAttribute('aria-expanded', String(abierto())); return r; };
+    window.closeTabMas = function () { var r = cerrar0.apply(this, arguments); btn.setAttribute('aria-expanded', 'false'); return r; };
+    function enfocar(i) { var l = items(); if (l.length) l[(i + l.length) % l.length].focus(); }
+    function cerrarYVolver() { window.closeTabMas(); btn.focus(); }
+    btn.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') { e.preventDefault(); if (!abierto()) window.toggleTabMas(); enfocar(0); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); if (!abierto()) window.toggleTabMas(); enfocar(-1); }
+      else if (e.key === 'Escape' && abierto()) { e.preventDefault(); cerrarYVolver(); }
+    });
+    m.addEventListener('keydown', function (e) {
+      var l = items(), i = l.indexOf(document.activeElement);
+      if (e.key === 'ArrowDown') { e.preventDefault(); enfocar(i + 1); } else if (e.key === 'ArrowUp') { e.preventDefault(); enfocar(i - 1); }
+      else if (e.key === 'Home') { e.preventDefault(); enfocar(0); } else if (e.key === 'End') { e.preventDefault(); enfocar(-1); }
+      else if (e.key === 'Escape') { e.preventDefault(); cerrarYVolver(); }
+      else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (i >= 0) l[i].click(); }
+      else if (e.key === 'Tab') window.closeTabMas();
+    });
+    var fila = document.querySelector('.tabs'); if (fila) fila.addEventListener('scroll', function () { if (abierto()) window.closeTabMas(); }, { passive: true });
+    window.addEventListener('resize', colocar);
+  }
+  function dsAcerca() {                           // last entry of "Más": a small dialog with the business name, the version (only if config.js gives one) and the credit
     var menu = document.getElementById('tabMasMenu'); if (!menu || menu.querySelector('.ds-acerca')) return;
     var version = typeof cfg.appVersion === 'string' ? cfg.appVersion : '', hay = !!dsCredito();
     if (!hay && !version) return;                   // nothing to show: no entry
