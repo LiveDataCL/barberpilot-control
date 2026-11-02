@@ -3,7 +3,7 @@
 window.BP_CONFIG = {
   diseno: "clasico",   // "clasico" = el diseño de hoy; "v2" = el diseño nuevo (diseno-v2.js). Para volver atrás: "clasico" o borrar esta línea
   permitirOverrideDiseno: true,   // vista previa: con ?diseno=v2 en la dirección se ve el diseño nuevo en esa visita; sin el parámetro, nadie lo ve. Para quitarlo: false o borrar esta línea
-  pantallasV2: ["shell", "registrar", "sillas", "config", "historico", "administracion", "registros", "resumen", "sala", "clientes", "agenda", "horarios"],   // pantallas que ya tienen el diseño nuevo (solo cuenta cuando diseno es "v2")
+  pantallasV2: ["shell", "registrar", "sillas", "config", "historico", "administracion", "registros", "resumen", "sala", "clientes", "agenda", "horarios", "kpis"],   // pantallas que ya tienen el diseño nuevo (solo cuenta cuando diseno es "v2")
   tema: { logo: "brand/monograma-salonmen.svg", brand: { "--brand-primary": "#0E3B2E", "--brand-primary-hover": "#145040", "--brand-primary-deep": "#08261D", "--brand-primary-tint": "#E8F0EC", "--brand-primary-tint-2": "#CFE0D8", "--brand-on-primary": "#FAEBC2", "--brand-accent-ui": "#A56A30", "--brand-accent-text": "#845120", "--brand-accent-on-dark": "#C48345" } },   // colores de Salón Men (solo --brand-*)
   apiUrl: "https://barberpilot-api-production.up.railway.app",   // servidor de este negocio
   tenantSlug: "saulfino",   // identificador interno del negocio en su propio servidor
