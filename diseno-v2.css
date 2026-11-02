@@ -639,3 +639,70 @@ html[data-diseno="v2"][data-diseno-pantallas~="resumen"] .bscb {padding: var(--s
 html[data-diseno="v2"][data-diseno-pantallas~="resumen"] .bscr {font-size: var(--fs-14); padding: var(--sp-2) 0; border-bottom: 1px solid var(--border)}
 html[data-diseno="v2"][data-diseno-pantallas~="resumen"] .bscr:last-child {border-bottom: 0}
 html[data-diseno="v2"] .ds-i[data-i="save"] {-webkit-mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M15.2%203a2%202%200%200%201%201.4.6l3.8%203.8a2%202%200%200%201%20.6%201.4V19a2%202%200%200%201-2%202H5a2%202%200%200%201-2-2V5a2%202%200%200%201%202-2z%27%20%2F%3E%3Cpath%20d%3D%27M17%2021v-7a1%201%200%200%200-1-1H8a1%201%200%200%200-1%201v7%27%20%2F%3E%3Cpath%20d%3D%27M7%203v4a1%201%200%200%200%201%201h7%27%20%2F%3E%3C%2Fsvg%3E"); mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M15.2%203a2%202%200%200%201%201.4.6l3.8%203.8a2%202%200%200%201%20.6%201.4V19a2%202%200%200%201-2%202H5a2%202%200%200%201-2-2V5a2%202%200%200%201%202-2z%27%20%2F%3E%3Cpath%20d%3D%27M17%2021v-7a1%201%200%200%200-1-1H8a1%201%200%200%200-1%201v7%27%20%2F%3E%3Cpath%20d%3D%27M7%203v4a1%201%200%200%200%201%201h7%27%20%2F%3E%3C%2Fsvg%3E")}
+
+/* ═══ Stage B (2/6): Sala de espera. The form controls keep inline styles that the panel writes (ids), so they are overridden with !important (logged in TECH_DEBT). ═══ */
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #pSala {container-type: inline-size}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] .ds-cols2 {display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-4); align-items: start}
+@container (min-width: 980px) {
+  html[data-diseno="v2"][data-diseno-pantallas~="sala"] #pSala .ds-cols2 {grid-template-columns: minmax(320px, 400px) minmax(0, 1fr)}
+}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] .ds-col {display: flex; flex-direction: column; gap: var(--sp-4); min-width: 0}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] .s2-1 {background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-surface); padding: var(--sp-4); margin: 0}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] .s2-2 {font-family: var(--font-display); font-size: var(--fs-16); line-height: var(--lh-16); font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--text); margin-bottom: var(--sp-3); display: flex; align-items: center; gap: var(--sp-2)}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] .s2-10 {font-family: var(--font-display); font-size: var(--fs-20); line-height: var(--lh-20); font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--text)}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] .s2-4 {font: 600 var(--fs-12)/var(--lh-12) var(--font-data); color: var(--text-2); margin-bottom: var(--sp-1)}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] .s2-9 {font-size: var(--fs-14); line-height: var(--lh-14)}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] .s2-11,
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #salaAct {font-size: var(--fs-12); line-height: var(--lh-12); color: var(--text-3)}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #pSala input:not([type=checkbox]):not([type=radio]),
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #pSala select,
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] .s2-5,
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] .s2-6,
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] .s2-7,
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] .s2-15 {font-family: var(--font-data) !important; font-size: var(--fs-14) !important; line-height: var(--lh-14) !important; background: var(--surface) !important; color: var(--text) !important; border: 1px solid var(--border-strong) !important; border-radius: var(--r-control) !important; padding: 0 var(--sp-3) !important; height: var(--h-control) !important; box-sizing: border-box}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] .s2-8,
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] .s2-16 {display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2); height: var(--h-control); padding: 0 var(--sp-4); background: var(--brand-primary); color: var(--brand-on-primary); border: 1px solid transparent; border-radius: var(--r-control); font: 600 var(--fs-14)/var(--lh-14) var(--font-data); cursor: pointer}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] .s2-8:hover,
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] .s2-16:hover {background: var(--brand-primary-hover)}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] .s2-12 {height: var(--h-control-sm); padding: 0 var(--sp-3); background: var(--surface); color: var(--brand-primary); border: 1px solid var(--border-strong); border-radius: var(--r-control); font: 600 var(--fs-12)/var(--lh-12) var(--font-data); cursor: pointer}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] .s2-12:hover {background: var(--brand-primary-tint)}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #salaGrid {grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)) !important; gap: var(--sp-3) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #salaUltimaVisitaCard,
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #salaMemoriaPanel {background: var(--surface) !important; border: 1px solid var(--border) !important; border-radius: var(--r-surface) !important; padding: var(--sp-4) !important; margin: 0 !important}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #salaCrmPanel input {font-family: var(--font-data) !important; font-size: var(--fs-14) !important; line-height: var(--lh-14) !important; background: var(--surface) !important; color: var(--text) !important; border: 1px solid var(--border-strong) !important; border-radius: var(--r-control) !important; padding: 0 var(--sp-3) !important; height: var(--h-control) !important; box-sizing: border-box}
+
+/* Stage B (2/6) polish: queue cards */
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #salaGrid > div {border-radius: var(--r-surface) !important; box-shadow: none !important; border: 1px solid var(--border) !important; background: var(--surface) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #salaGrid > div > div:first-child {height: 3px !important; background: var(--brand-primary) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #salaGrid > div > div:nth-child(2) {background: var(--surface-2) !important; border-bottom: 1px solid var(--border) !important; padding: var(--sp-3) var(--sp-4) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #salaGrid [style*="border-radius:50%"] {background: var(--brand-primary) !important; color: var(--brand-on-primary) !important; font-family: var(--font-display) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #salaGrid [style*="font-weight:800"] {color: var(--text) !important; font-family: var(--font-display) !important; font-size: var(--fs-16) !important; letter-spacing: 0 !important}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #salaGrid [style*="color:var(--warn)"] {color: var(--state-sinllegada) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #salaGrid [style*="color:var(--ok)"] {color: var(--state-libre) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #salaGrid [style*="text-transform:uppercase"] {text-transform: none !important; letter-spacing: 0 !important; font-size: var(--fs-12) !important; font-weight: 600 !important; color: var(--text-3) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #salaGrid button {height: var(--h-control-sm) !important; padding: 0 var(--sp-3) !important; background: var(--surface) !important; color: var(--brand-primary) !important; border: 1px solid var(--border-strong) !important; border-radius: var(--r-control) !important; font: 600 var(--fs-12)/var(--lh-12) var(--font-data) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #salaGrid button[onclick*="Eliminar"] {color: var(--state-error) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #salaGrid button[onclick*="Cobrar"], button[onclick*="Checkin"], button[onclick*="Iniciar"] {background: var(--brand-primary) !important; color: var(--brand-on-primary) !important; border-color: transparent !important}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #salaGrid a[href*="whatsapp"] {height: var(--h-control-sm) !important; padding: 0 var(--sp-3) !important; background: var(--surface) !important; color: var(--brand-primary) !important; border: 1px solid var(--border-strong) !important; border-radius: var(--r-control) !important; font: 600 var(--fs-12)/var(--lh-12) var(--font-data) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #salaGrid input, select {font-family: var(--font-data) !important; font-size: var(--fs-14) !important; background: var(--surface) !important; color: var(--text) !important; border: 1px solid var(--border-strong) !important; border-radius: var(--r-control) !important; height: var(--h-control-sm) !important; padding: 0 var(--sp-2) !important; min-width: 0}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #salaGrid input[type=number] {width: 100px !important}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #salaGrid [style*="rgba(255,0,0"], [style*="#fee"], [style*="#fde"] {background: var(--state-error-bg) !important; color: var(--state-error) !important; border-radius: var(--r-control) !important}
+
+/* Stage B (2/6) polish 2 */
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #pSala .s2-2 {font-family: var(--font-display); font-size: var(--fs-16); line-height: var(--lh-16); font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--text); margin-bottom: var(--sp-3); display: flex; align-items: center; gap: var(--sp-2)}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #pSala .s2-10 {font-family: var(--font-display); font-size: var(--fs-20); line-height: var(--lh-20); font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--text)}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #pSala .s2-4 {font: 600 var(--fs-12)/var(--lh-12) var(--font-data); color: var(--text-2); margin-bottom: var(--sp-1)}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #pSala .s2-5,
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #pSala .s2-6,
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #pSala .s2-7,
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #pSala .s2-15 {font-family: var(--font-data) !important; font-size: var(--fs-14) !important; line-height: var(--lh-14) !important; background: var(--surface) !important; color: var(--text) !important; border: 1px solid var(--border-strong) !important; border-radius: var(--r-control) !important; padding: 0 var(--sp-3) !important; height: var(--h-control) !important; box-sizing: border-box}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #pSala .s2-8,
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #pSala .s2-16 {display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2); height: var(--h-control); padding: 0 var(--sp-4); background: var(--brand-primary); color: var(--brand-on-primary); border: 1px solid transparent; border-radius: var(--r-control); font: 600 var(--fs-14)/var(--lh-14) var(--font-data); cursor: pointer}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #pSala .s2-12 {height: var(--h-control-sm); padding: 0 var(--sp-3); background: var(--surface); color: var(--brand-primary); border: 1px solid var(--border-strong); border-radius: var(--r-control); font: 600 var(--fs-12)/var(--lh-12) var(--font-data); cursor: pointer}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #pSala .s2-1 {background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-surface); padding: var(--sp-4); margin: 0}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #pSala #salaGrid > div > div:nth-child(2) [style*="border-radius:50%"],
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #pSala #salaGrid [style*="border-radius:50%"][style*="font-weight:800"] {background: var(--brand-primary) !important; color: var(--brand-on-primary) !important}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #pSala #salaGrid button,
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #pSala #salaGrid a[href*="whatsapp"] {display: inline-flex !important; align-items: center !important; gap: var(--sp-1) !important; white-space: nowrap !important}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #pSala #salaGrid select {min-width: 124px !important}
+html[data-diseno="v2"][data-diseno-pantallas~="sala"] #pSala #salaGrid input[type=number] {flex: 0 0 104px !important}
