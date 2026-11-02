@@ -9,7 +9,7 @@
 (function () {
   'use strict';
   var root = document.documentElement, FONT_TIMEOUT_MS = 2500, CSS_TIMEOUT_MS = 5000;
-  var SCREENS = ['config', 'historico', 'ingresar-historico', 'administracion', 'registrar', 'clientes', 'agenda', 'horarios', 'shell', 'login', 'kpis', 'resumen', 'sala', 'registros', 'sillas', 'caja'];
+  var SCREENS = ['config', 'historico', 'ingresar-historico', 'administracion', 'registrar', 'clientes', 'agenda', 'horarios', 'shell', 'login', 'kpis', 'resumen', 'sala', 'registros', 'sillas', 'caja', 'cierre', 'aprobar'];
   function done(estado, motivo) { if (window.BP_DISENO) return; window.BP_DISENO = { estado: estado, motivo: motivo || '' }; if (estado !== 'v2' && motivo) { try { console.warn('[diseno-v2] se queda el diseño actual: ' + motivo); } catch (e) {} } }
 
   var cfg = window.BP_CONFIG, want = cfg && typeof cfg === 'object' ? cfg.diseno : undefined;
@@ -46,8 +46,8 @@
 
   /* Emoji become icons only while the new design is on (the current design's markup is never touched). Works on the static markup and on what the panel's
      scripts draw later (a MutationObserver per enabled pane). The icon is a decorative span; the visible words stay, so nothing loses its label. */
-  var EMOJI = { '\u{1F4CB}': 'file-text', '\u{1F517}': 'link', '\u2601': 'cloud-upload', '\u{1F4F8}': 'camera', '\u{1F511}': 'key-round', '\u{1F4C5}': 'calendar', '\u{1F4C6}': 'calendar', '\u{1F5D3}': 'calendar', '\u{1F50D}': 'search', '\u{1F4C2}': 'folder-open', '\u{1F4C1}': 'folder-open', '\u{1F4B0}': 'banknote', '\u270F': 'pencil', '\u23F1': 'clock', '\u{1F464}': 'user-round', '\u21BA': 'refresh-cw', '\u2715': 'x', '\u{1F504}': 'refresh-cw', '\u{1F4BE}': 'save', '✚': 'plus', '\u{1F552}': 'clock', '\u{1F9E0}': 'user-round', '✓': 'check' };
-  var PANES = { clientes: 'pClientes', sala: 'pSala', registros: 'pReg', resumen: 'pSum', sillas: 'pSillas', config: 'pConfig', historico: 'pHist', 'ingresar-historico': 'pHistorico', administracion: 'pStaff', horarios: 'pHorarios', kpis: 'pKpis' };
+  var EMOJI = { '\u{1F4CB}': 'file-text', '\u{1F517}': 'link', '\u2601': 'cloud-upload', '\u{1F4F8}': 'camera', '\u{1F511}': 'key-round', '\u{1F4C5}': 'calendar', '\u{1F4C6}': 'calendar', '\u{1F5D3}': 'calendar', '\u{1F50D}': 'search', '\u{1F4C2}': 'folder-open', '\u{1F4C1}': 'folder-open', '\u{1F4B0}': 'banknote', '\u270F': 'pencil', '\u23F1': 'clock', '\u{1F464}': 'user-round', '\u21BA': 'refresh-cw', '\u2715': 'x', '\u{1F504}': 'refresh-cw', '\u{1F4BE}': 'save', '✚': 'plus', '\u{1F552}': 'clock', '\u{1F9E0}': 'user-round', '✓': 'check', '\u23F8': 'pause', '\u25B6': 'play', '\u{1F4AC}': 'message-circle', '\u{1F4E5}': 'inbox', '\u2B50': 'star', '\u{1F6AB}': 'ban', '\u2705': 'circle-check', '\u{1F5A8}': 'printer', '\u{1F4C4}': 'file-text', '\u2B07': 'download', '\u21A9': 'undo-2', '\u2139': 'info', '\u{1F4B5}': 'banknote', '\u{1F4B3}': 'credit-card', '\u{1F9FE}': 'receipt', '\u{1F4CA}': 'chart-column', '\u2702': 'scissors', '\u26A0': 'triangle-alert', '\u23F3': 'hourglass' };
+  var PANES = { clientes: 'pClientes', sala: 'pSala', registros: 'pReg', resumen: 'pSum', sillas: 'pSillas', config: 'pConfig', historico: 'pHist', 'ingresar-historico': 'pHistorico', administracion: 'pStaff', horarios: 'pHorarios', kpis: 'pKpis', cierre: 'pCierre', aprobar: 'pAprob', caja: 'pCaja' };
   var EMOJI_RE = new RegExp('(' + Object.keys(EMOJI).join('|') + ')\\uFE0F?', 'gu');
   function iconizar(raiz) {
     if (!raiz) return;
