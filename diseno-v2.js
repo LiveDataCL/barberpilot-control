@@ -129,8 +129,14 @@
     [].slice.call(p.children).forEach(function (k, i) { (i < 3 ? l : r).appendChild(k); });
     w.appendChild(l); w.appendChild(r); p.appendChild(w);
   }
+  function dsAgenda() {                             // Agenda is another page inside an iframe: it needs the same switch (the ?diseno=v2 preview parameter) to follow the panel
+    if (document.getElementById('calContent') && document.getElementById('pillsBar')) { root.classList.add('ds-page-agenda'); return; }   // this IS the Agenda page: its rules are scoped to this class (the panel shares some class names, such as .hdr)
+    var fr = document.getElementById('agendaIframe'); if (!fr) return;
+    function seguir() { var s = fr.getAttribute('src') || ''; if (s.indexOf('agenda-admin') >= 0 && s.indexOf('diseno=') < 0) fr.setAttribute('src', s + (s.indexOf('?') < 0 ? '?' : '&') + 'diseno=v2'); }
+    seguir(); try { new MutationObserver(seguir).observe(fr, { attributes: true, attributeFilter: ['src'] }); } catch (e) {}
+  }
   function iconos(lista) {
-    var pend = { shell: dsShell, registrar: dsRegistrar, administracion: dsAdmin, sala: dsSala };
+    var pend = { shell: dsShell, registrar: dsRegistrar, administracion: dsAdmin, sala: dsSala, agenda: dsAgenda };
     function etapaA() { lista.forEach(function (p) { if (pend[p]) { try { pend[p](); } catch (e) { try { console.warn('[diseno-v2] ' + p + ': ' + e.message); } catch (x) {} } } }); }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', etapaA); else etapaA();
     function iniciar() { lista.forEach(function (p) { var id = PANES[p], el = id && document.getElementById(id); if (!el) return; iconizar(el); try { new MutationObserver(function (ms) { ms.forEach(function (m) { for (var i = 0; i < m.addedNodes.length; i++) iconizar(m.addedNodes[i]); if (m.type === 'characterData') iconizar(m.target); }); }).observe(el, { childList: true, subtree: true, characterData: true }); } catch (e) {} }); }
@@ -143,7 +149,7 @@
       for (var k in brand) root.style.setProperty(k, brand[k]);           // --brand-* only
       if (logo) { try { root.style.setProperty('--ds-logo', 'url("' + new URL(logo, location.href).href + '")'); } catch (e) {} }
       if (pantallas.length) root.setAttribute('data-diseno-pantallas', pantallas.join(' '));
-      root.setAttribute('data-diseno', 'v2'); done('v2', ''); iconos(pantallas);
+      root.setAttribute('data-diseno', 'v2'); try { if (window.parent !== window) root.classList.add('ds-embedded'); } catch (e) {} done('v2', ''); iconos(pantallas);
     })
     .catch(function (e) { if (link && link.parentNode) link.parentNode.removeChild(link); done('clasico', e && e.message ? e.message : 'error'); });
   // overall guard: if neither branch settled (a stalled stylesheet request), the page simply stays as it is
