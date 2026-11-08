@@ -1747,8 +1747,8 @@ function _metodoPago(clave){
 // Barber rate (0–1) for a SERVICE paid with `clave`; null if unknown or inactive.
 function tasaComision(clave){ var m=_metodoPago(clave); return m&&m.activo?m.pct_barbero/100:null; }
 function tasaComisionProducto(){ return COMISION_PRODUCTO_PCT==null?null:COMISION_PRODUCTO_PCT/100; }
-// The three built-in methods with their accents (Débito): used when the server list has not loaded or when its label is just the raw key.
-var ETIQUETA_PAGO_BASE={efectivo:'Efectivo',debito:'Débito',transferencia:'Transferencia'};
+// The three built-in methods (the stored key 'debito' is shown as "Tarjeta"): used when the server list has not loaded or when its label is just the raw key.
+var ETIQUETA_PAGO_BASE={efectivo:'Efectivo',debito:'Tarjeta',transferencia:'Transferencia'};
 function _sinAcentoMin(t){ return String(t==null?'':t).normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase(); }
 function etiquetaPago(clave){
   var m=_metodoPago(clave), et=m?m.etiqueta:'';
