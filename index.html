@@ -5549,6 +5549,16 @@ function _kpiTramos(r){ // tiers high → low, each with its max score
   var t=r.estratos.slice().sort(function(a,b){ return b.min-a.min; });
   return t.map(function(e,i){ return {id:e.id, nombre:e.nombre, min:e.min, max:i===0?r.puntaje_max:t[i-1].min-1, bono_pct:e.bono_pct}; });
 }
+// Goal progress rule (API branch feature/kpi-goal-barber-associated): from the start period the API marks the month with regla_avance = 'barbero_asociado'.
+// Then meta.facturacion_servicios is the PROGRESS (services + products associated with a barber, no tips) and meta.base_bono is the services-only figure the BONUS is paid on.
+// Months without the marker (earlier months, or an older API) are drawn exactly as before.
+var KPI_REGLA_AVANCE_TXT='Cuenta servicios y productos asociados a un barbero. Sin propinas. Sin ventas de mostrador, arriendo, mayorista ni canales externos.';
+function _kpiReglaNueva(m){ return !!m && m.regla_avance==='barbero_asociado'; }
+// Base of the "≈ $ bonus" example: the real bonus base. New-rule months: base_bono (never invented: if the API did not send a number there is no example). Older months: the figure they always used.
+function _kpiBaseBonoEjemplo(m){
+  if(!_kpiReglaNueva(m)) return m.facturacion_servicios;
+  return (typeof m.base_bono==='number' && isFinite(m.base_bono)) ? m.base_bono : null;
+}
 function _kpiBonoTexto(pct){
   if(pct===null || pct===undefined) return 'Sin bono';
   if(pct===0) return '$0';
@@ -5586,9 +5596,10 @@ function _renderKpisInnerSinGuarda(){
     +'<button id="kpiAjustarMetaBtn" onclick="kpiIrAAjustarMeta()" style="font-size:11px;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer">Ajustar meta en Administración</button></div>';
   if(m.vigente!=null){
     h+='<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;gap:8px;flex-wrap:wrap">'
-      +'<span style="color:var(--text2)">Facturación de servicios vs meta</span>'
+      +(_kpiReglaNueva(m)?'<span id="kpiMetaEtiqueta" title="'+KPI_REGLA_AVANCE_TXT+'" style="color:var(--text2)">Facturación (servicios + productos de barberos) vs meta</span>':'<span style="color:var(--text2)">Facturación de servicios vs meta</span>')
       +'<span id="kpiMetaAvance" style="font-family:var(--mono);font-weight:700;color:'+colorMeta+'">$'+fmt(m.facturacion_servicios)+' / $'+fmt(m.vigente)+' · '+String(m.avance_pct).replace('.',',')+'%</span></div>';
     h+='<div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden"><div style="height:100%;width:'+avance+'%;background:'+colorMeta+';border-radius:4px"></div></div>';
+    if(_kpiReglaNueva(m)) h+='<div id="kpiMetaRegla" style="font-size:11px;color:var(--text3);margin-top:6px">'+KPI_REGLA_AVANCE_TXT+'</div>';
   }
   h+='<div id="kpiMetaValores" style="font-size:12px;color:var(--text2);margin-top:8px;line-height:1.6">';
   if(m.override){
@@ -5597,7 +5608,8 @@ function _renderKpisInnerSinGuarda(){
   } else if(m.calculada!=null){
     h+='Meta calculada: <b style="font-family:var(--mono)">$'+fmt(m.calculada)+'</b> (sin ajuste)';
   }
-  h+='<br>Productos del mes: $'+fmt(m.facturacion_productos)+' <span style="color:var(--text3)">(no cuentan para la meta)</span>';
+  if(_kpiReglaNueva(m)) h+='<br>Productos del mes (todos): $'+fmt(m.facturacion_productos)+' <span style="color:var(--text3)">(solo los asociados a un barbero cuentan para la meta)</span>';
+  else h+='<br>Productos del mes: $'+fmt(m.facturacion_productos)+' <span style="color:var(--text3)">(no cuentan para la meta)</span>';
   if(k.meta_individual!=null) h+='<br>Meta individual: <b style="font-family:var(--mono)">$'+fmt(k.meta_individual)+'</b> <span style="color:var(--text3)">= meta ÷ '+k.divisor+' barbero'+(k.divisor===1?'':'s')+' que trabajaron en el mes</span>';
   if(k.mes_en_curso) h+='<br><span style="color:var(--text3)">Mes en curso: cifras hasta el '+_fechaLegible(k.hasta)+'.</span>';
   h+='</div>';
@@ -5706,8 +5718,9 @@ function _renderKpisInnerSinGuarda(){
     +'<div style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.6">Los bonos se muestran siempre como potenciales y se pagan solo si el local cumple su meta del mes. '
     +'La descalificación la decide la administración y anula el bono.</div><div class="kpi-bonus-grid" id="kpiEscala">';
   _kpiTramos(r).forEach(function(t){
+    var baseEj=_kpiBaseBonoEjemplo(m);   // the real bonus base (base_bono on the new rule), not the goal progress
     var monto=t.bono_pct>0?'<div style="font-size:12px;color:var(--text2);margin-top:2px">de la facturación de servicios del mes</div>'
-      +'<div class="kpi-bonus-label" style="font-size:10px;color:var(--text3)">(≈ $'+fmt(Math.round(m.facturacion_servicios*t.bono_pct/100))+' con la facturación de este mes)</div>':'';
+      +(baseEj==null?'':'<div class="kpi-bonus-label" style="font-size:10px;color:var(--text3)">(≈ $'+fmt(Math.round(baseEj*t.bono_pct/100))+' con la facturación de este mes)</div>'):'';
     h+='<div class="kpi-bonus-card"><div class="kpi-bonus-name">'+_escHtml(t.id)+' — '+_escHtml(t.nombre)+'</div><div style="font-size:11px;color:var(--text3);margin-bottom:6px">'
       +(t.min===0?'Menos de '+(t.max+1):t.min+'–'+t.max)+' puntos</div><div class="kpi-bonus-amount">'+_escHtml(_kpiBonoTexto(t.bono_pct))+'</div>'+monto+'</div>';
   });
@@ -5833,7 +5846,7 @@ function _dibujarStaffMeta(el, periodo, res){
       +'Meta calculada: <b style="font-family:var(--mono)">'+(m.calculada==null?'—':_fmtCLP(m.calculada))+'</b><br>'
       +'Meta vigente: <b style="font-family:var(--mono)">'+(m.vigente==null?'—':_fmtCLP(m.vigente))+'</b> '
       +(m.override?'<span style="color:var(--warn)">(ajustada por '+_escHtml(m.override.por)+' el '+_escHtml(m.override.en)+': '+_escHtml(m.override.motivo)+')</span>':'<span style="color:var(--text3)">(la calculada, sin ajuste)</span>')
-      +'<br><span style="color:var(--text3)">Facturación de servicios del mes: '+_fmtCLP(m.facturacion_servicios)+'</span></div>';
+      +'<br><span style="color:var(--text3)">'+(_kpiReglaNueva(m)?'Facturación (servicios + productos de barberos) del mes: ':'Facturación de servicios del mes: ')+_fmtCLP(m.facturacion_servicios)+'</span></div>';
     h+='<div style="display:grid;grid-template-columns:1fr 2fr;gap:8px;margin-bottom:8px">'
       +'<input id="staffMetaValor" type="number" min="1" step="1000" placeholder="Nueva meta $" class="staff-input" style="font-family:var(--mono)">'
       +'<input id="staffMetaMotivo" type="text" maxlength="300" placeholder="Motivo del cambio (obligatorio)" class="staff-input"></div>'
