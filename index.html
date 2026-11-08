@@ -406,6 +406,7 @@
   #sillasGrid .sc-sub{font-size:calc(11.5px*var(--k))} #sillasGrid .sc-cli{font-size:calc(12.5px*var(--k))} #sillasGrid .sc-rem{font-size:calc(28px*var(--k))}
   #sillasGrid .sc-fin{font-size:calc(12px*var(--k))} #sillasGrid .sc-foot{font-size:calc(11px*var(--k))} #sillasGrid .sc-pos{font-size:calc(17px*var(--k))}
   #sillasGrid .sc-cita{font-size:calc(11.5px*var(--k));padding:calc(2px*var(--k)) calc(7px*var(--k))}
+  #sillasGrid .sc-aus-det{font-size:calc(11.5px*var(--k))}
   #sillasGrid .sc-cerrar,#sillasGrid .sc-editar{font-size:calc(12px*var(--k));padding:calc(4px*var(--k)) calc(10px*var(--k))}
   .sc-acc{display:inline-flex;align-items:center;gap:calc(6px*var(--k,1));flex:0 0 auto}
   .sc-desde{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -416,6 +417,10 @@
   #sillasGrid.btn-icono .sc-editar,#sillasGrid.btn-icono .sc-cerrar{min-width:28px;min-height:22px;padding-left:6px;padding-right:6px}   /* a usable target even at the smallest text scale */ #sillasGrid .sc-aus-btn{font-size:calc(11px*var(--k));padding:calc(2px*var(--k)) calc(8px*var(--k))}
   #sillasGrid .sc-bar{height:calc(6px*var(--k));margin-left:calc(-11px*var(--k));margin-right:calc(-11px*var(--k))}
   .sc-pos{font-size:17px;line-height:1;color:var(--ok);font-weight:700}
+  .sc-aus-det{font-size:11.5px;line-height:1.4;color:var(--text2);margin-top:2px}
+  .sc-aus-est{font-weight:600}
+  .sc-aus-est.hito{color:#9a6e0a}
+  .sc-aus-est.sin-reg{color:var(--err)}
   .sc-cita{font-size:11.5px;color:#6a5416;background:rgba(201,168,76,.2);border-radius:var(--r);padding:2px 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;align-self:flex-start}
   .ss-rot{flex-basis:100%;font-size:12.5px;line-height:1.5;color:rgba(255,255,255,.75);border-top:1px solid rgba(255,255,255,.15);padding-top:4px;margin-top:2px}
   .rot-i{white-space:nowrap}
@@ -7120,6 +7125,29 @@ function sillasCitasProximas(citas,ahoraMs,ventana){
   });
   return out;
 }
+// Absence detail of a barber today, from the server (barberos[bid].ausencia, judged by services/rotacion.js calcularAusencias with the threshold the absence
+// STARTED with). Display only: it never orders anybody (the rotation reads the server's `regreso`). Nothing is invented: no return time shows "pendiente",
+// and an absence past its limit with no return recorded says "regreso no registrado".
+function _ausDuracion(seg){
+  if(seg==null||!isFinite(seg)) return '—';
+  seg=Math.max(0,Math.floor(seg)); var m=Math.floor(seg/60), r=seg%60;
+  return m+' min '+(r<10?'0':'')+r+' s';
+}
+function sillasAusenciaHtml(bd){
+  var a=bd&&bd.ausencia; if(!a) return '';
+  var h5=function(t){ return t?String(t).slice(0,5):''; };
+  var ud=a.ultima_disponibilidad;
+  var estado, cls='';
+  if(a.estado==='hito_activado'){ estado='hito activado desde '+h5(a.regreso_efectivo); cls=' hito'; }
+  else if(a.estado==='regreso_no_registrado'){ estado='regreso no registrado'; cls=' sin-reg'; }
+  else { estado='dentro del límite'; }
+  var lim=a.umbral_min!=null?' (límite '+Number(a.umbral_min)+' min)':'';
+  return '<div class="sc-aus-det" title="Última ausencia de hoy. Solo informativo: el orden de la rotación lo calcula el servidor.">'
+    +'<div>Último estado: '+(ud?(ud.disponible?'disponible':'ausente')+' '+escHtml(h5(ud.hora)):'—')+'</div>'
+    +'<div>Salió '+escHtml(h5(a.salida_hora))+' · Regreso '+(a.regreso_hora?escHtml(h5(a.regreso_hora)):'pendiente')+'</div>'
+    +'<div>Duración '+_ausDuracion(a.duracion_seg)+(a.regreso_hora?'':' (en curso)')+'</div>'
+    +'<div class="sc-aus-est'+cls+'">'+escHtml(estado)+escHtml(lim)+'</div></div>';
+}
 function sillasCitaHtml(c){
   if(!c) return '';
   return '<div class="sc-cita" title="Cita agendada: solo informativa, no cambia la rotación">📅 Cita '+escHtml(c.hora)+(c.cliente?' · '+escHtml(c.cliente):'')+(c.mas?' (+'+c.mas+' más)':'')+'</div>';
@@ -7631,6 +7659,7 @@ function renderSillas(){
           +(sillasPuedeMarcarAusencia()?' <button class="sc-aus-btn" title="Marcar que salió (ausente)" onclick="sillasMarcarAusencia(\''+escJsAttr(bd.barber_id||b.id)+'\',false,this)">⏸ Salió</button>':'')+'</div>';
         h+=sillasEsperaHtml(bd.enEspera,ahora,alertaEsp);
         h+=sillasCitaHtml(citas[b.id]);
+        h+=sillasAusenciaHtml(bd);
         h+='</div>';
       } else if(!barberoAusente(bd)&&!seWas&&bd.programado_hoy===false){
         // Día libre: no shift today by the weekly schedule / holidays / closed days (the server's answer, the same rule as the punctuality score). Gray, compact, no alert
@@ -7658,6 +7687,7 @@ function renderSillas(){
         h+='<div class="sc-sub">'+escHtml(motivoAusente)+(lastSvc[b.id]?' · último '+escHtml(lastSvc[b.id].slice(0,5)):'')
           +(marcadoAusente&&sillasPuedeMarcarAusencia()?' <button class="sc-aus-btn sc-vuelve" title="Marcar que volvió (disponible)" onclick="sillasMarcarAusencia(\''+escJsAttr(bd.barber_id||b.id)+'\',true,this)">✓ Volvió</button>':'')+'</div>';
         h+=sillasEsperaHtml(bd.enEspera,ahora,alertaEsp);
+        h+=sillasAusenciaHtml(bd);
         h+='</div>';
       }
     });
