@@ -460,7 +460,9 @@ function cargarEtiquetasPago(){
     if(r.ok){ ETIQUETAS_PAGO={}; (r.json.metodos||[]).forEach(function(m){ ETIQUETAS_PAGO[m.clave]=m.etiqueta; }); }
   });
 }
-function etiquetaPago(clave){ return (ETIQUETAS_PAGO&&ETIQUETAS_PAGO[clave])||clave; }
+// Used only when the server catalog cannot be read. The stored key of the card method is 'debito'; it is shown as "Tarjeta", never as the key.
+var ETIQUETAS_PAGO_RESPALDO={efectivo:'Efectivo',transferencia:'Transferencia',debito:'Tarjeta'};
+function etiquetaPago(clave){ return (ETIQUETAS_PAGO&&ETIQUETAS_PAGO[clave])||ETIQUETAS_PAGO_RESPALDO[clave]||clave; }
 function cargarPeriodoDashboard(desde, hasta){
   var st=document.getElementById('syncStatus');
   if(st) st.textContent='Cargando…';
