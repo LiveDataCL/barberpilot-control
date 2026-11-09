@@ -1362,7 +1362,7 @@
 // ═══ DEPLOYMENT CONFIG (config.js): API URL, business name, address, locale, time zone. One file per deployment; nothing of another business is a default in this code.
 var BP = window.BP_CONFIG;
 if (!BP || !BP.apiUrl || !BP.nombre || !BP.locale || !BP.timeZone || !BP.codigoPais || !BP.telLocalMax) { document.body.innerHTML = '<p style="font-family:sans-serif;padding:24px">Falta la configuración de este negocio (config.js). Avisa a quien instaló el sistema.</p>'; throw new Error('config.js ausente o incompleto'); }
-var BP_LOCALE = BP.locale, BP_TZ = BP.timeZone;
+var BP_TZ = BP.timeZone;   // BP_LOCALE: defined once, in reportes-api.js (loaded before this script)
 document.title = 'Sistema de Control · ' + BP.nombre;
 // Agenda (agenda-admin.html) exists only where config.js says agenda: true; without the key its tab and header link stay hidden and nothing opens it
 var AGENDA_ON = (BP.agenda === true);
