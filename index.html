@@ -406,6 +406,7 @@
   #sillasGrid .sc-sub{font-size:calc(11.5px*var(--k))} #sillasGrid .sc-cli{font-size:calc(12.5px*var(--k))} #sillasGrid .sc-rem{font-size:calc(28px*var(--k))}
   #sillasGrid .sc-fin{font-size:calc(12px*var(--k))} #sillasGrid .sc-foot{font-size:calc(11px*var(--k))} #sillasGrid .sc-pos{font-size:calc(17px*var(--k))}
   #sillasGrid .sc-cita{font-size:calc(11.5px*var(--k));padding:calc(2px*var(--k)) calc(7px*var(--k))}
+  #sillasGrid .sc-aus-det{font-size:calc(11.5px*var(--k))}
   #sillasGrid .sc-cerrar,#sillasGrid .sc-editar{font-size:calc(12px*var(--k));padding:calc(4px*var(--k)) calc(10px*var(--k))}
   .sc-acc{display:inline-flex;align-items:center;gap:calc(6px*var(--k,1));flex:0 0 auto}
   .sc-desde{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -416,6 +417,10 @@
   #sillasGrid.btn-icono .sc-editar,#sillasGrid.btn-icono .sc-cerrar{min-width:28px;min-height:22px;padding-left:6px;padding-right:6px}   /* a usable target even at the smallest text scale */ #sillasGrid .sc-aus-btn{font-size:calc(11px*var(--k));padding:calc(2px*var(--k)) calc(8px*var(--k))}
   #sillasGrid .sc-bar{height:calc(6px*var(--k));margin-left:calc(-11px*var(--k));margin-right:calc(-11px*var(--k))}
   .sc-pos{font-size:17px;line-height:1;color:var(--ok);font-weight:700}
+  .sc-aus-det{font-size:11.5px;line-height:1.4;color:var(--text2);margin-top:2px}
+  .sc-aus-est{font-weight:600}
+  .sc-aus-est.hito{color:#9a6e0a}
+  .sc-aus-est.sin-reg{color:var(--err)}
   .sc-cita{font-size:11.5px;color:#6a5416;background:rgba(201,168,76,.2);border-radius:var(--r);padding:2px 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;align-self:flex-start}
   .ss-rot{flex-basis:100%;font-size:12.5px;line-height:1.5;color:rgba(255,255,255,.75);border-top:1px solid rgba(255,255,255,.15);padding-top:4px;margin-top:2px}
   .rot-i{white-space:nowrap}
@@ -1747,8 +1752,8 @@ function _metodoPago(clave){
 // Barber rate (0–1) for a SERVICE paid with `clave`; null if unknown or inactive.
 function tasaComision(clave){ var m=_metodoPago(clave); return m&&m.activo?m.pct_barbero/100:null; }
 function tasaComisionProducto(){ return COMISION_PRODUCTO_PCT==null?null:COMISION_PRODUCTO_PCT/100; }
-// The three built-in methods with their accents (Débito): used when the server list has not loaded or when its label is just the raw key.
-var ETIQUETA_PAGO_BASE={efectivo:'Efectivo',debito:'Débito',transferencia:'Transferencia'};
+// The three built-in methods (the stored key 'debito' is shown as "Tarjeta"): used when the server list has not loaded or when its label is just the raw key.
+var ETIQUETA_PAGO_BASE={efectivo:'Efectivo',debito:'Tarjeta',transferencia:'Transferencia'};
 function _sinAcentoMin(t){ return String(t==null?'':t).normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase(); }
 function etiquetaPago(clave){
   var m=_metodoPago(clave), et=m?m.etiqueta:'';
@@ -5544,6 +5549,16 @@ function _kpiTramos(r){ // tiers high → low, each with its max score
   var t=r.estratos.slice().sort(function(a,b){ return b.min-a.min; });
   return t.map(function(e,i){ return {id:e.id, nombre:e.nombre, min:e.min, max:i===0?r.puntaje_max:t[i-1].min-1, bono_pct:e.bono_pct}; });
 }
+// Goal progress rule (API branch feature/kpi-goal-barber-associated): from the start period the API marks the month with regla_avance = 'barbero_asociado'.
+// Then meta.facturacion_servicios is the PROGRESS (services + products associated with a barber, no tips) and meta.base_bono is the services-only figure the BONUS is paid on.
+// Months without the marker (earlier months, or an older API) are drawn exactly as before.
+var KPI_REGLA_AVANCE_TXT='Cuenta servicios y productos asociados a un barbero. Sin propinas. Sin ventas de mostrador, arriendo, mayorista ni canales externos.';
+function _kpiReglaNueva(m){ return !!m && m.regla_avance==='barbero_asociado'; }
+// Base of the "≈ $ bonus" example: the real bonus base. New-rule months: base_bono (never invented: if the API did not send a number there is no example). Older months: the figure they always used.
+function _kpiBaseBonoEjemplo(m){
+  if(!_kpiReglaNueva(m)) return m.facturacion_servicios;
+  return (typeof m.base_bono==='number' && isFinite(m.base_bono)) ? m.base_bono : null;
+}
 function _kpiBonoTexto(pct){
   if(pct===null || pct===undefined) return 'Sin bono';
   if(pct===0) return '$0';
@@ -5581,9 +5596,10 @@ function _renderKpisInnerSinGuarda(){
     +'<button id="kpiAjustarMetaBtn" onclick="kpiIrAAjustarMeta()" style="font-size:11px;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer">Ajustar meta en Administración</button></div>';
   if(m.vigente!=null){
     h+='<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;gap:8px;flex-wrap:wrap">'
-      +'<span style="color:var(--text2)">Facturación de servicios vs meta</span>'
+      +(_kpiReglaNueva(m)?'<span id="kpiMetaEtiqueta" title="'+KPI_REGLA_AVANCE_TXT+'" style="color:var(--text2)">Facturación (servicios + productos de barberos) vs meta</span>':'<span style="color:var(--text2)">Facturación de servicios vs meta</span>')
       +'<span id="kpiMetaAvance" style="font-family:var(--mono);font-weight:700;color:'+colorMeta+'">$'+fmt(m.facturacion_servicios)+' / $'+fmt(m.vigente)+' · '+String(m.avance_pct).replace('.',',')+'%</span></div>';
     h+='<div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden"><div style="height:100%;width:'+avance+'%;background:'+colorMeta+';border-radius:4px"></div></div>';
+    if(_kpiReglaNueva(m)) h+='<div id="kpiMetaRegla" style="font-size:11px;color:var(--text3);margin-top:6px">'+KPI_REGLA_AVANCE_TXT+'</div>';
   }
   h+='<div id="kpiMetaValores" style="font-size:12px;color:var(--text2);margin-top:8px;line-height:1.6">';
   if(m.override){
@@ -5592,7 +5608,8 @@ function _renderKpisInnerSinGuarda(){
   } else if(m.calculada!=null){
     h+='Meta calculada: <b style="font-family:var(--mono)">$'+fmt(m.calculada)+'</b> (sin ajuste)';
   }
-  h+='<br>Productos del mes: $'+fmt(m.facturacion_productos)+' <span style="color:var(--text3)">(no cuentan para la meta)</span>';
+  if(_kpiReglaNueva(m)) h+='<br>Productos del mes (todos): $'+fmt(m.facturacion_productos)+' <span style="color:var(--text3)">(solo los asociados a un barbero cuentan para la meta)</span>';
+  else h+='<br>Productos del mes: $'+fmt(m.facturacion_productos)+' <span style="color:var(--text3)">(no cuentan para la meta)</span>';
   if(k.meta_individual!=null) h+='<br>Meta individual: <b style="font-family:var(--mono)">$'+fmt(k.meta_individual)+'</b> <span style="color:var(--text3)">= meta ÷ '+k.divisor+' barbero'+(k.divisor===1?'':'s')+' que trabajaron en el mes</span>';
   if(k.mes_en_curso) h+='<br><span style="color:var(--text3)">Mes en curso: cifras hasta el '+_fechaLegible(k.hasta)+'.</span>';
   h+='</div>';
@@ -5701,8 +5718,9 @@ function _renderKpisInnerSinGuarda(){
     +'<div style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.6">Los bonos se muestran siempre como potenciales y se pagan solo si el local cumple su meta del mes. '
     +'La descalificación la decide la administración y anula el bono.</div><div class="kpi-bonus-grid" id="kpiEscala">';
   _kpiTramos(r).forEach(function(t){
+    var baseEj=_kpiBaseBonoEjemplo(m);   // the real bonus base (base_bono on the new rule), not the goal progress
     var monto=t.bono_pct>0?'<div style="font-size:12px;color:var(--text2);margin-top:2px">de la facturación de servicios del mes</div>'
-      +'<div class="kpi-bonus-label" style="font-size:10px;color:var(--text3)">(≈ $'+fmt(Math.round(m.facturacion_servicios*t.bono_pct/100))+' con la facturación de este mes)</div>':'';
+      +(baseEj==null?'':'<div class="kpi-bonus-label" style="font-size:10px;color:var(--text3)">(≈ $'+fmt(Math.round(baseEj*t.bono_pct/100))+' con la facturación de este mes)</div>'):'';
     h+='<div class="kpi-bonus-card"><div class="kpi-bonus-name">'+_escHtml(t.id)+' — '+_escHtml(t.nombre)+'</div><div style="font-size:11px;color:var(--text3);margin-bottom:6px">'
       +(t.min===0?'Menos de '+(t.max+1):t.min+'–'+t.max)+' puntos</div><div class="kpi-bonus-amount">'+_escHtml(_kpiBonoTexto(t.bono_pct))+'</div>'+monto+'</div>';
   });
@@ -5828,7 +5846,7 @@ function _dibujarStaffMeta(el, periodo, res){
       +'Meta calculada: <b style="font-family:var(--mono)">'+(m.calculada==null?'—':_fmtCLP(m.calculada))+'</b><br>'
       +'Meta vigente: <b style="font-family:var(--mono)">'+(m.vigente==null?'—':_fmtCLP(m.vigente))+'</b> '
       +(m.override?'<span style="color:var(--warn)">(ajustada por '+_escHtml(m.override.por)+' el '+_escHtml(m.override.en)+': '+_escHtml(m.override.motivo)+')</span>':'<span style="color:var(--text3)">(la calculada, sin ajuste)</span>')
-      +'<br><span style="color:var(--text3)">Facturación de servicios del mes: '+_fmtCLP(m.facturacion_servicios)+'</span></div>';
+      +'<br><span style="color:var(--text3)">'+(_kpiReglaNueva(m)?'Facturación (servicios + productos de barberos) del mes: ':'Facturación de servicios del mes: ')+_fmtCLP(m.facturacion_servicios)+'</span></div>';
     h+='<div style="display:grid;grid-template-columns:1fr 2fr;gap:8px;margin-bottom:8px">'
       +'<input id="staffMetaValor" type="number" min="1" step="1000" placeholder="Nueva meta $" class="staff-input" style="font-family:var(--mono)">'
       +'<input id="staffMetaMotivo" type="text" maxlength="300" placeholder="Motivo del cambio (obligatorio)" class="staff-input"></div>'
@@ -7120,6 +7138,29 @@ function sillasCitasProximas(citas,ahoraMs,ventana){
   });
   return out;
 }
+// Absence detail of a barber today, from the server (barberos[bid].ausencia, judged by services/rotacion.js calcularAusencias with the threshold the absence
+// STARTED with). Display only: it never orders anybody (the rotation reads the server's `regreso`). Nothing is invented: no return time shows "pendiente",
+// and an absence past its limit with no return recorded says "regreso no registrado".
+function _ausDuracion(seg){
+  if(seg==null||!isFinite(seg)) return '—';
+  seg=Math.max(0,Math.floor(seg)); var m=Math.floor(seg/60), r=seg%60;
+  return m+' min '+(r<10?'0':'')+r+' s';
+}
+function sillasAusenciaHtml(bd){
+  var a=bd&&bd.ausencia; if(!a) return '';
+  var h5=function(t){ return t?String(t).slice(0,5):''; };
+  var ud=a.ultima_disponibilidad;
+  var estado, cls='';
+  if(a.estado==='hito_activado'){ estado='hito activado desde '+h5(a.regreso_efectivo); cls=' hito'; }
+  else if(a.estado==='regreso_no_registrado'){ estado='regreso no registrado'; cls=' sin-reg'; }
+  else { estado='dentro del límite'; }
+  var lim=a.umbral_min!=null?' (límite '+Number(a.umbral_min)+' min)':'';
+  return '<div class="sc-aus-det" title="Última ausencia de hoy. Solo informativo: el orden de la rotación lo calcula el servidor.">'
+    +'<div>Último estado: '+(ud?(ud.disponible?'disponible':'ausente')+' '+escHtml(h5(ud.hora)):'—')+'</div>'
+    +'<div>Salió '+escHtml(h5(a.salida_hora))+' · Regreso '+(a.regreso_hora?escHtml(h5(a.regreso_hora)):'pendiente')+'</div>'
+    +'<div>Duración '+_ausDuracion(a.duracion_seg)+(a.regreso_hora?'':' (en curso)')+'</div>'
+    +'<div class="sc-aus-est'+cls+'">'+escHtml(estado)+escHtml(lim)+'</div></div>';
+}
 function sillasCitaHtml(c){
   if(!c) return '';
   return '<div class="sc-cita" title="Cita agendada: solo informativa, no cambia la rotación">📅 Cita '+escHtml(c.hora)+(c.cliente?' · '+escHtml(c.cliente):'')+(c.mas?' (+'+c.mas+' más)':'')+'</div>';
@@ -7631,6 +7672,7 @@ function renderSillas(){
           +(sillasPuedeMarcarAusencia()?' <button class="sc-aus-btn" title="Marcar que salió (ausente)" onclick="sillasMarcarAusencia(\''+escJsAttr(bd.barber_id||b.id)+'\',false,this)">⏸ Salió</button>':'')+'</div>';
         h+=sillasEsperaHtml(bd.enEspera,ahora,alertaEsp);
         h+=sillasCitaHtml(citas[b.id]);
+        h+=sillasAusenciaHtml(bd);
         h+='</div>';
       } else if(!barberoAusente(bd)&&!seWas&&bd.programado_hoy===false){
         // Día libre: no shift today by the weekly schedule / holidays / closed days (the server's answer, the same rule as the punctuality score). Gray, compact, no alert
@@ -7658,6 +7700,7 @@ function renderSillas(){
         h+='<div class="sc-sub">'+escHtml(motivoAusente)+(lastSvc[b.id]?' · último '+escHtml(lastSvc[b.id].slice(0,5)):'')
           +(marcadoAusente&&sillasPuedeMarcarAusencia()?' <button class="sc-aus-btn sc-vuelve" title="Marcar que volvió (disponible)" onclick="sillasMarcarAusencia(\''+escJsAttr(bd.barber_id||b.id)+'\',true,this)">✓ Volvió</button>':'')+'</div>';
         h+=sillasEsperaHtml(bd.enEspera,ahora,alertaEsp);
+        h+=sillasAusenciaHtml(bd);
         h+='</div>';
       }
     });
