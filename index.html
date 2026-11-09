@@ -781,6 +781,8 @@
       <div class="tab" onclick="showTab('pClientes',this)">👤 Clientes</div>
       <div class="tab" id="tabAgenda" onclick="showTab('pAgenda',this)">📅 Agenda <span id="badgeAgenda" style="display:none;background:#2d5e8e;color:#fff;border-radius:20px;font-size:10px;font-weight:700;padding:1px 7px;margin-left:4px;vertical-align:middle">0</span></div>
       <div class="tab" onclick="showTab('pKpis',this)">🏆 KPIs</div>
+      <div class="tab" id="tabTv" style="display:none" onclick="showTab('pTv',this)">📺 TV</div>
+      <script>document.addEventListener('DOMContentLoaded',function(){if(window.BP_CONFIG&&BP_CONFIG.tv===true){var _t=document.getElementById('tabTv');if(_t)_t.style.display='';}});</script>
       <div style="position:relative" id="tabMasWrap">
         <div class="tab" onclick="toggleTabMas(event)">Más ▾</div>
         <div id="tabMasMenu" style="display:none;position:absolute;top:100%;right:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:100;min-width:190px;overflow:hidden">
@@ -805,6 +807,23 @@
       <div id="rCont"><div class="empty"><div class="empty-ico">✂</div><div>Sin registros. Registra el primer servicio del día.</div></div></div>
     </div>
 
+    <div class="pane" id="pTv">
+      <div class="card-p" style="padding:18px 20px;margin-bottom:14px;">
+        <h2 style="margin:0 0 4px;font-size:1.25rem;">📺 TV del local</h2>
+        <p class="muted" style="margin:0 0 14px;">Elige qué muestra la TV de la sala. Cada cambio queda registrado (quién, cuándo, de qué a qué).</p>
+        <div id="tvEstado" style="font-size:1rem;margin-bottom:6px;"></div>
+        <div id="tvAviso" style="font-size:0.95rem;"></div>
+      </div>
+      <div id="tvLista"></div>
+      <div class="card-p" id="tvAdmin" style="padding:18px 20px;margin-top:14px;display:none;">
+        <h3 style="margin:0 0 8px;font-size:1.05rem;">Dispositivos (solo administrador)</h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <input id="tvNuevoNombre" maxlength="80" placeholder="Nombre de la TV, ej. TV sala" style="padding:10px;font-size:1rem;min-width:240px;">
+          <button type="button" onclick="tvCrear()" style="padding:9px 14px;font-size:0.95rem;border-radius:10px;border:2px solid #c9c3b6;background:#fff;color:#1a1916;cursor:pointer;">Añadir TV</button>
+        </div>
+        <div id="tvToken" style="display:none;margin-top:12px;padding:12px;border:2px solid var(--brand-primary,#0E3B2E);border-radius:10px;"></div>
+      </div>
+    </div>
     <div class="pane" id="pAprob">
       <div id="aprobContent">
         <div class="empty"><div class="empty-ico">⟳</div><div>Cargando pendientes…</div></div>
@@ -3234,6 +3253,100 @@ function aprobarTodos(){
   });
 }
 
+// ── TV del local (destinos del lanzador) — solo si BP_CONFIG.tv === true ──
+// El token de sesión sólo se usa para llamar al servidor; el servidor decide qué puede hacer cada rol.
+var TV_DESTINOS=[{k:'tablero',t:'Tablero',d:'Turnos en vivo'},{k:'reproductor',t:'Reproductor',d:'Playlist y anuncios'},{k:'menu',t:'Menú',d:'Pantalla de inicio'}];
+var TV_VISTAS={menu:'Menú',tablero:'Tablero',reproductor:'Reproductor'};
+var _tvTimer=null, _tvDatos=[], _tvRol='';
+function tvHabilitado(){ return !!(window.BP_CONFIG && window.BP_CONFIG.tv===true); }
+function tvRolActual(){ try{ var p=sesionToken().split('.')[1]; var j=JSON.parse(atob(p.replace(/-/g,'+').replace(/_/g,'/'))); return j.role||''; }catch(e){ return ''; } }
+function tvEntrar(){
+  if(!tvHabilitado()) return;
+  _tvRol=tvRolActual();
+  document.getElementById('tvAdmin').style.display=(_tvRol==='admin')?'':'none';
+  tvCargar();
+  if(!_tvTimer) _tvTimer=setInterval(function(){ var p=document.getElementById('pTv'); if(p&&p.classList.contains('on')) tvCargar(); },15000);
+}
+function tvMensaje(txt){ var a=document.getElementById('tvAviso'); a.textContent=txt||''; }
+function tvCargar(){
+  fetch(API_URL+'/api/tv/dispositivos',{headers:{'Authorization':'Bearer '+sesionToken()},cache:'no-store'})
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(function(j){ _tvDatos=j.dispositivos||[]; tvPintar(); })
+    .catch(function(e){ tvMensaje('No se pudo leer el estado de las TV ('+e.message+'). Se muestra lo último conocido.'); });
+}
+function tvHace(iso){ var s=Math.max(0,Math.round((Date.now()-new Date(iso).getTime())/1000)); return s<90?('hace '+s+' s'):('hace '+Math.round(s/60)+' min'); }
+function tvHora(iso){ var d=new Date(iso); return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); }
+function tvPintar(){
+  var lista=document.getElementById('tvLista'); lista.textContent='';
+  var estado=document.getElementById('tvEstado'); estado.textContent='';
+  if(!_tvDatos.length){ var v=document.createElement('p'); v.className='muted'; v.textContent='Todavía no hay TV registradas.'; lista.appendChild(v); return; }
+  _tvDatos.forEach(function(d){
+    var card=document.createElement('div'); card.className='card-p'; card.style.cssText='padding:18px 20px;margin-bottom:14px;';
+    var h=document.createElement('div'); h.style.cssText='font-size:1.2rem;font-weight:700;margin-bottom:6px;'; h.textContent=d.nombre;
+    var st=document.createElement('div'); st.style.cssText='font-size:1rem;margin-bottom:10px;';
+    var warn=document.createElement('div'); warn.style.cssText='font-size:0.95rem;margin-bottom:10px;';
+    if(d.en_linea){
+      var vista=(d.last_status&&d.last_status.vista_actual)?TV_VISTAS[d.last_status.vista_actual]:'—';
+      st.textContent='TV en línea · mostrando '+vista+' · '+tvHace(d.last_seen_at);
+    } else {
+      st.textContent=d.last_seen_at?('sin conexión desde '+tvHora(d.last_seen_at)):'sin conexión (nunca ha reportado)';
+      st.style.color='#8a5a00';
+    }
+    if(d.last_status&&d.last_status.reproductor_ok===false){ warn.textContent='Reproductor no disponible: la TV muestra el Tablero.'; warn.style.color='#8a5a00'; }
+    if(d.last_status&&d.last_status.ultimo_error){ warn.textContent=(warn.textContent?warn.textContent+' ':'')+'Último error: '+d.last_status.ultimo_error; }
+    card.appendChild(h); card.appendChild(st); card.appendChild(warn);
+    var botones=document.createElement('div'); botones.style.cssText='display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;';
+    TV_DESTINOS.forEach(function(opt){
+      var b=document.createElement('button'); b.type='button';
+      var on=d.destino===opt.k;
+      b.style.cssText='min-height:64px;font-size:1.1rem;border-radius:12px;cursor:pointer;border:2px solid '+(on?'var(--brand-primary,#0E3B2E)':'#c9c3b6')+';background:'+(on?'var(--brand-primary,#0E3B2E)':'#fff')+';color:'+(on?'#fff':'#1a1916')+';';
+      b.textContent=opt.t; var sub=document.createElement('small'); sub.style.cssText='display:block;font-size:0.85rem;opacity:0.85;'; sub.textContent=opt.d; b.appendChild(sub);
+      b.disabled=!!d.revocado_at||on;
+      b.onclick=function(){ tvCambiar(d.id,opt.k,opt.t); };
+      botones.appendChild(b);
+    });
+    card.appendChild(botones);
+    if(_tvRol==='admin'&&!d.revocado_at){
+      var acc=document.createElement('div'); acc.style.cssText='margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;';
+      var rot=document.createElement('button'); rot.type='button'; rot.style.cssText='padding:9px 14px;font-size:0.95rem;border-radius:10px;border:2px solid #c9c3b6;background:#fff;color:#1a1916;cursor:pointer;'; rot.textContent='Rotar token'; rot.onclick=function(){ tvAccion(d.id,'rotar',d.nombre); };
+      var rev=document.createElement('button'); rev.type='button'; rev.style.cssText='padding:9px 14px;font-size:0.95rem;border-radius:10px;border:2px solid #c9c3b6;background:#fff;color:#1a1916;cursor:pointer;'; rev.textContent='Revocar'; rev.onclick=function(){ tvAccion(d.id,'revocar',d.nombre); };
+      acc.appendChild(rot); acc.appendChild(rev); card.appendChild(acc);
+    }
+    lista.appendChild(card);
+  });
+  estado.textContent='Actualizado '+new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
+}
+function tvCambiar(id,destino,etiqueta){
+  tvMensaje('Cambiando a '+etiqueta+'…');
+  fetch(API_URL+'/api/tv/dispositivos/'+id+'/destino',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+sesionToken()},body:JSON.stringify({destino:destino})})
+    .then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.error||('HTTP '+r.status)); return j; }); })
+    .then(function(){ tvMensaje('Listo: la TV cambiará a '+etiqueta+' en unos segundos.'); tvCargar(); })
+    .catch(function(e){ tvMensaje('No se pudo cambiar el destino ('+e.message+').'); });
+}
+function tvCrear(){
+  var n=(document.getElementById('tvNuevoNombre').value||'').trim();
+  if(!n){ tvMensaje('Escribe un nombre para la TV.'); return; }
+  fetch(API_URL+'/api/tv/dispositivos',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+sesionToken()},body:JSON.stringify({nombre:n})})
+    .then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.error||('HTTP '+r.status)); return j; }); })
+    .then(function(j){ tvMostrarToken('Token de «'+n+'»', j.token); document.getElementById('tvNuevoNombre').value=''; tvCargar(); })
+    .catch(function(e){ tvMensaje('No se pudo añadir la TV ('+e.message+').'); });
+}
+function tvAccion(id,accion,nombre){
+  var pregunta=accion==='rotar'?'Rotar el token de «'+nombre+'»? El token actual dejará de funcionar y habrá que recompilar el lanzador de esa TV.':'Revocar «'+nombre+'»? La TV dejará de recibir destinos.';
+  if(!confirm(pregunta)) return;
+  fetch(API_URL+'/api/tv/dispositivos/'+id+'/'+accion,{method:'POST',headers:{'Authorization':'Bearer '+sesionToken()}})
+    .then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.error||('HTTP '+r.status)); return j; }); })
+    .then(function(j){ if(j.token) tvMostrarToken('Nuevo token de «'+nombre+'»', j.token); else tvMensaje('«'+nombre+'» revocada.'); tvCargar(); })
+    .catch(function(e){ tvMensaje('No se pudo completar la acción ('+e.message+').'); });
+}
+function tvMostrarToken(titulo,token){
+  var box=document.getElementById('tvToken'); box.textContent='';
+  var t=document.createElement('div'); t.style.cssText='font-weight:700;margin-bottom:6px;'; t.textContent=titulo+' — guárdalo ahora, no se vuelve a mostrar:';
+  var code=document.createElement('code'); code.style.cssText='display:block;word-break:break-all;font-size:0.95rem;margin-bottom:8px;'; code.textContent=token;
+  var cerrar=document.createElement('button'); cerrar.type='button'; cerrar.style.cssText='padding:9px 14px;font-size:0.95rem;border-radius:10px;border:2px solid #c9c3b6;background:#fff;color:#1a1916;cursor:pointer;'; cerrar.textContent='Ya lo guardé, ocultar';
+  cerrar.onclick=function(){ box.textContent=''; box.style.display='none'; };
+  box.appendChild(t); box.appendChild(code); box.appendChild(cerrar); box.style.display='';
+}
 function showTab(id,el){
   if(id==='pAgenda'&&!AGENDA_ON) return;
   var all;
@@ -3248,6 +3361,7 @@ function showTab(id,el){
 // "Ajustar meta en Administración" link used showTabById, which only
 // switched panes: Comisiones, Períodos and Meta stayed empty.)
 function _alAbrirPestana(id){
+  if(id==='pTv')tvEntrar();
   if(id==='pSum')renderSum();
   if(id==='pCierre')renderCierre();
   if(id==='pCaja')renderCaja();
