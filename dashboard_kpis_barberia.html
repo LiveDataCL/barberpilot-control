@@ -925,7 +925,7 @@ function buildPagoList(pp){
   var total=(pp.efectivo||0)+(pp.debito||0)+(pp.transferencia||0);
   var items=[
     {label:_escTxt(etiquetaPago('efectivo')),val:pp.efectivo||0,color:'#1a1916'},
-    {label:_escTxt(etiquetaPago('debito'))+' MP',val:pp.debito||0,color:'#1a4b8b'},
+    {label:_escTxt(etiquetaPago('debito')),val:pp.debito||0,color:'#1a4b8b'},
     {label:_escTxt(etiquetaPago('transferencia')),val:pp.transferencia||0,color:'#1a6b3a'}
   ];
   return '<div class="pago-list">'+items.map(function(it){
