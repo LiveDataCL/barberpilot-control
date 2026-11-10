@@ -810,7 +810,7 @@
     <div class="pane" id="pTv">
       <div class="card-p" style="padding:18px 20px;margin-bottom:14px;">
         <h2 style="margin:0 0 4px;font-size:1.25rem;">📺 TV del local</h2>
-        <p class="muted" style="margin:0 0 14px;">Elige qué muestra la TV de la sala. Cada cambio queda registrado (quién, cuándo, de qué a qué). Solo contenido con derechos: sin transmisiones deportivas sin licencia.</p>
+        <p class="muted" style="margin:0 0 14px;">Elige qué muestra la TV de la sala. Cada cambio queda registrado (quién, cuándo, de qué a qué).</p>
         <div id="tvEstado" style="font-size:1rem;margin-bottom:6px;"></div>
         <div id="tvAviso" style="font-size:0.95rem;"></div>
       </div>
@@ -3376,9 +3376,6 @@ function tvPintar(){
       env.onclick=function(){ if(inp.value.trim()) tvEnviar(d.id,inp.value.trim()); };
       fila.appendChild(inp); fila.appendChild(env);
       envio.appendChild(lab); envio.appendChild(fila); envio.appendChild(prev);
-      var aviso=document.createElement('div'); aviso.style.cssText='font-size:0.85rem;color:#5a5448;margin-top:4px;';
-      aviso.textContent='Solo contenido con derechos: no envíes transmisiones deportivas sin licencia ni páginas de terceros sin permiso.';
-      envio.appendChild(aviso);
       card.appendChild(envio);
       if(d.recientes&&d.recientes.length){
         var rec=document.createElement('details'); rec.style.cssText='margin-top:12px;';
