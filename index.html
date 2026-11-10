@@ -3255,8 +3255,8 @@ function aprobarTodos(){
 
 // ── TV del local (destinos del lanzador) — solo si BP_CONFIG.tv === true ──
 // El token de sesión sólo se usa para llamar al servidor; el servidor decide qué puede hacer cada rol.
-var TV_DESTINOS=[{k:'tablero',t:'Tablero',d:'Turnos en vivo'},{k:'reproductor',t:'Reproductor',d:'Playlist y anuncios'},{k:'menu',t:'Menú',d:'Pantalla de inicio'}];
-var TV_VISTAS={menu:'Menú',tablero:'Tablero',reproductor:'Reproductor',youtube:'YouTube',web:'Página web'};
+var TV_DESTINOS=[{k:'tablero',t:'Tablero',d:'Turnos en vivo'},{k:'reproductor',t:'Reproductor',d:'Playlist y anuncios'},{k:'sala',t:'Sala',d:'Fondo y promociones'},{k:'menu',t:'Menú',d:'Pantalla de inicio'}];
+var TV_VISTAS={menu:'Menú',tablero:'Tablero',reproductor:'Reproductor',youtube:'YouTube',web:'Página web',sala:'Sala'};
 var TV_COMANDOS=[{op:'toggle',t:'Pausa / Reanudar'},{op:'seek_back',t:'−10 s'},{op:'seek_fwd',t:'+10 s'},{op:'vol_down',t:'Volumen −'},{op:'vol_up',t:'Volumen +'}];
 var _tvTimer=null, _tvDatos=[], _tvRol='';
 function tvHabilitado(){ return !!(window.BP_CONFIG && window.BP_CONFIG.tv===true); }
@@ -3286,8 +3286,8 @@ function tvEtiquetaContenido(d){
 function tvDetectarEnvio(txt){
   var s=(txt||'').trim();
   if(!s) return '';
-  if(/youtube\.com|youtu\.be/i.test(s)) return /list=/.test(s)?'Lista de YouTube: todavía no se admite.':'Video de YouTube: se enviará a la TV.';
-  if(/^https:\/\//i.test(s)) return 'Página web: el servidor comprobará que se pueda mostrar.';
+  if(/youtube\.com|youtu\.be/i.test(s)) return /list=/.test(s)?'Lista de YouTube: todavía no se admite.':'Video de YouTube: se mostrará en la sala con el banner. Si no admite mostrarse ahí, se abre en la app de YouTube de LG.';
+  if(/^https:\/\//i.test(s)) return 'Página web: se mostrará en la sala con el banner si la página lo permite; si no, se abre en el navegador de LG.';
   return 'Escribe un enlace de YouTube o una dirección https://';
 }
 function tvEnviar(id,url){
@@ -3297,6 +3297,9 @@ function tvEnviar(id,url){
     .then(function(x){
       if(!x.ok){ tvMensaje((x.j&&x.j.mensaje)||('No se pudo enviar ('+(x.j&&x.j.error||x.status)+').')); return; }
       var extra=x.j.motivo?' '+x.j.motivo+'.':'';
+      if(x.j.destino==='sala'){ tvMensaje('Enviado: se mostrará en la sala, con el banner de barberos.'+extra); tvCargar(); return; }
+      if(x.j.tipo==='youtube'){ tvMensaje('Enviado: este video no se puede mostrar en la sala; la TV lo abre en la app de YouTube de LG (fuera de la sala).'+extra); tvCargar(); return; }
+      tvMensaje('Enviado: esta página no se puede mostrar en la sala; la TV la abre en el navegador de LG (fuera de la sala).'+extra); tvCargar(); return;
       tvMensaje(x.j.tipo==='youtube'?'Enviado: el TV mostrará el video'+(x.j.modo==='app'?' en la app de YouTube de LG.':' dentro del lanzador.')+extra:'Enviado: el TV mostrará la página'+(x.j.modo==='lgbrowser'?' en el navegador de LG.':' dentro del lanzador.')+extra);
       tvCargar();
     })
@@ -3321,7 +3324,8 @@ function tvHistorial(id,contenedor){
         var cuando=new Date(r.at).toLocaleString('es-CL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
         var quien=(r.quien||'—')+' ('+(r.rol||'—')+')';
         var texto;
-        if(r.evento==='comando') texto='control remoto: '+(TV_COMANDOS.filter(function(c){ return c.op===r.detalle; })[0]||{t:r.detalle}).t;
+        if(r.evento==='cambio'&&r.de==='sala'&&r.a==='sala') texto='actualizó la sala (fondo y promociones)';
+        else if(r.evento==='comando') texto='control remoto: '+(TV_COMANDOS.filter(function(c){ return c.op===r.detalle; })[0]||{t:r.detalle}).t;
         else if(r.evento==='cambio') texto='cambió destino: '+(TV_VISTAS[r.de]||r.de||'—')+' → '+(TV_VISTAS[r.a]||r.a||'—');
         else texto=(r.resultado==='aceptado'?'envió':'intentó enviar (rechazado)')+' '+(r.detalle==='youtube'?'YouTube':'página web')+': '+(r.valor||'')+(r.motivo?' — '+r.motivo:'');
         l.textContent=cuando+' · '+quien+' · '+texto;
@@ -3354,7 +3358,7 @@ function tvPintar(){
     if(d.last_status&&d.last_status.reproductor_ok===false){ warn.textContent='Reproductor no disponible: la TV muestra el Tablero.'; warn.style.color='#8a5a00'; }
     if(d.last_status&&d.last_status.ultimo_error){ warn.textContent=(warn.textContent?warn.textContent+' ':'')+'Último aviso de la TV: '+d.last_status.ultimo_error; }
     card.appendChild(st); card.appendChild(warn);
-    var botones=document.createElement('div'); botones.style.cssText='display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;';
+    var botones=document.createElement('div'); botones.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;';
     TV_DESTINOS.forEach(function(opt){
       var b=document.createElement('button'); b.type='button';
       var on=d.destino===opt.k;
@@ -3376,6 +3380,12 @@ function tvPintar(){
         fc.appendChild(cb);
       });
       ctl.appendChild(lc); ctl.appendChild(fc); card.appendChild(ctl);
+    }
+    if((_tvRol==='admin'||_tvRol==='encargado')&&!d.revocado_at&&(d.destino==='sala'||(d.sala&&d.sala.fondo))){
+      var qf=document.createElement('button'); qf.type='button'; qf.textContent='Quitar fondo de la sala';
+      qf.style.cssText='margin-top:12px;min-height:44px;padding:0 18px;font-size:1rem;border-radius:10px;border:2px solid #c9c3b6;background:#fff;color:#1a1916;cursor:pointer;';
+      qf.onclick=function(){ tvQuitarFondo(d.id); };
+      card.appendChild(qf);
     }
     if(!d.revocado_at){
       var envio=document.createElement('div'); envio.style.cssText='margin-top:14px;';
@@ -3442,6 +3452,13 @@ function tvComando(id,op,etiqueta){
     .then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.mensaje||j.error||('HTTP '+r.status)); return j; }); })
     .then(function(){ tvMensaje('Enviado: '+etiqueta+'. La TV lo aplica en unos segundos.'); })
     .catch(function(e){ tvMensaje('No se pudo enviar ('+e.message+').'); });
+}
+function tvQuitarFondo(id){
+  tvMensaje('Quitando el fondo de la sala…');
+  fetch(API_URL+'/api/tv/dispositivos/'+id+'/sala',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+sesionToken()},body:JSON.stringify({fondo:''})})
+    .then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.mensaje||j.error||('HTTP '+r.status)); return j; }); })
+    .then(function(){ tvMensaje('Fondo quitado: la sala queda con el banner de barberos.'); tvCargar(); })
+    .catch(function(e){ tvMensaje('No se pudo quitar el fondo ('+e.message+').'); });
 }
 function tvCrear(){
   var n=(document.getElementById('tvNuevoNombre').value||'').trim();
