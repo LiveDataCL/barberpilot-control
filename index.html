@@ -3257,6 +3257,7 @@ function aprobarTodos(){
 // El token de sesión sólo se usa para llamar al servidor; el servidor decide qué puede hacer cada rol.
 var TV_DESTINOS=[{k:'tablero',t:'Tablero',d:'Turnos en vivo'},{k:'reproductor',t:'Reproductor',d:'Playlist y anuncios'},{k:'menu',t:'Menú',d:'Pantalla de inicio'}];
 var TV_VISTAS={menu:'Menú',tablero:'Tablero',reproductor:'Reproductor',youtube:'YouTube',web:'Página web'};
+var TV_COMANDOS=[{op:'toggle',t:'Pausa / Reanudar'},{op:'seek_back',t:'−10 s'},{op:'seek_fwd',t:'+10 s'},{op:'vol_down',t:'Volumen −'},{op:'vol_up',t:'Volumen +'}];
 var _tvTimer=null, _tvDatos=[], _tvRol='';
 function tvHabilitado(){ return !!(window.BP_CONFIG && window.BP_CONFIG.tv===true); }
 function tvRolActual(){ try{ var p=sesionToken().split('.')[1]; var j=JSON.parse(atob(p.replace(/-/g,'+').replace(/_/g,'/'))); return j.role||''; }catch(e){ return ''; } }
@@ -3320,7 +3321,8 @@ function tvHistorial(id,contenedor){
         var cuando=new Date(r.at).toLocaleString('es-CL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
         var quien=(r.quien||'—')+' ('+(r.rol||'—')+')';
         var texto;
-        if(r.evento==='cambio') texto='cambió destino: '+(TV_VISTAS[r.de]||r.de||'—')+' → '+(TV_VISTAS[r.a]||r.a||'—');
+        if(r.evento==='comando') texto='control remoto: '+(TV_COMANDOS.filter(function(c){ return c.op===r.detalle; })[0]||{t:r.detalle}).t;
+        else if(r.evento==='cambio') texto='cambió destino: '+(TV_VISTAS[r.de]||r.de||'—')+' → '+(TV_VISTAS[r.a]||r.a||'—');
         else texto=(r.resultado==='aceptado'?'envió':'intentó enviar (rechazado)')+' '+(r.detalle==='youtube'?'YouTube':'página web')+': '+(r.valor||'')+(r.motivo?' — '+r.motivo:'');
         l.textContent=cuando+' · '+quien+' · '+texto;
         contenedor.appendChild(l);
@@ -3363,6 +3365,18 @@ function tvPintar(){
       botones.appendChild(b);
     });
     card.appendChild(botones);
+    if((d.destino==='youtube'||d.destino==='reproductor')&&!d.revocado_at&&(_tvRol==='admin'||_tvRol==='encargado')){
+      var ctl=document.createElement('div'); ctl.style.cssText='margin-top:14px;';
+      var lc=document.createElement('div'); lc.style.cssText='font-weight:600;margin-bottom:6px;'; lc.textContent='Control del video en la TV';
+      var fc=document.createElement('div'); fc.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;';
+      TV_COMANDOS.forEach(function(c){
+        var cb=document.createElement('button'); cb.type='button'; cb.textContent=c.t;
+        cb.style.cssText='min-height:52px;font-size:1rem;border-radius:12px;border:2px solid #c9c3b6;background:#fff;color:#1a1916;cursor:pointer;';
+        cb.onclick=function(){ tvComando(d.id,c.op,c.t); };
+        fc.appendChild(cb);
+      });
+      ctl.appendChild(lc); ctl.appendChild(fc); card.appendChild(ctl);
+    }
     if(!d.revocado_at){
       var envio=document.createElement('div'); envio.style.cssText='margin-top:14px;';
       var lab=document.createElement('div'); lab.style.cssText='font-weight:600;margin-bottom:6px;'; lab.textContent='Enviar al TV (enlace de YouTube o página https://)';
@@ -3421,6 +3435,13 @@ function tvCambiar(id,destino,etiqueta){
     .then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.error||('HTTP '+r.status)); return j; }); })
     .then(function(){ tvMensaje('Listo: la TV cambiará a '+etiqueta+' en unos segundos.'); tvCargar(); })
     .catch(function(e){ tvMensaje('No se pudo cambiar el destino ('+e.message+').'); });
+}
+function tvComando(id,op,etiqueta){
+  tvMensaje('Enviando: '+etiqueta+'…');
+  fetch(API_URL+'/api/tv/dispositivos/'+id+'/comando',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+sesionToken()},body:JSON.stringify({op:op})})
+    .then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.mensaje||j.error||('HTTP '+r.status)); return j; }); })
+    .then(function(){ tvMensaje('Enviado: '+etiqueta+'. La TV lo aplica en unos segundos.'); })
+    .catch(function(e){ tvMensaje('No se pudo enviar ('+e.message+').'); });
 }
 function tvCrear(){
   var n=(document.getElementById('tvNuevoNombre').value||'').trim();
