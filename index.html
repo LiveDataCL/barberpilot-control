@@ -3257,7 +3257,8 @@ function aprobarTodos(){
 // El token de sesión sólo se usa para llamar al servidor; el servidor decide qué puede hacer cada rol.
 var TV_DESTINOS=[{k:'tablero',t:'Tablero',d:'Turnos en vivo'},{k:'reproductor',t:'Reproductor',d:'Playlist y anuncios'},{k:'sala',t:'Sala',d:'Fondo y promociones'},{k:'menu',t:'Menú',d:'Pantalla de inicio'}];
 var TV_VISTAS={menu:'Menú',tablero:'Tablero',reproductor:'Reproductor',youtube:'YouTube',web:'Página web',sala:'Sala'};
-var TV_COMANDOS=[{op:'toggle',t:'Pausa / Reanudar'},{op:'seek_back',t:'−10 s'},{op:'seek_fwd',t:'+10 s'},{op:'vol_down',t:'Volumen −'},{op:'vol_up',t:'Volumen +'}];
+var TV_COMANDOS=[{op:'toggle',t:'Pausa / Reanudar'},{op:'seek_back',t:'−10 s'},{op:'seek_fwd',t:'+10 s'},{op:'vol_down',t:'Volumen −'},{op:'vol_up',t:'Volumen +'},{op:'nav_salir',t:'Salir del modo navegación'}];
+var _tvEnvioDraft={};   // the send box keeps its typed text across the 15 s refresh (cleared only after a successful send)
 var _tvTimer=null, _tvDatos=[], _tvRol='';
 function tvHabilitado(){ return !!(window.BP_CONFIG && window.BP_CONFIG.tv===true); }
 function tvRolActual(){ try{ var p=sesionToken().split('.')[1]; var j=JSON.parse(atob(p.replace(/-/g,'+').replace(/_/g,'/'))); return j.role||''; }catch(e){ return ''; } }
@@ -3295,6 +3296,7 @@ function tvEnviar(id,url){
   fetch(API_URL+'/api/tv/dispositivos/'+id+'/enviar',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+sesionToken()},body:JSON.stringify({url:url})})
     .then(function(r){ return r.json().then(function(j){ return {ok:r.ok,status:r.status,j:j}; }); })
     .then(function(x){
+      if(x.ok) delete _tvEnvioDraft[id];
       if(!x.ok){ tvMensaje((x.j&&x.j.mensaje)||('No se pudo enviar ('+(x.j&&x.j.error||x.status)+').')); return; }
       var extra=x.j.motivo?' '+x.j.motivo+'.':'';
       if(x.j.destino==='sala'){ tvMensaje('Enviado: se mostrará en la sala, con el banner de barberos.'+extra); tvCargar(); return; }
@@ -3335,6 +3337,8 @@ function tvHistorial(id,contenedor){
     .catch(function(e){ contenedor.textContent='No se pudo cargar el historial ('+e.message+').'; });
 }
 function tvPintar(){
+  var foco=document.activeElement, fSel=null;
+  if(foco&&foco.getAttribute&&foco.getAttribute('data-tvinp')) fSel={id:foco.getAttribute('data-tvinp'),s:foco.selectionStart,e:foco.selectionEnd};
   var lista=document.getElementById('tvLista'); lista.textContent='';
   var estado=document.getElementById('tvEstado'); estado.textContent='';
   if(!_tvDatos.length){ var v=document.createElement('p'); v.className='muted'; v.textContent='Todavía no hay TV registradas.'; lista.appendChild(v); return; }
@@ -3373,13 +3377,36 @@ function tvPintar(){
       var ctl=document.createElement('div'); ctl.style.cssText='margin-top:14px;';
       var lc=document.createElement('div'); lc.style.cssText='font-weight:600;margin-bottom:6px;'; lc.textContent='Control del video en la TV';
       var fc=document.createElement('div'); fc.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;';
-      TV_COMANDOS.forEach(function(c){
+      TV_COMANDOS.filter(function(c){ return c.op!=='nav_salir'; }).forEach(function(c){
         var cb=document.createElement('button'); cb.type='button'; cb.textContent=c.t;
         cb.style.cssText='min-height:52px;font-size:1rem;border-radius:12px;border:2px solid #c9c3b6;background:#fff;color:#1a1916;cursor:pointer;';
         cb.onclick=function(){ tvComando(d.id,c.op,c.t); };
         fc.appendChild(cb);
       });
       ctl.appendChild(lc); ctl.appendChild(fc); card.appendChild(ctl);
+    }
+    if((_tvRol==='admin'||_tvRol==='encargado')&&!d.revocado_at&&d.destino==='sala'){
+      var ns=document.createElement('button'); ns.type='button'; ns.textContent='Salir del modo navegación';
+      ns.style.cssText='margin-top:12px;margin-right:8px;min-height:44px;padding:0 18px;font-size:1rem;border-radius:10px;border:2px solid #c9c3b6;background:#fff;color:#1a1916;cursor:pointer;';
+      ns.onclick=function(){ tvComando(d.id,'nav_salir','Salir del modo navegación'); };
+      card.appendChild(ns);
+    }
+    if((_tvRol==='admin'||_tvRol==='encargado')&&!d.revocado_at&&d.sala&&d.sala.fondo){
+      var sfz=d.sala.fondo, claveZ=sfz.tipo==='youtube'?sfz.video_id:sfz.url;
+      var ez=(d.sala.encuadres&&d.sala.encuadres[claveZ])||{zoom:1,x:0,y:0};
+      var encBox=document.createElement('div'); encBox.style.cssText='margin-top:14px;';
+      var encLab=document.createElement('div'); encLab.style.cssText='font-weight:600;margin-bottom:6px;'; encLab.textContent='Encuadre del fondo de la sala · zoom '+ez.zoom+' · x '+ez.x+' · y '+ez.y;
+      var encFila=document.createElement('div'); encFila.style.cssText='display:flex;gap:8px;flex-wrap:wrap;';
+      [['Acercar',function(){ return {zoom:ez.zoom+0.1,x:ez.x,y:ez.y}; }],['Alejar',function(){ return {zoom:ez.zoom-0.1,x:ez.x,y:ez.y}; }],
+       ['←',function(){ return {zoom:ez.zoom,x:ez.x-5,y:ez.y}; }],['→',function(){ return {zoom:ez.zoom,x:ez.x+5,y:ez.y}; }],
+       ['↑',function(){ return {zoom:ez.zoom,x:ez.x,y:ez.y-5}; }],['↓',function(){ return {zoom:ez.zoom,x:ez.x,y:ez.y+5}; }],
+       ['Restablecer',function(){ return {zoom:1,x:0,y:0}; }]].forEach(function(par){
+        var eb=document.createElement('button'); eb.type='button'; eb.textContent=par[0];
+        eb.style.cssText='min-height:44px;padding:0 14px;font-size:1rem;border-radius:10px;border:2px solid #c9c3b6;background:#fff;color:#1a1916;cursor:pointer;';
+        eb.onclick=function(){ tvEncuadre(d.id,par[1]()); };
+        encFila.appendChild(eb);
+      });
+      encBox.appendChild(encLab); encBox.appendChild(encFila); card.appendChild(encBox);
     }
     if((_tvRol==='admin'||_tvRol==='encargado')&&!d.revocado_at&&(d.destino==='sala'||(d.sala&&d.sala.fondo))){
       var qf=document.createElement('button'); qf.type='button'; qf.textContent='Quitar fondo de la sala';
@@ -3392,9 +3419,11 @@ function tvPintar(){
       var lab=document.createElement('div'); lab.style.cssText='font-weight:600;margin-bottom:6px;'; lab.textContent='Enviar al TV (enlace de YouTube o página https://)';
       var fila=document.createElement('div'); fila.style.cssText='display:flex;gap:8px;flex-wrap:wrap;';
       var inp=document.createElement('input'); inp.type='text'; inp.maxLength=500; inp.placeholder='https://www.youtube.com/watch?v=… o https://…';
+      inp.setAttribute('data-tvinp', d.id); inp.value=_tvEnvioDraft[d.id]||'';
       inp.style.cssText='padding:10px;font-size:1rem;flex:1 1 320px;min-width:240px;';
       var prev=document.createElement('div'); prev.style.cssText='font-size:0.92rem;color:#5a5448;min-height:1.2em;margin:6px 0;';
-      inp.oninput=function(){ prev.textContent=tvDetectarEnvio(inp.value); };
+      prev.textContent=tvDetectarEnvio(inp.value);
+      inp.oninput=function(){ _tvEnvioDraft[d.id]=inp.value; prev.textContent=tvDetectarEnvio(inp.value); };
       var env=document.createElement('button'); env.type='button'; env.textContent='Enviar';
       env.style.cssText='min-height:44px;padding:0 18px;font-size:1rem;border-radius:10px;border:2px solid var(--brand-primary,#0E3B2E);background:#fff;color:#1a1916;cursor:pointer;';
       env.onclick=function(){ if(inp.value.trim()) tvEnviar(d.id,inp.value.trim()); };
@@ -3437,6 +3466,7 @@ function tvPintar(){
     }
     lista.appendChild(card);
   });
+  if(fSel){ var nIn=lista.querySelector('input[data-tvinp="'+fSel.id+'"]'); if(nIn){ nIn.focus(); try{ nIn.setSelectionRange(fSel.s,fSel.e); }catch(e){} } }
   estado.textContent='Actualizado '+new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
 }
 function tvCambiar(id,destino,etiqueta){
@@ -3452,6 +3482,14 @@ function tvComando(id,op,etiqueta){
     .then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.mensaje||j.error||('HTTP '+r.status)); return j; }); })
     .then(function(){ tvMensaje('Enviado: '+etiqueta+'. La TV lo aplica en unos segundos.'); })
     .catch(function(e){ tvMensaje('No se pudo enviar ('+e.message+').'); });
+}
+function tvEncuadre(id,e){
+  var z=Math.min(3,Math.max(0.5,Math.round(e.zoom*10)/10)), x=Math.min(100,Math.max(-100,Math.round(e.x))), y=Math.min(100,Math.max(-100,Math.round(e.y)));
+  tvMensaje('Guardando el encuadre…');
+  fetch(API_URL+'/api/tv/dispositivos/'+id+'/sala/encuadre',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+sesionToken()},body:JSON.stringify({zoom:z,x:x,y:y})})
+    .then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.mensaje||j.error||('HTTP '+r.status)); return j; }); })
+    .then(function(){ tvMensaje('Encuadre guardado: se aplica en unos segundos.'); tvCargar(); })
+    .catch(function(e){ tvMensaje('No se pudo guardar el encuadre ('+e.message+').'); });
 }
 function tvQuitarFondo(id){
   tvMensaje('Quitando el fondo de la sala…');
