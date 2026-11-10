@@ -810,7 +810,7 @@
     <div class="pane" id="pTv">
       <div class="card-p" style="padding:18px 20px;margin-bottom:14px;">
         <h2 style="margin:0 0 4px;font-size:1.25rem;">📺 TV del local</h2>
-        <p class="muted" style="margin:0 0 14px;">Elige qué muestra la TV de la sala. Cada cambio queda registrado (quién, cuándo, de qué a qué).</p>
+        <p class="muted" style="margin:0 0 14px;">Elige qué muestra la TV de la sala. Cada cambio queda registrado (quién, cuándo, de qué a qué). Solo contenido con derechos: sin transmisiones deportivas sin licencia.</p>
         <div id="tvEstado" style="font-size:1rem;margin-bottom:6px;"></div>
         <div id="tvAviso" style="font-size:0.95rem;"></div>
       </div>
@@ -3256,7 +3256,7 @@ function aprobarTodos(){
 // ── TV del local (destinos del lanzador) — solo si BP_CONFIG.tv === true ──
 // El token de sesión sólo se usa para llamar al servidor; el servidor decide qué puede hacer cada rol.
 var TV_DESTINOS=[{k:'tablero',t:'Tablero',d:'Turnos en vivo'},{k:'reproductor',t:'Reproductor',d:'Playlist y anuncios'},{k:'menu',t:'Menú',d:'Pantalla de inicio'}];
-var TV_VISTAS={menu:'Menú',tablero:'Tablero',reproductor:'Reproductor'};
+var TV_VISTAS={menu:'Menú',tablero:'Tablero',reproductor:'Reproductor',youtube:'YouTube',web:'Página web'};
 var _tvTimer=null, _tvDatos=[], _tvRol='';
 function tvHabilitado(){ return !!(window.BP_CONFIG && window.BP_CONFIG.tv===true); }
 function tvRolActual(){ try{ var p=sesionToken().split('.')[1]; var j=JSON.parse(atob(p.replace(/-/g,'+').replace(/_/g,'/'))); return j.role||''; }catch(e){ return ''; } }
@@ -3276,25 +3276,82 @@ function tvCargar(){
 }
 function tvHace(iso){ var s=Math.max(0,Math.round((Date.now()-new Date(iso).getTime())/1000)); return s<90?('hace '+s+' s'):('hace '+Math.round(s/60)+' min'); }
 function tvHora(iso){ var d=new Date(iso); return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); }
+function tvEtiquetaContenido(d){
+  var c=d.contenido||{};
+  if(d.destino==='youtube') return 'YouTube · video '+(c.video_id||'?')+(c.modo==='app'?' (en la app de YouTube de LG)':'');
+  if(d.destino==='web') return 'Página web · '+(c.url||'?')+(c.modo==='lgbrowser'?' (en el navegador de LG)':'');
+  return TV_VISTAS[d.destino]||d.destino;
+}
+function tvDetectarEnvio(txt){
+  var s=(txt||'').trim();
+  if(!s) return '';
+  if(/youtube\.com|youtu\.be/i.test(s)) return /list=/.test(s)?'Lista de YouTube: todavía no se admite.':'Video de YouTube: se enviará a la TV.';
+  if(/^https:\/\//i.test(s)) return 'Página web: el servidor comprobará que se pueda mostrar.';
+  return 'Escribe un enlace de YouTube o una dirección https://';
+}
+function tvEnviar(id,url){
+  tvMensaje('Enviando…');
+  fetch(API_URL+'/api/tv/dispositivos/'+id+'/enviar',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+sesionToken()},body:JSON.stringify({url:url})})
+    .then(function(r){ return r.json().then(function(j){ return {ok:r.ok,status:r.status,j:j}; }); })
+    .then(function(x){
+      if(!x.ok){ tvMensaje((x.j&&x.j.mensaje)||('No se pudo enviar ('+(x.j&&x.j.error||x.status)+').')); return; }
+      var extra=x.j.motivo?' '+x.j.motivo+'.':'';
+      tvMensaje(x.j.tipo==='youtube'?'Enviado: el TV mostrará el video'+(x.j.modo==='app'?' en la app de YouTube de LG.':' dentro del lanzador.')+extra:'Enviado: el TV mostrará la página'+(x.j.modo==='lgbrowser'?' en el navegador de LG.':' dentro del lanzador.')+extra);
+      tvCargar();
+    })
+    .catch(function(e){ tvMensaje('No se pudo enviar ('+e.message+').'); });
+}
+function tvVolverTablero(id){
+  fetch(API_URL+'/api/tv/dispositivos/'+id+'/destino',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+sesionToken()},body:JSON.stringify({destino:'tablero'})})
+    .then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.error||('HTTP '+r.status)); return j; }); })
+    .then(function(){ tvMensaje('Listo: la TV vuelve al tablero.'); tvCargar(); })
+    .catch(function(e){ tvMensaje('No se pudo volver al tablero ('+e.message+').'); });
+}
+function tvHistorial(id,contenedor){
+  contenedor.textContent='Cargando historial…';
+  fetch(API_URL+'/api/tv/historial?dispositivo='+id,{headers:{'Authorization':'Bearer '+sesionToken()},cache:'no-store'})
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(function(j){
+      contenedor.textContent='';
+      var rows=j.historial||[];
+      if(!rows.length){ contenedor.textContent='Sin cambios todavía.'; return; }
+      rows.forEach(function(r){
+        var l=document.createElement('div'); l.style.cssText='font-size:0.95rem;padding:4px 0;border-bottom:1px solid #e6e1d6;';
+        var cuando=new Date(r.at).toLocaleString('es-CL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+        var quien=(r.quien||'—')+' ('+(r.rol||'—')+')';
+        var texto;
+        if(r.evento==='cambio') texto='cambió destino: '+(TV_VISTAS[r.de]||r.de||'—')+' → '+(TV_VISTAS[r.a]||r.a||'—');
+        else texto=(r.resultado==='aceptado'?'envió':'intentó enviar (rechazado)')+' '+(r.detalle==='youtube'?'YouTube':'página web')+': '+(r.valor||'')+(r.motivo?' — '+r.motivo:'');
+        l.textContent=cuando+' · '+quien+' · '+texto;
+        contenedor.appendChild(l);
+      });
+    })
+    .catch(function(e){ contenedor.textContent='No se pudo cargar el historial ('+e.message+').'; });
+}
 function tvPintar(){
   var lista=document.getElementById('tvLista'); lista.textContent='';
   var estado=document.getElementById('tvEstado'); estado.textContent='';
   if(!_tvDatos.length){ var v=document.createElement('p'); v.className='muted'; v.textContent='Todavía no hay TV registradas.'; lista.appendChild(v); return; }
   _tvDatos.forEach(function(d){
     var card=document.createElement('div'); card.className='card-p'; card.style.cssText='padding:18px 20px;margin-bottom:14px;';
-    var h=document.createElement('div'); h.style.cssText='font-size:1.2rem;font-weight:700;margin-bottom:6px;'; h.textContent=d.nombre;
-    var st=document.createElement('div'); st.style.cssText='font-size:1rem;margin-bottom:10px;';
+    var cab=document.createElement('div'); cab.style.cssText='display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px;';
+    var h=document.createElement('div'); h.style.cssText='font-size:1.2rem;font-weight:700;'; h.textContent=d.nombre;
+    var volver=document.createElement('button'); volver.type='button'; volver.textContent='Volver al tablero';
+    volver.style.cssText='min-height:52px;padding:0 22px;font-size:1.1rem;border-radius:12px;border:2px solid var(--brand-primary,#0E3B2E);background:var(--brand-primary,#0E3B2E);color:#fff;cursor:pointer;';
+    volver.disabled=!!d.revocado_at||d.destino==='tablero';
+    volver.onclick=function(){ tvVolverTablero(d.id); };
+    cab.appendChild(h); cab.appendChild(volver); card.appendChild(cab);
+    var st=document.createElement('div'); st.style.cssText='font-size:1rem;margin-bottom:4px;';
     var warn=document.createElement('div'); warn.style.cssText='font-size:0.95rem;margin-bottom:10px;';
     if(d.en_linea){
-      var vista=(d.last_status&&d.last_status.vista_actual)?TV_VISTAS[d.last_status.vista_actual]:'—';
-      st.textContent='TV en línea · mostrando '+vista+' · '+tvHace(d.last_seen_at);
+      st.textContent='TV en línea · mostrando '+tvEtiquetaContenido(d)+' · '+tvHace(d.last_seen_at);
     } else {
       st.textContent=d.last_seen_at?('sin conexión desde '+tvHora(d.last_seen_at)):'sin conexión (nunca ha reportado)';
       st.style.color='#8a5a00';
     }
     if(d.last_status&&d.last_status.reproductor_ok===false){ warn.textContent='Reproductor no disponible: la TV muestra el Tablero.'; warn.style.color='#8a5a00'; }
-    if(d.last_status&&d.last_status.ultimo_error){ warn.textContent=(warn.textContent?warn.textContent+' ':'')+'Último error: '+d.last_status.ultimo_error; }
-    card.appendChild(h); card.appendChild(st); card.appendChild(warn);
+    if(d.last_status&&d.last_status.ultimo_error){ warn.textContent=(warn.textContent?warn.textContent+' ':'')+'Último aviso de la TV: '+d.last_status.ultimo_error; }
+    card.appendChild(st); card.appendChild(warn);
     var botones=document.createElement('div'); botones.style.cssText='display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;';
     TV_DESTINOS.forEach(function(opt){
       var b=document.createElement('button'); b.type='button';
@@ -3306,10 +3363,55 @@ function tvPintar(){
       botones.appendChild(b);
     });
     card.appendChild(botones);
+    if(!d.revocado_at){
+      var envio=document.createElement('div'); envio.style.cssText='margin-top:14px;';
+      var lab=document.createElement('div'); lab.style.cssText='font-weight:600;margin-bottom:6px;'; lab.textContent='Enviar al TV (enlace de YouTube o página https://)';
+      var fila=document.createElement('div'); fila.style.cssText='display:flex;gap:8px;flex-wrap:wrap;';
+      var inp=document.createElement('input'); inp.type='text'; inp.maxLength=500; inp.placeholder='https://www.youtube.com/watch?v=… o https://…';
+      inp.style.cssText='padding:10px;font-size:1rem;flex:1 1 320px;min-width:240px;';
+      var prev=document.createElement('div'); prev.style.cssText='font-size:0.92rem;color:#5a5448;min-height:1.2em;margin:6px 0;';
+      inp.oninput=function(){ prev.textContent=tvDetectarEnvio(inp.value); };
+      var env=document.createElement('button'); env.type='button'; env.textContent='Enviar';
+      env.style.cssText='min-height:44px;padding:0 18px;font-size:1rem;border-radius:10px;border:2px solid var(--brand-primary,#0E3B2E);background:#fff;color:#1a1916;cursor:pointer;';
+      env.onclick=function(){ if(inp.value.trim()) tvEnviar(d.id,inp.value.trim()); };
+      fila.appendChild(inp); fila.appendChild(env);
+      envio.appendChild(lab); envio.appendChild(fila); envio.appendChild(prev);
+      var aviso=document.createElement('div'); aviso.style.cssText='font-size:0.85rem;color:#5a5448;margin-top:4px;';
+      aviso.textContent='Solo contenido con derechos: no envíes transmisiones deportivas sin licencia ni páginas de terceros sin permiso.';
+      envio.appendChild(aviso);
+      card.appendChild(envio);
+      if(d.recientes&&d.recientes.length){
+        var rec=document.createElement('details'); rec.style.cssText='margin-top:12px;';
+        var rs=document.createElement('summary'); rs.style.cssText='cursor:pointer;font-weight:600;'; rs.textContent='Recientes ('+d.recientes.length+')';
+        rec.appendChild(rs);
+        d.recientes.forEach(function(e){
+          var row=document.createElement('div'); row.style.cssText='display:flex;gap:8px;align-items:center;padding:6px 0;font-size:0.95rem;flex-wrap:wrap;';
+          var txt=document.createElement('span'); txt.style.cssText='flex:1 1 280px;word-break:break-all;';
+          txt.textContent=(e.resultado==='aceptado'?'':'Rechazado: ')+(e.tipo==='youtube'?'YouTube ':'Web ')+(e.tipo==='youtube'?'https://www.youtube.com/watch?v='+e.valor:e.valor);
+          row.appendChild(txt);
+          if(e.resultado==='aceptado'){
+            var re=document.createElement('button'); re.type='button'; re.textContent='Reenviar';
+            re.style.cssText='min-height:40px;padding:0 14px;border-radius:10px;border:2px solid #c9c3b6;background:#fff;cursor:pointer;';
+            re.onclick=function(){ tvEnviar(d.id, e.tipo==='youtube'?'https://www.youtube.com/watch?v='+e.valor:e.valor); };
+            row.appendChild(re);
+          }
+          rec.appendChild(row);
+        });
+        envio.appendChild(rec);
+      }
+    }
+    var hist=document.createElement('details'); hist.style.cssText='margin-top:12px;';
+    var hs=document.createElement('summary'); hs.style.cssText='cursor:pointer;font-weight:600;'; hs.textContent='Historial de cambios (últimos 20)';
+    var hc=document.createElement('div'); hc.style.cssText='margin-top:6px;';
+    hist.appendChild(hs); hist.appendChild(hc);
+    hist.addEventListener('toggle',function(){ if(hist.open) tvHistorial(d.id,hc); });
+    card.appendChild(hist);
     if(_tvRol==='admin'&&!d.revocado_at){
       var acc=document.createElement('div'); acc.style.cssText='margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;';
-      var rot=document.createElement('button'); rot.type='button'; rot.style.cssText='padding:9px 14px;font-size:0.95rem;border-radius:10px;border:2px solid #c9c3b6;background:#fff;color:#1a1916;cursor:pointer;'; rot.textContent='Rotar token'; rot.onclick=function(){ tvAccion(d.id,'rotar',d.nombre); };
-      var rev=document.createElement('button'); rev.type='button'; rev.style.cssText='padding:9px 14px;font-size:0.95rem;border-radius:10px;border:2px solid #c9c3b6;background:#fff;color:#1a1916;cursor:pointer;'; rev.textContent='Revocar'; rev.onclick=function(){ tvAccion(d.id,'revocar',d.nombre); };
+      var rot=document.createElement('button'); rot.type='button'; rot.textContent='Rotar token'; rot.style.cssText='padding:9px 14px;font-size:0.95rem;border-radius:10px;border:2px solid #c9c3b6;background:#fff;color:#1a1916;cursor:pointer;';
+      rot.onclick=function(){ tvAccion(d.id,'rotar',d.nombre); };
+      var rev=document.createElement('button'); rev.type='button'; rev.textContent='Revocar'; rev.style.cssText='padding:9px 14px;font-size:0.95rem;border-radius:10px;border:2px solid #c9c3b6;background:#fff;color:#1a1916;cursor:pointer;';
+      rev.onclick=function(){ tvAccion(d.id,'revocar',d.nombre); };
       acc.appendChild(rot); acc.appendChild(rev); card.appendChild(acc);
     }
     lista.appendChild(card);
