@@ -6286,7 +6286,7 @@ function subirAvatar(bid, nombre, input){
     var base64   = dataUrl.substring(comma+1);
     fetch(API_URL+'/barbero/'+bid+'/avatar', {
       method: 'POST',
-      headers: {'Content-Type':'application/json'},
+      headers: {'Content-Type':'application/json','Authorization':'Bearer '+sesionToken()},
       body: JSON.stringify({ imagen: base64, mime_type: mimeType })
     })
     .then(function(r){ return r.json(); })
