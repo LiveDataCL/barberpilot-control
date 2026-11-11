@@ -831,6 +831,11 @@
     </div>
 
     <div class="pane" id="pSala">
+      <!-- ── Llamado de clientes: repetir el último llamado (admin y encargado) ── -->
+      <div id="llamadoBarra" style="display:none;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+        <span style="font-size:12px;color:var(--text2)">📣 Llamado de clientes</span>
+        <button onclick="llamadoRepetir()" style="padding:5px 12px;font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer">🔁 Repetir llamado</button>
+      </div>
       <!-- ── Check-in manual ── -->
       <div class="s2-1">
         <div class="s2-2">✚ Check-in manual</div>
@@ -2554,6 +2559,7 @@ function init(){
   
   // Auto-sync staff roster from API if token available
   if(API_URL && (staffGetToken() || sessionStorage.getItem('panelJwt'))) staffRefreshFromAPI();
+  cargarEstaciones();
 
   // Fechas default en selectores histórico
   try{
@@ -3594,7 +3600,7 @@ function _alAbrirPestana(id){
     },100);
   }
   if(id==='pKpis')renderKpis();
-  if(id==='pConfig') cargarAvatares();
+  if(id==='pConfig'){ cargarAvatares(); cargarEstaciones().then(renderStaffBB); }
   if(id==='pStaff') renderStaffPanel();
   if(id==='pClientes') renderClientesPanel();
   if(id==='pAgenda'){
@@ -6974,14 +6980,22 @@ function _doCheckin(nombre, bid, svc, tel, bebida, bebidaEsOtro){
 
 function salaIniciarSiguiente(queue_id){
   if(!API_URL) return;
-  fetch(API_URL+'/queue/'+queue_id+'/status',{
-    method:'PUT',headers:getJsonAuthHeaders(),
-    body:JSON.stringify({status:'IN_SERVICE'})
-  }).then(function(r){return r.json();})
-    .then(function(j){
-      if(j.ok){toast('✂️ Servicio iniciado');renderSala();}
-      else toast('Error: '+(j.error||''));
-    }).catch(function(e){toast('Error: '+e.message);});
+  // The call to the TV: the server resolves the station, the barber and the first name. Sent while the client is still WAITING.
+  var llamada=puedeLlamar()
+    ? fetch(API_URL+'/api/llamados',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},getAuthHeaders()),body:JSON.stringify({queue_id:Number(queue_id)})})
+        .then(function(r){ return r.json().catch(function(){return {};}).then(function(j){ return {ok:r.ok,status:r.status,j:j}; }); })
+    : Promise.resolve(null);
+  llamada.catch(function(){ return {ok:false,status:0,j:{}}; }).then(function(x){
+    var aviso = (x && !x.ok) ? ' · Llamado no enviado: '+(x.status===0?'sin conexión':llamadoMensaje(x.status,x.j))+' (usa 📣)' : '';
+    return fetch(API_URL+'/queue/'+queue_id+'/status',{
+      method:'PUT',headers:getJsonAuthHeaders(),
+      body:JSON.stringify({status:'IN_SERVICE'})
+    }).then(function(r){return r.json();})
+      .then(function(j){
+        if(j.ok){toast('✂️ Servicio iniciado'+aviso);renderSala();}
+        else toast('Error: '+(j.error||''));
+      });
+  }).catch(function(e){toast('Error: '+e.message);});
 }
 
 // Sum of the attached-product lines (precio x cantidad): the ONE place the products total is computed. The Sala card, the Sala editor,
@@ -7237,8 +7251,73 @@ function salaWaHref(phone, name, barberNombre, enServicio){
   return '<a href="'+escHtml(url)+'" target="_blank" rel="noopener" title="Enviar WhatsApp" style="padding:2px 8px;font-size:11px;background:#25D366;color:#fff;border-radius:var(--r);text-decoration:none;display:inline-flex;align-items:center;font-family:var(--sans);white-space:nowrap">💬 WA</a>';
 }
 
+// ═══ LLAMADO DE CLIENTES · NÚMEROS DE ESTACIÓN (panel) ═══
+// The server decides the station, the barber and the first name of a call. The panel only asks for it.
+var ESTACIONES = {};   // bid -> station number (1–99), or null when not set
+function puedeLlamar(){ return _panelRole==='admin'||_panelRole==='encargado'; }
+function cargarEstaciones(){
+  if(!API_URL) return Promise.resolve();
+  return fetch(API_URL+'/api/barberos/estaciones',{headers:getAuthHeaders()})
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(function(j){ var m={}; (j.barberos||[]).forEach(function(b){ m[b.bid]=b.estacion; }); ESTACIONES=m; })
+    .catch(function(){});
+}
+function estNum(n){ return String(n).padStart(2,'0'); }
+function sillasEstTag(bid){
+  var n=ESTACIONES[bid];
+  return (n==null)?'':'<span class="sc-est" style="font-size:10px;font-weight:700;color:var(--text2);margin-left:6px">Est. '+estNum(n)+'</span>';
+}
+function estacionEditorHtml(bid){
+  var n=ESTACIONES[bid];
+  return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--text2)">Estación '
+    +'<input id="est-'+escAttr(bid)+'" type="number" min="1" max="99" value="'+(n==null?'':n)+'" style="width:56px;padding:3px 6px;font-size:12px">'
+    +'<button class="staff-action-btn" onclick="guardarEstacion(\''+escJsAttr(bid)+'\')">Guardar</button></span>';
+}
+function guardarEstacion(bid){
+  var el=document.getElementById('est-'+bid); var v=el?parseInt(el.value,10):NaN;
+  if(!(v>=1&&v<=99)){ toast('La estación debe ser un número entre 1 y 99.'); return; }
+  fetch(API_URL+'/api/barberos/'+encodeURIComponent(bid)+'/estacion',{method:'PUT',headers:Object.assign({'Content-Type':'application/json'},getAuthHeaders()),body:JSON.stringify({estacion:v})})
+    .then(function(r){ return r.json().catch(function(){return {};}).then(function(j){ return {ok:r.ok,j:j}; }); })
+    .then(function(x){
+      if(!x.ok){ toast(x.j&&x.j.error==='estacion_invalida'?'Estación no válida (1 a 99).':'No se pudo guardar la estación.'); return; }
+      toast('Estación guardada'); cargarEstaciones().then(renderStaffBB);
+    }).catch(function(){ toast('Sin conexión: no se guardó la estación.'); });
+}
+function llamarBtnHtml(qid){
+  if(!puedeLlamar()) return '';
+  return '<button onclick="salaLlamar('+Number(qid)+')" title="Llamar al cliente a su estación" style="padding:2px 7px;font-size:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer">📣</button>';
+}
+function llamarBtnSillas(qid){
+  if(!puedeLlamar()) return '';
+  return '<button onclick="event.stopPropagation();salaLlamar('+Number(qid)+')" title="Llamar al cliente a su estación" style="margin-left:6px;padding:1px 6px;font-size:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer">📣 Llamar</button>';
+}
+function llamadoBarraVisible(){ var b=document.getElementById('llamadoBarra'); if(b) b.style.display=puedeLlamar()?'flex':'none'; }
+function llamadoMensaje(status,j){
+  if(j&&j.mensaje) return j.mensaje;
+  if(status===403) return 'Tu sesión no puede llamar clientes.';
+  if(j&&j.error==='sin_llamados') return 'No hay llamados para repetir.';
+  if(status===404) return 'El cliente ya no está en la cola.';
+  if(j&&j.error==='no_esta_en_espera') return 'Solo se llama a clientes en espera.';
+  if(j&&j.error==='barbero_no_asignado') return 'El barbero de este cliente no está asignado.';
+  return 'No se pudo hacer el llamado.';
+}
+function llamadoEnviar(url,body,okMsg){
+  if(!API_URL) return;
+  fetch(API_URL+url,{method:'POST',headers:Object.assign({'Content-Type':'application/json'},getAuthHeaders()),body:JSON.stringify(body||{})})
+    .then(function(r){ return r.json().catch(function(){return {};}).then(function(j){ return {ok:r.ok,status:r.status,j:j}; }); })
+    .then(function(x){ if(!x.ok){ toast(llamadoMensaje(x.status,x.j)); return; } toast(okMsg(x.j.llamado||{})); })
+    .catch(function(){ toast('Sin conexión: no se hizo el llamado.'); });
+}
+function salaLlamar(qid){
+  llamadoEnviar('/api/llamados',{queue_id:Number(qid)},function(l){ return '📣 Llamado a '+(l.nombre||'cliente')+(l.estacion!=null?' · Estación '+estNum(l.estacion):''); });
+}
+function llamadoRepetir(){
+  llamadoEnviar('/api/llamados/repetir',{},function(l){ return '🔁 Repetido: '+(l.nombre||'cliente')+(l.estacion!=null?' · Estación '+estNum(l.estacion):''); });
+}
+
 function renderSala(){
   _refPend.sala=false;
+  llamadoBarraVisible();
   if(!API_URL){
     document.getElementById('salaGrid').innerHTML='<div class="empty" style="grid-column:1/-1"><div class="empty-ico">⚙</div><div>Conecta Railway en ⚙ Config</div></div>';
     return;
@@ -7318,6 +7397,7 @@ function renderSala(){
             var _esperaBase=SALA_PRECIOS[e.service]||0, _esperaTotalHtml='';   // no catalog price known: no total (never a made-up amount)
             if(e.productos_adjuntos&&e.productos_adjuntos.length&&_esperaBase>0) _esperaTotalHtml=' — <span style="font-weight:800;color:var(--text)">Total: $'+fmt(_esperaBase+salaSumaProductos(e.productos_adjuntos))+'</span>';
             h+='<div style="font-size:11px;color:var(--text2)">'+escHtml(_esperaLabel)+_esperaTotalHtml+'</div>';
+            h+=llamarBtnHtml(e.queue_id);
             h+='<button onclick="salaAbrirEditor('+Number(e.queue_id)+')" style="padding:2px 7px;font-size:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer">✏</button>';
             h+=salaWaHref(e.phone, e.client_name, b.nombre, false);
             h+='<button onclick="salaEliminarEntrada('+Number(e.queue_id)+')" style="padding:2px 6px;font-size:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;color:var(--err)">✕</button>';
@@ -7627,7 +7707,7 @@ function sillasEsperaHtml(lista,ahora,alerta){
   var corto='👤 '+n+hace;
   var tip=lista.map(function(e){ var m=sillasMasViejoMin([e],ahora); return (e.client_name||'Cliente')+(e.service?' — '+e.service:'')+(m!=null?' — hace '+m+' min':''); }).join('\n');
   return '<div class="sc-espera'+(viejo!=null&&viejo>alerta?' urgente':'')+'" data-desde="'+desde+'" data-alerta="'+alerta+'" title="'+escHtml(tip)+'">'
-    +'<span class="esp-largo">'+largo+'</span><span class="esp-corto">'+corto+'</span></div>';
+    +'<span class="esp-largo">'+largo+'</span><span class="esp-corto">'+corto+'</span>'+llamarBtnSillas(lista[0].queue_id)+'</div>';
 }
 
 // Focus mode: "💰 Cobrar servicio" opens the charging sheet of ONE card; the rest of the board fades (#sillasFoco). While it is open the board counts as
@@ -7997,7 +8077,7 @@ function renderSillas(){
         var dur=sillasDuracionMin(sv.service,bd.barber_id);
         var desde=stMs?sillasHora(stMs):'—';
         h+='<div class="sc sc-ocu'+(citas[b.id]?' con-cita':'')+((bd.enEspera||[]).length?' con-espera':'')+'" id="sc-'+escHtml(b.id)+'" data-q="'+Number(sv.queue_id)+'" data-start="'+stMs+'" data-dur="'+(dur||'')+'">';
-        h+='<div class="sc-top"><span class="sc-name">'+escHtml(b.nombre)+'</span></div>';
+        h+='<div class="sc-top"><span class="sc-name">'+escHtml(b.nombre)+'</span>'+sillasEstTag(b.id)+'</div>';
         h+='<div class="sc-meta"><span class="sc-chip">Ocupado</span>'
           +(sillasPuedeMarcarAusencia()?'<button class="sc-aus-btn" title="Marcar que salió (ausente)" onclick="sillasMarcarAusencia(\''+escJsAttr(bd.barber_id||b.id)+'\',false,this)">⏸ Salió</button>':'')+'</div>';
         h+='<div class="sc-cli" title="'+escHtml(sv.client_name+' · '+sv.service)+'"><b>'+escHtml(sv.client_name)+'</b> · '+escHtml(sv.service)+'</div>';
@@ -8015,7 +8095,7 @@ function renderSillas(){
         // Libre y presente
         var esperaLbl=nEsp>0?nEsp+' en espera'+(bd.queue_wait_min!=null?' · ~'+bd.queue_wait_min+' min':''):'';
         h+='<div class="sc sc-lib" id="sc-'+escHtml(b.id)+'">';
-        h+='<div class="sc-top">'+(posRot[b.id]?'<span class="sc-pos" title="Posición en la rotación">'+rotNum(posRot[b.id])+'</span>':'')+'<span class="sc-name">'+escHtml(b.nombre)+'</span><span class="sc-chip">Libre</span>'+(b.id===nextId?'<span class="sc-next" title="Próximo turno en rotación">▶ siguiente</span>':'')+'</div>';
+        h+='<div class="sc-top">'+(posRot[b.id]?'<span class="sc-pos" title="Posición en la rotación">'+rotNum(posRot[b.id])+'</span>':'')+'<span class="sc-name">'+escHtml(b.nombre)+'</span>'+sillasEstTag(b.id)+'<span class="sc-chip">Libre</span>'+(b.id===nextId?'<span class="sc-next" title="Próximo turno en rotación">▶ siguiente</span>':'')+'</div>';
         var llegoTxt=(horMap[b.id]&&horMap[b.id].entrada)?' · llegó '+horMap[b.id].entrada.slice(0,5):'';
         h+='<div class="sc-sub">'+(lastSvc[b.id]?'Último servicio '+escHtml(lastSvc[b.id].slice(0,5)):(b.id===nextId?'Primer turno del día':'Sin servicios hoy')+escHtml(llegoTxt))
           +(sillasPuedeMarcarAusencia()?' <button class="sc-aus-btn" title="Marcar que salió (ausente)" onclick="sillasMarcarAusencia(\''+escJsAttr(bd.barber_id||b.id)+'\',false,this)">⏸ Salió</button>':'')+'</div>';
@@ -8026,11 +8106,11 @@ function renderSillas(){
       } else if(!barberoAusente(bd)&&!seWas&&bd.programado_hoy===false){
         // Día libre: no shift today by the weekly schedule / holidays / closed days (the server's answer, the same rule as the punctuality score). Gray, compact, no alert
         hDL+='<div class="sc sc-aus sc-dl" id="sc-'+escHtml(b.id)+'" title="Sin turno hoy">'
-          +'<span class="sc-name">'+escHtml(b.nombre)+'</span><span class="sc-chip">Día libre</span>'+(nEsp>0?'<span class="sc-esp-dl">👤 '+nEsp+' en espera</span>':'')+'</div>';
+          +'<span class="sc-name">'+escHtml(b.nombre)+'</span>'+sillasEstTag(b.id)+'<span class="sc-chip">Día libre</span>'+(nEsp>0?'<span class="sc-esp-dl">👤 '+nEsp+' en espera</span>':'')+'</div>';
       } else if(!barberoAusente(bd)&&!seWas){
         // Sin registrar llegada: scheduled today (or the server could not say: then it still warns, and says so), never checked in. Not a chair that can take a client (never in "siguiente")
         h+='<div class="sc sc-sll" id="sc-'+escHtml(b.id)+'">';
-        h+='<div class="sc-top"><span class="sc-name">'+escHtml(b.nombre)+'</span><span class="sc-chip">Sin registrar llegada</span></div>';
+        h+='<div class="sc-top"><span class="sc-name">'+escHtml(b.nombre)+'</span>'+sillasEstTag(b.id)+'<span class="sc-chip">Sin registrar llegada</span></div>';
         h+='<div class="sc-sub">No ha llegado'+(bd.programado_hoy==null?' · horario de hoy sin confirmar':'')+(lastSvc[b.id]?' · último '+escHtml(lastSvc[b.id].slice(0,5)):'')+'</div>';
         h+=sillasEsperaHtml(bd.enEspera,ahora,alertaEsp);
         h+=sillasCitaHtml(citas[b.id]);
@@ -8045,7 +8125,7 @@ function renderSillas(){
             :'';
         var labelAusente=marcadoAusente?'Ausente':'Fuera de turno';
         h+='<div class="sc sc-aus'+(marcadoAusente?' sc-man':'')+'" id="sc-'+escHtml(b.id)+'">';
-        h+='<div class="sc-top"><span class="sc-name">'+escHtml(b.nombre)+'</span><span class="sc-chip">'+escHtml(labelAusente)+'</span></div>';
+        h+='<div class="sc-top"><span class="sc-name">'+escHtml(b.nombre)+'</span>'+sillasEstTag(b.id)+'<span class="sc-chip">'+escHtml(labelAusente)+'</span></div>';
         h+='<div class="sc-sub">'+escHtml(motivoAusente)+(lastSvc[b.id]?' · último '+escHtml(lastSvc[b.id].slice(0,5)):'')
           +(marcadoAusente&&sillasPuedeMarcarAusencia()?' <button class="sc-aus-btn sc-vuelve" title="Marcar que volvió (disponible)" onclick="sillasMarcarAusencia(\''+escJsAttr(bd.barber_id||b.id)+'\',true,this)">✓ Volvió</button>':'')+'</div>';
         h+=sillasEsperaHtml(bd.enEspera,ahora,alertaEsp);
@@ -8763,6 +8843,7 @@ function renderStaffBB(){
       +'<div style="display:flex;align-items:center;gap:10px">'
         +'<span><span class="staff-status-dot '+(isActive?'active':'inactive')+'"></span>'
         +'<span class="staff-status-label '+(isActive?'active':'inactive')+'">'+(isActive?'Activo':'Inactivo')+'</span></span>';
+    if(_panelRole==='admin'&&isActive) h+=estacionEditorHtml(b.id);
     if(token){
       if(isActive){
         h+='<button class="staff-action-btn deactivate" onclick="staffDeactivate(\''+escJsAttr(b.id)+'\',\''+escJsAttr(b.nombre)+'\')">Desactivar</button>';
