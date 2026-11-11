@@ -6238,26 +6238,38 @@ function cargarAvatares(){
   var grid = document.getElementById('avatarGrid');
   if(!grid) return;
   if(!API_URL){ grid.innerHTML = '<p style="font-size:13px;color:var(--text3)">Conecta Railway primero en la sección de arriba.</p>'; return; }
+  // BB holds the full roster once the panel has a login (staffRefreshFromAPI adds inactive staff too).
+  // Former barbers are shown to the admin only, so a stored photo can be removed; they get no upload control.
+  var esAdmin = tvRolActual()==='admin';
   var h = '';
   BB.forEach(function(b){
-    h += '<div style="text-align:center">'
-      + '<div id="av-wrap-'+b.id+'" style="width:72px;height:72px;border-radius:50%;'
-      +   'background:var(--surface2);border:1.5px solid var(--border);margin:0 auto 8px;'
-      +   'overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:28px">'
-      +   '<span>'+escHtml(b.nombre[0])+'</span>'
-      + '</div>'
-      + '<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px">'+escHtml(b.nombre)+'</div>'
-      + '<label style="display:inline-block;padding:5px 12px;background:var(--surface2);border:1px solid var(--border);'
+    if(!b.active && !esAdmin) return;
+    h += celdaAvatar(b.id, b.nombre, !b.active);
+  });
+  grid.innerHTML = h;
+  BB.forEach(function(b){ fetchAvatarPreview(b.id); });
+}
+
+// One barber's cell in the photo grid. Former barbers (inactivo) get no upload control.
+function celdaAvatar(bid, nombre, inactivo){
+  var cell = '<div style="text-align:center">'
+    + '<div id="av-wrap-'+escHtml(bid)+'" style="width:72px;height:72px;border-radius:50%;'
+    +   'background:var(--surface2);border:1.5px solid var(--border);margin:0 auto 8px;'
+    +   'overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:28px">'
+    +   '<span>'+escHtml(nombre[0])+'</span>'
+    + '</div>'
+    + '<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px">'+escHtml(nombre)
+    +   (inactivo ? ' <span style="font-size:11px;font-weight:400;color:var(--text3)">(inactivo)</span>' : '')+'</div>';
+  if(!inactivo){
+    cell += '<label style="display:inline-block;padding:5px 12px;background:var(--surface2);border:1px solid var(--border);'
       +   'border-radius:20px;font-size:11px;color:var(--text2);cursor:pointer;transition:border-color .12s" '
       +   'onmouseover="this.style.borderColor=\'var(--text)\'" onmouseout="this.style.borderColor=\'var(--border)\'">'
       +   '📁 Subir foto'
       +   '<input type="file" accept="image/*" style="display:none" '
-      +     'onchange="subirAvatar(\''+escJsAttr(b.id)+'\',\''+escJsAttr(b.nombre)+'\',this)">'
-      + '</label>'
-      + '</div>';
-  });
-  grid.innerHTML = h;
-  BB.forEach(function(b){ fetchAvatarPreview(b.id); });
+      +     'onchange="subirAvatar(\''+escJsAttr(bid)+'\',\''+escJsAttr(nombre)+'\',this)">'
+      + '</label>';
+  }
+  return cell + '</div>';
 }
 
 function fetchAvatarPreview(bid){
@@ -6269,9 +6281,28 @@ function fetchAvatarPreview(bid){
         var wrap = document.getElementById('av-wrap-'+bid);
         if(wrap) wrap.innerHTML = '<img src="data:'+(json.mime_type||'image/jpeg')+';base64,'+json.imagen
           +'" style="width:72px;height:72px;object-fit:cover">';
+        // Admin only: remove the photo (audited on the server). Operators and encargados do not see the button.
+        var cell = wrap ? wrap.parentNode : null;
+        if(cell && tvRolActual()==='admin' && !document.getElementById('av-del-'+bid)){
+          var nombreB=((BB.filter(function(x){ return x.id===bid; })[0])||{}).nombre||bid;
+          var db=document.createElement('button'); db.id='av-del-'+bid; db.type='button'; db.textContent='Eliminar foto';
+          db.style.cssText='margin:0 0 6px;padding:4px 10px;font-size:12px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;';
+          db.onclick=function(){ borrarAvatar(bid, nombreB); };
+          cell.insertBefore(db, cell.querySelector('label'));
+        }
       }
     })
     .catch(function(){});
+}
+
+// Removes a barber's photo (admin session on the server; audited there). The image is not archived.
+function borrarAvatar(bid, nombre){
+  if(!API_URL) return;
+  if(!confirm('¿Eliminar la foto de '+nombre+'? Queda registrado en la auditoría.')) return;
+  fetch(API_URL+'/barbero/'+bid+'/avatar', {method:'DELETE', headers:{'Authorization':'Bearer '+sesionToken()}})
+    .then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.error||('HTTP '+r.status)); return j; }); })
+    .then(function(){ toast('Foto de '+nombre+' eliminada'); cargarAvatares(); })
+    .catch(function(e){ toast('No se pudo eliminar la foto ('+e.message+')'); });
 }
 
 function subirAvatar(bid, nombre, input){
