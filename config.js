@@ -62,37 +62,14 @@ window.BP_CONFIG = {
     "Corte + Cejas": 15000
   },   // precios iniciales de Sala de Espera (el servidor los reemplaza)
   barberosRespaldo: [
-    {
-      "id": "b1",
-      "nombre": "Didian",
-      "active": true
-    },
-    {
-      "id": "b2",
-      "nombre": "Emerson",
-      "active": true
-    },
-    {
-      "id": "b4",
-      "nombre": "David",
-      "active": false
-    },
-    {
-      "id": "b5",
-      "nombre": "Steven",
-      "active": true
-    },
-    {
-      "id": "b6",
-      "nombre": "Winder",
-      "active": true
-    }
+    { "id": "b1", "nombre": "Didian", "active": true },
+    { "id": "b5", "nombre": "Steven", "active": true },
+    { "id": "b8", "nombre": "Benjamín", "active": true },
+    { "id": "b7", "nombre": "Angie", "active": true }
   ],   // barberos mostrados mientras el servidor responde (vacío = ninguno)
   nombresCanonicos: {
     "b1": "Didian",
-    "b2": "Emerson",
-    "b5": "Steven",
-    "b6": "Winder"
+    "b5": "Steven"
   },
   mensajeResena: "¡Hola {nombre}! Esperamos que hayas disfrutado tu corte y servicio hoy en la barbería.\nNos ayuda enormemente que nos dejes una breve opinión en Google para seguir mejorando.\nPara que no pierdas tiempo pensando qué poner, aquí tienes un par de ideas sobre lo que nos sirve mucho que menciones:\n\n✂️ ¿Qué tal quedó tu corte de cabello / arreglo de barba?\n☕ ¿Cómo sentiste la atención, la puntualidad y el ambiente?\n📍 ¿Nos recomendarías como tu barbería preferida en Santiago Centro?\n\n👉 Deja tu reseña en 30 segundos aquí: https://g.page/r/Cee_fupz7sMXEBM/review"   // texto del pedido de reseña ({nombre}); vacío = sin botón de reseña
 };

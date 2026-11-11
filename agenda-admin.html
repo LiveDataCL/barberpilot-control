@@ -295,10 +295,7 @@ button{cursor:pointer}
 <!-- BARBER PILLS -->
 <div class="pills-bar" id="pillsBar">
   <span class="pill on" data-bid="todos" onclick="setFilter('todos')">Todos</span>
-  <span class="pill" data-bid="b1" onclick="setFilter('b1')">Didian</span>
-  <span class="pill" data-bid="b2" onclick="setFilter('b2')">Emerson</span>
-  <span class="pill" data-bid="b5" onclick="setFilter('b5')">Steven</span>
-  <span class="pill" data-bid="b6" onclick="setFilter('b6')">Winder</span>
+  <!-- barber pills are rendered from the server's active roster (renderPills) -->
 </div>
 
 <!-- KPI BAR -->
@@ -506,12 +503,10 @@ function irACola() {
 }
 const SLOT_H = 68, SLOT_M = 30;
 
-let BARBERS = [
-  {id:'b1',name:'Didian'},{id:'b2',name:'Emerson'},
-  {id:'b5',name:'Steven'},{id:'b6',name:'Winder'},
-];
-let B_MAP    = {b1:'Didian',b2:'Emerson',b5:'Steven',b6:'Winder'};
-let BID_TO_QID = {b1:'didian',b2:'emerson',b5:'steven',b6:'winder'};
+// Filled from the server's active roster (cargarBarberos). No barber is hard-coded here.
+let BARBERS = [];
+let B_MAP    = {};
+let BID_TO_QID = {};
 function renderPills(){
   var pb=document.getElementById('pillsBar'); if(!pb) return;
   pb.innerHTML='<span class="pill on" data-bid="todos" onclick="setFilter(\'todos\')">Todos</span>'
