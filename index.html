@@ -3392,21 +3392,50 @@ function tvPintar(){
       card.appendChild(ns);
     }
     if((_tvRol==='admin'||_tvRol==='encargado')&&!d.revocado_at&&d.sala&&d.sala.fondo){
-      var sfz=d.sala.fondo, claveZ=sfz.tipo==='youtube'?sfz.video_id:sfz.url;
-      var ez=(d.sala.encuadres&&d.sala.encuadres[claveZ])||{zoom:1,x:0,y:0};
-      var encBox=document.createElement('div'); encBox.style.cssText='margin-top:14px;';
-      var encLab=document.createElement('div'); encLab.style.cssText='font-weight:600;margin-bottom:6px;'; encLab.textContent='Encuadre del fondo de la sala · zoom '+ez.zoom+' · x '+ez.x+' · y '+ez.y;
+      // The framing the TV uses now (the server resolves it: the site, or a section of it). Edits change THAT framing.
+      var ef=d.sala_efectivo||{encuadre:{zoom:1,x:0,y:0},encuadre_clave:null};
+      var ez=ef.encuadre||{zoom:1,x:0,y:0};
+      var clavEf=ef.encuadre_clave||'';
+      var prefEf=clavEf.indexOf('/')>=0?clavEf.slice(clavEf.indexOf('/')):'';
+      var sfz=d.sala.fondo, hostZ=sfz.tipo==='youtube'?'youtube.com':'';
+      if(sfz.tipo!=='youtube'){ try{ hostZ=new URL(sfz.url).hostname.replace(/^www\./,''); }catch(e){} }
+      var pct=Math.round(ez.zoom*100);
+      var encBox=document.createElement('div'); encBox.style.cssText='margin-top:14px;padding:10px;border:1px solid #e6e1d6;border-radius:10px;';
+      var encLab=document.createElement('div'); encLab.style.cssText='font-weight:600;margin-bottom:4px;';
+      encLab.textContent='Encuadre del fondo · zoom '+pct+' % · X '+(ez.x>0?'+':'')+ez.x+' · Y '+(ez.y>0?'+':'')+ez.y;
+      var encSub=document.createElement('div'); encSub.style.cssText='font-size:0.9rem;color:#5a5448;margin-bottom:8px;';
+      encSub.textContent=clavEf?('Guardado para: '+clavEf+(prefEf?'':' (todo el sitio)')):(hostZ?('Sin encuadre guardado: se usa 100 % para '+hostZ):'Sin encuadre guardado');
       var encFila=document.createElement('div'); encFila.style.cssText='display:flex;gap:8px;flex-wrap:wrap;';
-      [['Acercar',function(){ return {zoom:ez.zoom+0.1,x:ez.x,y:ez.y}; }],['Alejar',function(){ return {zoom:ez.zoom-0.1,x:ez.x,y:ez.y}; }],
-       ['←',function(){ return {zoom:ez.zoom,x:ez.x-5,y:ez.y}; }],['→',function(){ return {zoom:ez.zoom,x:ez.x+5,y:ez.y}; }],
-       ['↑',function(){ return {zoom:ez.zoom,x:ez.x,y:ez.y-5}; }],['↓',function(){ return {zoom:ez.zoom,x:ez.x,y:ez.y+5}; }],
-       ['Restablecer',function(){ return {zoom:1,x:0,y:0}; }]].forEach(function(par){
-        var eb=document.createElement('button'); eb.type='button'; eb.textContent=par[0];
-        eb.style.cssText='min-height:44px;padding:0 14px;font-size:1rem;border-radius:10px;border:2px solid #c9c3b6;background:#fff;color:#1a1916;cursor:pointer;';
-        eb.onclick=function(){ tvEncuadre(d.id,par[1]()); };
+      function enc(lbl,nz,nx,ny){
+        var eb=document.createElement('button'); eb.type='button'; eb.textContent=lbl;
+        eb.style.cssText='min-height:44px;padding:0 12px;font-size:1rem;border-radius:10px;border:2px solid #c9c3b6;background:#fff;color:#1a1916;cursor:pointer;';
+        eb.onclick=function(){ tvEncuadre(d.id,{zoom:nz,x:nx,y:ny},prefEf); };
         encFila.appendChild(eb);
-      });
-      encBox.appendChild(encLab); encBox.appendChild(encFila); card.appendChild(encBox);
+      }
+      enc('Acercar 5 %',ez.zoom+0.05,ez.x,ez.y);
+      enc('Alejar 5 %',ez.zoom-0.05,ez.x,ez.y);
+      enc('← 2',ez.zoom,ez.x-2,ez.y);
+      enc('→ 2',ez.zoom,ez.x+2,ez.y);
+      enc('↑ 2',ez.zoom,ez.x,ez.y-2);
+      enc('↓ 2',ez.zoom,ez.x,ez.y+2);
+      enc('Restablecer',1,0,0);
+      encBox.appendChild(encLab); encBox.appendChild(encSub); encBox.appendChild(encFila);
+      if(sfz.tipo!=='youtube'){
+        var segs=(function(){ try{ return new URL(sfz.url).pathname.split('/').filter(function(x){ return x; }); }catch(e){ return []; } })();
+        var encGuard=document.createElement('div'); encGuard.style.cssText='display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;';
+        var bSitio=document.createElement('button'); bSitio.type='button'; bSitio.textContent='Guardar encuadre para este sitio';
+        bSitio.style.cssText='min-height:44px;padding:0 12px;font-size:1rem;border-radius:10px;border:2px solid var(--brand-primary,#0E3B2E);background:#fff;color:#1a1916;cursor:pointer;';
+        bSitio.onclick=function(){ tvEncuadre(d.id,{zoom:ez.zoom,x:ez.x,y:ez.y},''); };
+        encGuard.appendChild(bSitio);
+        if(segs.length){
+          var bSec=document.createElement('button'); bSec.type='button'; bSec.textContent='Guardar solo para /'+segs[0];
+          bSec.style.cssText=bSitio.style.cssText;
+          bSec.onclick=function(){ tvEncuadre(d.id,{zoom:ez.zoom,x:ez.x,y:ez.y},'/'+segs[0]); };
+          encGuard.appendChild(bSec);
+        }
+        encBox.appendChild(encGuard);
+      }
+      card.appendChild(encBox);
     }
     if((_tvRol==='admin'||_tvRol==='encargado')&&!d.revocado_at&&(d.destino==='sala'||(d.sala&&d.sala.fondo))){
       var qf=document.createElement('button'); qf.type='button'; qf.textContent='Quitar fondo de la sala';
@@ -3483,12 +3512,12 @@ function tvComando(id,op,etiqueta){
     .then(function(){ tvMensaje('Enviado: '+etiqueta+'. La TV lo aplica en unos segundos.'); })
     .catch(function(e){ tvMensaje('No se pudo enviar ('+e.message+').'); });
 }
-function tvEncuadre(id,e){
-  var z=Math.min(3,Math.max(0.5,Math.round(e.zoom*10)/10)), x=Math.min(100,Math.max(-100,Math.round(e.x))), y=Math.min(100,Math.max(-100,Math.round(e.y)));
+function tvEncuadre(id,e,prefijo){
+  var z=Math.min(3,Math.max(0.5,Math.round(e.zoom*100)/100)), x=Math.min(100,Math.max(-100,Math.round(e.x))), y=Math.min(100,Math.max(-100,Math.round(e.y)));
   tvMensaje('Guardando el encuadre…');
-  fetch(API_URL+'/api/tv/dispositivos/'+id+'/sala/encuadre',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+sesionToken()},body:JSON.stringify({zoom:z,x:x,y:y})})
+  fetch(API_URL+'/api/tv/dispositivos/'+id+'/sala/encuadre',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+sesionToken()},body:JSON.stringify({zoom:z,x:x,y:y,prefijo:prefijo||''})})
     .then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.mensaje||j.error||('HTTP '+r.status)); return j; }); })
-    .then(function(){ tvMensaje('Encuadre guardado: se aplica en unos segundos.'); tvCargar(); })
+    .then(function(){ tvMensaje('Encuadre guardado: el TV lo aplica en unos segundos.'); tvCargar(); })
     .catch(function(e){ tvMensaje('No se pudo guardar el encuadre ('+e.message+').'); });
 }
 function tvQuitarFondo(id){
