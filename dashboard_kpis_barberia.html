@@ -233,11 +233,6 @@ table.data-table .total-row td{background:var(--text)!important;color:#fff!impor
   <div class="ctrl-group" id="barbFiltros">
     <span class="ctrl-label">Barbero</span>
     <button class="pf on" onclick="setBarbero('todos',this)">Todos</button>
-    <button class="pf" onclick="setBarbero('Didian',this)">Didian</button>
-    <button class="pf" onclick="setBarbero('Emerson',this)">Emerson</button>
-    <button class="pf" onclick="setBarbero('Steven',this)">Steven</button>
-    <button class="pf" onclick="setBarbero('Winder',this)">Winder</button>
-    <!-- David deactivated — removed from active filter -->
   </div>
   <div class="ctrl-right">
     <button class="btn btn-dark btn-sm" id="btnSync" onclick="cargarDesdeAPI()">☁ Cargar API</button>
@@ -245,7 +240,6 @@ table.data-table .total-row td{background:var(--text)!important;color:#fff!impor
       📂 Importar JSON
       <input type="file" id="fileIn" accept=".json" multiple style="display:none" onchange="onFiles(event)">
     </label>
-    <button class="btn btn-outline btn-sm" onclick="cargarDemoData()">📋 Demo</button>
   </div>
 </div>
 
@@ -272,7 +266,7 @@ table.data-table .total-row td{background:var(--text)!important;color:#fff!impor
   <div class="empty">
     <div class="empty-icon">📊</div>
     <div class="empty-title">Cargando datos…</div>
-    <div class="empty-sub">Intentando conectar con la API. Si falla, usa "Demo" para ver datos de ejemplo o "Importar JSON" para cargar archivos locales.</div>
+    <div class="empty-sub">Intentando conectar con la API. Si falla, usa "Importar JSON" para cargar archivos locales.</div>
   </div>
 </div>
 
@@ -303,113 +297,42 @@ function getAuthHeaders(){
 }
 var gastosData = {}; // { fecha: [{id, hora, desc_gasto, monto}] }
 
-// Paleta por barbero
-var BB_COLORS = {
-  'Didian':  { head:'b1', bar:'#1a1916', line:'#1a1916', fill:'rgba(26,25,22,.1)'   },
-  'Emerson': { head:'b2', bar:'#1a6b3a', line:'#1a6b3a', fill:'rgba(26,107,58,.1)'  },
-  'Steven':  { head:'b5', bar:'#7a3a1a', line:'#7a3a1a', fill:'rgba(122,58,26,.1)'  },
-  'Winder':  { head:'b6', bar:'#5a1a8b', line:'#5a1a8b', fill:'rgba(90,26,139,.1)'  }
-};
-// Active barbers — David (b4) deactivated; historical amounts included in totals only
-var ACTIVE_BARBERS = Object.keys(BB_COLORS);
-var DEFAULT_COLOR = { head:'b1', bar:'#9c9a93', line:'#9c9a93', fill:'rgba(156,154,147,.1)' };
+// Barber roster for filters and colours: from the server (active first, then former barbers, so past months keep their names).
+// Colours follow the order of that list; no barber name is hard-coded here.
+var PALETA_BARBEROS = ['#1a1916','#1a6b3a','#7a3a1a','#5a1a8b','#1a4d7a','#7a1a4d','#4d7a1a','#7a6a1a'];
+var ACTIVE_BARBERS = [];
+var BARBEROS_INACTIVOS = {};
+function colorDe(nombre){
+  var i = ACTIVE_BARBERS.indexOf(nombre);
+  var c = i < 0 ? '#9c9a93' : PALETA_BARBEROS[i % PALETA_BARBEROS.length];
+  return { head:'b1', bar:c, line:c, fill:'rgba(26,25,22,.1)' };
+}
 function renderBarberoFiltros(){
   var cont=document.getElementById('barbFiltros'); if(!cont) return;
   var cur=filtBarbero;
   cont.innerHTML='<span class="ctrl-label">Barbero</span>'
     +'<button class="pf'+(cur==='todos'?' on':'')+'" onclick="setBarbero(\'todos\',this)">Todos</button>'
     +ACTIVE_BARBERS.map(function(n){
-      return '<button class="pf'+(cur===n?' on':'')+'" onclick="setBarbero(\''+escJsAttr(n)+'\',this)">'+escHtml(n)+'</button>';
+      var etiqueta = BARBEROS_INACTIVOS[n] ? escHtml(n)+' <span style="font-size:10px;color:var(--text3)">(inactivo)</span>' : escHtml(n);
+      return '<button class="pf'+(cur===n?' on':'')+'" onclick="setBarbero(\''+escJsAttr(n)+'\',this)">'+etiqueta+'</button>';
     }).join('');
 }
 function cargarBarberosKPI(){
-  fetch(API_URL + '/config/negocio/publico?tenant=' + encodeURIComponent(CFG.tenantSlug))
-    .then(function(r){return r.json();})
+  fetch(API_URL + '/api/v2/staff?tenant_id=' + encodeURIComponent(CFG.tenantSlug), {headers: getAuthHeaders()})
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
     .then(function(json){
-      if(!json.ok) return;
-      if(Array.isArray(json.barberos)&&json.barberos.length){
-        ACTIVE_BARBERS=json.barberos.map(function(b){return b.nombre;});
-        renderBarberoFiltros();
-      }
+      if(!json.ok || !Array.isArray(json.staff)) return;
+      var st = json.staff.slice().sort(function(a,b){
+        if(!!a.active !== !!b.active) return a.active ? -1 : 1;     // active first
+        return (a.orden == null ? 99 : a.orden) - (b.orden == null ? 99 : b.orden);
+      });
+      ACTIVE_BARBERS = st.map(function(x){ return x.name; });
+      BARBEROS_INACTIVOS = {};
+      st.forEach(function(x){ if(!x.active) BARBEROS_INACTIVOS[x.name] = true; });
+      renderBarberoFiltros();
     }).catch(function(){});
 }
 cargarBarberosKPI();
-
-// ═══ DATOS DEMO ══════════════════════════════════════════
-var DEMO_JORNADAS = [
-  {
-    fecha: "2026-05-05",
-    registros: [
-      {bid:"b2",bnom:"Emerson",snom:"Corte",precio:12000,pago:"debito",bb:5160,neg:6840,propina:0},
-      {bid:"b2",bnom:"Emerson",snom:"Corte",precio:12000,pago:"efectivo",bb:6000,neg:6000,propina:0},
-      {bid:"b2",bnom:"Emerson",snom:"Corte + Perfilado de barba",precio:16000,pago:"debito",bb:6880,neg:9120,propina:0},
-      {bid:"b2",bnom:"Emerson",snom:"Corte",precio:12000,pago:"efectivo",bb:6000,neg:6000,propina:0},
-      {bid:"b2",bnom:"Emerson",snom:"Barba",precio:10000,pago:"debito",bb:4300,neg:5700,propina:0},
-      {bid:"b2",bnom:"Emerson",snom:"Corte",precio:12000,pago:"debito",bb:5160,neg:6840,propina:0},
-      {bid:"b2",bnom:"Emerson",snom:"Barba",precio:10000,pago:"transferencia",bb:5000,neg:5000,propina:0},
-      {bid:"b2",bnom:"Emerson",snom:"Corte",precio:12000,pago:"efectivo",bb:6000,neg:6000,propina:0},
-      {bid:"b3",bnom:"Samuel",snom:"Corte + Perfilado de barba",precio:16000,pago:"debito",bb:6880,neg:9120,propina:0},
-      {bid:"b3",bnom:"Samuel",snom:"Corte",precio:12000,pago:"efectivo",bb:6000,neg:6000,propina:0},
-      {bid:"b3",bnom:"Samuel",snom:"Corte",precio:12000,pago:"efectivo",bb:6000,neg:6000,propina:0},
-      {bid:"b3",bnom:"Samuel",snom:"Corte",precio:12000,pago:"efectivo",bb:6000,neg:6000,propina:0},
-      {bid:"b3",bnom:"Samuel",snom:"Barba",precio:10000,pago:"debito",bb:4300,neg:5700,propina:0},
-      {bid:"b3",bnom:"Samuel",snom:"Barba",precio:10000,pago:"efectivo",bb:5000,neg:5000,propina:0},
-      {bid:"b1",bnom:"Didian",snom:"Corte + Barba",precio:20000,pago:"efectivo",bb:10000,neg:10000,propina:0},
-      {bid:"b1",bnom:"Didian",snom:"Barba",precio:10000,pago:"debito",bb:4300,neg:5700,propina:0},
-      {bid:"b1",bnom:"Didian",snom:"Corte",precio:12000,pago:"transferencia",bb:6000,neg:6000,propina:0},
-      {bid:"b1",bnom:"Didian",snom:"Corte",precio:12000,pago:"efectivo",bb:6000,neg:6000,propina:0},
-      {bid:"b1",bnom:"Didian",snom:"Corte + Barba",precio:20000,pago:"efectivo",bb:10000,neg:10000,propina:0},
-      {bid:"b1",bnom:"Didian",snom:"Corte",precio:12000,pago:"efectivo",bb:6000,neg:6000,propina:0},
-      {bid:"b1",bnom:"Didian",snom:"Corte",precio:12000,pago:"efectivo",bb:6000,neg:6000,propina:0},
-      {bid:"b1",bnom:"Didian",snom:"Corte",precio:12000,pago:"debito",bb:5160,neg:6840,propina:0}
-    ]
-  },
-  {
-    fecha: "2026-05-06",
-    registros: [
-      {bid:"b2",bnom:"Emerson",snom:"Corte",precio:12000,pago:"debito",bb:5160,neg:6840,propina:0},
-      {bid:"b2",bnom:"Emerson",snom:"Corte",precio:12000,pago:"debito",bb:5160,neg:6840,propina:0},
-      {bid:"b2",bnom:"Emerson",snom:"Corte",precio:12000,pago:"debito",bb:5160,neg:6840,propina:0},
-      {bid:"b2",bnom:"Emerson",snom:"Corte",precio:12000,pago:"debito",bb:5160,neg:6840,propina:0},
-      {bid:"b2",bnom:"Emerson",snom:"Corte",precio:12000,pago:"efectivo",bb:6000,neg:6000,propina:0},
-      {bid:"b2",bnom:"Emerson",snom:"Corte + Perfilado de barba",precio:16000,pago:"efectivo",bb:8000,neg:8000,propina:0},
-      {bid:"b3",bnom:"Samuel",snom:"Corte",precio:12000,pago:"debito",bb:5160,neg:6840,propina:0},
-      {bid:"b3",bnom:"Samuel",snom:"Corte",precio:12000,pago:"efectivo",bb:6000,neg:6000,propina:0},
-      {bid:"b3",bnom:"Samuel",snom:"Corte + Barba",precio:20000,pago:"debito",bb:8600,neg:11400,propina:0},
-      {bid:"b3",bnom:"Samuel",snom:"Corte + Barba",precio:20000,pago:"debito",bb:8600,neg:11400,propina:0},
-      {bid:"b3",bnom:"Samuel",snom:"Corte + Barba",precio:20000,pago:"efectivo",bb:10000,neg:10000,propina:0},
-      {bid:"b1",bnom:"Didian",snom:"Corte",precio:12000,pago:"efectivo",bb:6000,neg:6000,propina:0},
-      {bid:"b1",bnom:"Didian",snom:"Corte",precio:12000,pago:"efectivo",bb:6000,neg:6000,propina:0},
-      {bid:"b1",bnom:"Didian",snom:"Corte",precio:12000,pago:"efectivo",bb:6000,neg:6000,propina:0},
-      {bid:"b1",bnom:"Didian",snom:"Corte",precio:12000,pago:"transferencia",bb:6000,neg:6000,propina:0},
-      {bid:"b1",bnom:"Didian",snom:"Corte",precio:12000,pago:"debito",bb:5160,neg:6840,propina:0},
-      {bid:"b1",bnom:"Didian",snom:"Perfilado de corte",precio:6000,pago:"efectivo",bb:3000,neg:3000,propina:0}
-    ]
-  },
-  {
-    fecha: "2026-05-07",
-    registros: [
-      {bid:"b2",bnom:"Emerson",snom:"Corte",precio:12000,pago:"debito",bb:5160,neg:6840,propina:0},
-      {bid:"b2",bnom:"Emerson",snom:"Corte",precio:12000,pago:"debito",bb:5160,neg:6840,propina:0},
-      {bid:"b2",bnom:"Emerson",snom:"Corte",precio:12000,pago:"debito",bb:5160,neg:6840,propina:1200},
-      {bid:"b2",bnom:"Emerson",snom:"Corte + Perfilado de barba",precio:16000,pago:"efectivo",bb:8000,neg:8000,propina:0},
-      {bid:"b2",bnom:"Emerson",snom:"Corte",precio:12000,pago:"efectivo",bb:6000,neg:6000,propina:0},
-      {bid:"b2",bnom:"Emerson",snom:"Barba",precio:10000,pago:"debito",bb:4300,neg:5700,propina:0},
-      {bid:"b2",bnom:"Emerson",snom:"Barba",precio:10000,pago:"efectivo",bb:5000,neg:5000,propina:0},
-      {bid:"b3",bnom:"Samuel",snom:"Corte + Barba",precio:20000,pago:"efectivo",bb:10000,neg:10000,propina:0},
-      {bid:"b3",bnom:"Samuel",snom:"Corte",precio:12000,pago:"efectivo",bb:6000,neg:6000,propina:0},
-      {bid:"b3",bnom:"Samuel",snom:"Corte",precio:12000,pago:"efectivo",bb:6000,neg:6000,propina:0},
-      {bid:"b3",bnom:"Samuel",snom:"Corte",precio:12000,pago:"efectivo",bb:6000,neg:6000,propina:0},
-      {bid:"b3",bnom:"Samuel",snom:"Barba",precio:10000,pago:"debito",bb:4300,neg:5700,propina:0},
-      {bid:"b3",bnom:"Samuel",snom:"Barba",precio:10000,pago:"efectivo",bb:5000,neg:5000,propina:0},
-      {bid:"b1",bnom:"Didian",snom:"Corte + Barba",precio:20000,pago:"efectivo",bb:10000,neg:10000,propina:0},
-      {bid:"b1",bnom:"Didian",snom:"Barba",precio:10000,pago:"debito",bb:4300,neg:5700,propina:0},
-      {bid:"b1",bnom:"Didian",snom:"Corte",precio:12000,pago:"transferencia",bb:6000,neg:6000,propina:0},
-      {bid:"b1",bnom:"Didian",snom:"Corte",precio:12000,pago:"efectivo",bb:6000,neg:6000,propina:0},
-      {bid:"b1",bnom:"Didian",snom:"Corte + Barba",precio:20000,pago:"efectivo",bb:10000,neg:10000,propina:0}
-    ]
-  }
-];
 
 // ═══ UTILS ════════════════════════════════════════════════
 function fmt(n){ return Math.round(n||0).toLocaleString('es-CL'); }
@@ -526,19 +449,6 @@ function loginDashboard(){
     var ahora=new Date();
     cargarPeriodoDashboard(isoDate(lunesDe(ahora)), isoDate(ahora));
   },function(){ btn.disabled=false; btn.textContent='Entrar'; err.textContent='Error de conexión'; });
-}
-
-// ═══ CARGA DEMO ════════════════════════════════════════
-function cargarDemoData(){
-  jornadas=[];
-  DEMO_JORNADAS.forEach(function(j){
-    jornadas.push({fecha:j.fecha, registros:j.registros.slice()});
-  });
-  filtPeriod='all';
-  document.querySelectorAll('.ctrl-bar .pf').forEach(function(b){b.classList.remove('on');});
-  renderTodo();
-  showNotice('info','Mostrando datos de ejemplo (Martes–Jueves 5–7 Mayo 2026). Importa tus archivos JSON reales para análisis actualizados.');
-  toast('📋 Datos demo cargados');
 }
 
 // ═══ CARGA JSON LOCAL ══════════════════════════════════
@@ -722,7 +632,7 @@ function _renderTodoSinGuarda(){
   if(jornadas.length===0){
     mc.innerHTML='<div class="empty"><div class="empty-icon">📂</div>'
       +'<div class="empty-title">Sin datos</div>'
-      +'<div class="empty-sub">La API no respondió o no hay jornadas disponibles. Pulsa "Demo" para ver datos de ejemplo o "Importar JSON" para cargar archivos del sistema de control.</div>'
+      +'<div class="empty-sub">La API no respondió o no hay jornadas disponibles. Pulsa "Importar JSON" para cargar archivos del sistema de control.</div>'
       +'</div>';
     return;
   }
@@ -810,15 +720,15 @@ function buildHTML(js, regs){
   h+='<div style="padding:8px 0">'+buildPagoList(porPago)+'</div>';
   h+='</div></div></div>';
 
-  // ── Por barbero (active only — historical David amounts counted in totals above)
-  var barberos=Object.keys(porBB).filter(function(b){return ACTIVE_BARBERS.indexOf(b)>-1;}).sort(function(a,b){return ACTIVE_BARBERS.indexOf(a)-ACTIVE_BARBERS.indexOf(b);}); // server display order
+  // ── Por barbero (every barber with records in the period; former barbers included)
+  var barberos=Object.keys(porBB).sort(function(a,b){var ia=ACTIVE_BARBERS.indexOf(a),ib=ACTIVE_BARBERS.indexOf(b);return (ia<0?999:ia)-(ib<0?999:ib);}); // server display order; former barbers included
   h+='<div class="section"><div class="section-title">Por barbero</div>';
   h+='<div class="bb-grid" style="grid-template-columns:repeat('+Math.min(barberos.length,4)+',1fr)">';
   barberos.forEach(function(b){
     var d=porBB[b];
     var tk=d.cnt>0?Math.round(d.tot/d.cnt):0;
     var pct=maxBBTot>0?Math.round(d.tot/maxBBTot*100):0;
-    var c=BB_COLORS[b]||DEFAULT_COLOR;
+    var c=colorDe(b);
     h+='<div class="bb-card">'
       +'<div class="bb-head '+c.head+'"><span class="bb-name">'+escHtml(b)+'</span><span class="bb-cnt">'+d.cnt+' svc</span></div>'
       +'<div class="bb-body">'
@@ -946,7 +856,7 @@ function buildCharts(js, regs){
   var porPago=datosPorPago(regs);
   var porSvc=datosPorServicio(regs);
   var porBB=datosPorBarbero(regs);
-  var barberos=Object.keys(porBB).filter(function(b){return ACTIVE_BARBERS.indexOf(b)>-1;}).sort(function(a,b){return ACTIVE_BARBERS.indexOf(a)-ACTIVE_BARBERS.indexOf(b);}); // server display order
+  var barberos=Object.keys(porBB).sort(function(a,b){var ia=ACTIVE_BARBERS.indexOf(a),ib=ACTIVE_BARBERS.indexOf(b);return (ia<0?999:ia)-(ib<0?999:ib);}); // server display order; former barbers included
 
   var base={
     responsive:true, maintainAspectRatio:false,
@@ -992,7 +902,7 @@ function buildCharts(js, regs){
 
   // Por barbero
   var bbDatasets=barberos.map(function(b){
-    var c=BB_COLORS[b]||DEFAULT_COLOR;
+    var c=colorDe(b);
     return {
       label:b,
       data:js.map(function(j){
@@ -1050,7 +960,6 @@ function imprimirReporte(){
   if(dh) dh.value=ahora.toISOString().slice(0,10);
 
   // Real data only: no session → login card; a failed read → error notice.
-  // (Demo data is shown only when "Demo" is pressed.)
   if(!sessionStorage.getItem('panelJwt')){ mostrarLogin(''); return; }
   cargarPeriodoDashboard(isoDate(lunesDe(ahora)), isoDate(ahora));
 })();
