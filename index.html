@@ -816,6 +816,12 @@
         <div id="tvEstado" style="font-size:1rem;margin-bottom:6px;"></div>
         <div id="tvAviso" style="font-size:0.95rem;"></div>
       </div>
+      <div class="card-p" style="padding:14px 18px;margin-bottom:14px;">
+        <div style="font-weight:700;margin-bottom:6px;">🔊 Sonido de llamados (este equipo)</div>
+        <div id="audioLlEstado" style="font-size:0.95rem;margin-bottom:8px;"></div>
+        <button id="audioLlBtn" onclick="activarSonidoLl()" style="padding:7px 14px;font-size:0.95rem;border-radius:8px;cursor:pointer;">🔊 Activar sonido de llamados</button>
+        <div id="audioLlTv" style="font-size:0.95rem;margin-top:10px;"></div>
+      </div>
       <div id="tvLista"></div>
       <div class="card-p" id="tvAdmin" style="padding:18px 20px;margin-top:14px;display:none;">
         <h3 style="margin:0 0 8px;font-size:1.05rem;">Dispositivos (solo administrador)</h3>
@@ -2562,6 +2568,7 @@ function init(){
   // Auto-sync staff roster from API if token available
   if(API_URL && (staffGetToken() || sessionStorage.getItem('panelJwt'))) staffRefreshFromAPI();
   cargarEstaciones();
+  audioLlPintar(); conectarAudioLl(); refrescarAudioLlEstado(); setInterval(refrescarAudioLlEstado, 30000);
 
   // Fechas default en selectores histórico
   try{
@@ -6989,6 +6996,7 @@ function salaIniciarSiguiente(queue_id){
     : Promise.resolve(null);
   llamada.catch(function(){ return {ok:false,status:0,j:{}}; }).then(function(x){
     var aviso = (x && !x.ok) ? ' · Llamado no enviado: '+(x.status===0?'sin conexión':llamadoMensaje(x.status,x.j))+' (usa 📣)' : '';
+    if (x && x.ok && x.j && x.j.audio_activos === 0) aviso += ' · ⚠ Ningún equipo tiene el sonido de llamados activo';
     return fetch(API_URL+'/queue/'+queue_id+'/status',{
       method:'PUT',headers:getJsonAuthHeaders(),
       body:JSON.stringify({status:'IN_SERVICE'})
@@ -7307,7 +7315,12 @@ function llamadoEnviar(url,body,okMsg){
   if(!API_URL) return;
   fetch(API_URL+url,{method:'POST',headers:Object.assign({'Content-Type':'application/json'},getAuthHeaders()),body:JSON.stringify(body||{})})
     .then(function(r){ return r.json().catch(function(){return {};}).then(function(j){ return {ok:r.ok,status:r.status,j:j}; }); })
-    .then(function(x){ if(!x.ok){ toast(llamadoMensaje(x.status,x.j)); return; } toast(okMsg(x.j.llamado||{})); })
+    .then(function(x){
+      if(!x.ok){ toast(llamadoMensaje(x.status,x.j)); return; }
+      var msg = okMsg(x.j.llamado||{});
+      if(x.j.audio_activos === 0) msg += ' · ⚠ Ningún equipo tiene el sonido de llamados activo';
+      toast(msg);
+    })
     .catch(function(){ toast('Sin conexión: no se hizo el llamado.'); });
 }
 function salaLlamar(qid){
@@ -7315,6 +7328,121 @@ function salaLlamar(qid){
 }
 function llamadoRepetir(){
   llamadoEnviar('/api/llamados/repetir',{},function(l){ return '🔁 Repetido: '+(l.nombre||'cliente')+(l.estacion!=null?' · Estación '+estNum(l.estacion):''); });
+}
+
+// ═══ SONIDO DE LLAMADOS EN ESTE EQUIPO (recepción) ═══
+// The reception PC plays every call: 450 ms of silence (the Bluetooth speakers wake up), the chime, then the Piper voice of
+// that call. The setting is per browser (this PC). The push channel is a panel session subscription with audio=1, so the
+// device receives every call, whichever device pressed the button. Pushes do not depend on timers: the stream stays open.
+var AUDIO_LL = { desbloqueado: false, cola: [], sonando: false, conectado: false, conectando: false, intentos: 0 };
+var SILENCIO_URL = null;
+function silencioUrl(){
+  if (SILENCIO_URL) return SILENCIO_URL;
+  var sr = 16000, n = Math.floor(sr * 0.45), b = new ArrayBuffer(44 + n * 2), v = new DataView(b);
+  function txt(o, t){ for (var i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); }
+  txt(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); txt(8, 'WAVE'); txt(12, 'fmt '); v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true);
+  v.setUint16(32, 2, true); v.setUint16(34, 16, true); txt(36, 'data'); v.setUint32(40, n * 2, true);
+  var u = new Uint8Array(b), bin = ''; for (var j = 0; j < u.length; j++) bin += String.fromCharCode(u[j]);
+  SILENCIO_URL = 'data:audio/wav;base64,' + btoa(bin);
+  return SILENCIO_URL;
+}
+function audioLlActivo(){ try { return localStorage.getItem('sm_audio_llamados') === '1'; } catch (e) { return false; } }
+function audioLlGuardar(v){ try { localStorage.setItem('sm_audio_llamados', v ? '1' : '0'); } catch (e) { /* private mode: setting lasts this session only */ } }
+function audioLlEstadoTxt(){
+  if (!audioLlActivo()) return 'Este equipo no reproduce los llamados.';
+  if (!AUDIO_LL.desbloqueado) return '🔇 Bloqueado: haz clic en «🔊 Activar sonido de llamados».';
+  return AUDIO_LL.conectado ? '🔊 Activo: este equipo reproduce los llamados.' : '🔊 Activo, pero sin conexión con el panel: reconectando…';
+}
+function audioLlPintar(){
+  var e = document.getElementById('audioLlEstado'); if (e) e.textContent = audioLlEstadoTxt();
+  var b = document.getElementById('audioLlBtn');
+  if (b) b.textContent = (audioLlActivo() && AUDIO_LL.desbloqueado) ? '🔇 Desactivar sonido de llamados' : '🔊 Activar sonido de llamados';
+}
+function activarSonidoLl(){
+  if (audioLlActivo() && AUDIO_LL.desbloqueado) { audioLlGuardar(false); AUDIO_LL.desbloqueado = false; audioLlPintar(); return; }
+  var a = new Audio(silencioUrl()); a.volume = 1;
+  var p = a.play();
+  var ok = function(){ audioLlGuardar(true); AUDIO_LL.desbloqueado = true; audioLlPintar(); conectarAudioLl(); toast('Sonido de llamados activado en este equipo'); };
+  var no = function(){ AUDIO_LL.desbloqueado = false; audioLlPintar(); toast('El navegador bloqueó el sonido: haz clic de nuevo en el botón.'); };
+  if (p && p.then) p.then(ok, no); else ok();
+  try { var AC = window.AudioContext || window.webkitAudioContext; if (AC) { var c = new AC(); if (c.resume) c.resume(); } } catch (e) { /* not needed */ }
+}
+// Plays one source; alTerminar runs exactly once: on end, on error, or at maxMs.
+function reproducirLl(src, maxMs, alTerminar){
+  var hecho = false;
+  function fin(){ if (!hecho) { hecho = true; alTerminar(); } }
+  try {
+    var a = new Audio(src); a.volume = 1; a.onended = fin; a.onerror = fin;
+    var p = a.play(); if (p && p.catch) p.catch(fin);
+    setTimeout(fin, maxMs);
+  } catch (e) { fin(); }
+}
+function vozLlamadoPc(id, alTerminar){
+  var hecho = false;
+  function fin(){ if (!hecho) { hecho = true; alTerminar(); } }
+  if (!API_URL || !sesionToken()) return fin();
+  fetch(API_URL + '/api/llamados/' + encodeURIComponent(id) + '/voz', { headers: { Authorization: 'Bearer ' + sesionToken() }, cache: 'no-store' })
+    .then(function(r){ return r.ok ? r.blob() : null; })
+    .then(function(b){
+      if (!b) return fin();
+      var u = URL.createObjectURL(b);
+      reproducirLl(u, 12000, function(){ URL.revokeObjectURL(u); fin(); });
+    })
+    .catch(fin);
+}
+function audioLlEncolar(id){ AUDIO_LL.cola.push(id); audioLlSiguiente(); }
+function audioLlSiguiente(){
+  if (AUDIO_LL.sonando || !AUDIO_LL.cola.length || !audioLlActivo()) return;
+  var id = AUDIO_LL.cola.shift(); AUDIO_LL.sonando = true;
+  var limite = setTimeout(function(){ AUDIO_LL.sonando = false; audioLlSiguiente(); }, 20000);   // never stuck
+  var fin = function(){ clearTimeout(limite); AUDIO_LL.sonando = false; audioLlSiguiente(); };
+  reproducirLl(silencioUrl(), 1000, function(){
+    reproducirLl('sounds/llamado.wav', 3000, function(){
+      vozLlamadoPc(id, fin);
+    });
+  });
+}
+function bloqueEventoLl(bloque){
+  var ev = 'message', data = '';
+  bloque.split('\n').forEach(function(l){ if (l.indexOf('event:') === 0) ev = l.slice(6).trim(); else if (l.indexOf('data:') === 0) data += l.slice(5).trim(); });
+  if (ev === 'llamado' && data) { try { var d = JSON.parse(data); if (d && d.id != null) audioLlEncolar(d.id); } catch (e) { /* a bad event is ignored */ } }
+}
+function leerEventosLl(reader){
+  var buf = '', dec = new TextDecoder();
+  function paso(){
+    return reader.read().then(function(x){
+      if (x.done) return;
+      buf += dec.decode(x.value, { stream: true });
+      var partes = buf.split('\n\n'); buf = partes.pop();
+      partes.forEach(bloqueEventoLl);
+      return paso();
+    });
+  }
+  return paso();
+}
+function conectarAudioLl(){
+  if (!audioLlActivo() || !API_URL || !sesionToken() || AUDIO_LL.conectando) return;
+  AUDIO_LL.conectando = true;
+  fetch(API_URL + '/api/llamados/stream?audio=1', { headers: { Authorization: 'Bearer ' + sesionToken() }, cache: 'no-store' })
+    .then(function(r){ if (!r.ok || !r.body) throw new Error('HTTP ' + r.status); AUDIO_LL.conectado = true; AUDIO_LL.intentos = 0; audioLlPintar(); return leerEventosLl(r.body.getReader()); })
+    .catch(function(){ /* closed or refused: retried below */ })
+    .then(function(){
+      AUDIO_LL.conectado = false; AUDIO_LL.conectando = false; audioLlPintar();
+      if (audioLlActivo()) setTimeout(conectarAudioLl, Math.min(30000, 1000 * Math.pow(2, AUDIO_LL.intentos++)));
+    });
+}
+function refrescarAudioLlEstado(){
+  var el = document.getElementById('audioLlTv');
+  if (!el || !API_URL || !sesionToken()) return;
+  fetch(API_URL + '/api/llamados/audio/estado', { headers: { Authorization: 'Bearer ' + sesionToken() }, cache: 'no-store' })
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(j){
+      if (!j) return;
+      if (j.activos > 0) el.textContent = 'Sonido de llamados: equipo recepción · activo';
+      else el.textContent = 'Sonido de llamados: equipo recepción · sin conexión' + (j.desde ? ' desde ' + new Date(j.desde).toTimeString().slice(0, 5) : '');
+    })
+    .catch(function(){ /* shown again on the next refresh */ });
 }
 
 function renderSala(){
