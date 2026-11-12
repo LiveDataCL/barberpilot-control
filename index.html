@@ -7396,7 +7396,9 @@ function audioLlSiguiente(){
   if (AUDIO_LL.sonando || !AUDIO_LL.cola.length || !audioLlActivo()) return;
   var id = AUDIO_LL.cola.shift(); AUDIO_LL.sonando = true;
   var limite = setTimeout(function(){ AUDIO_LL.sonando = false; audioLlSiguiente(); }, 20000);   // never stuck
-  var fin = function(){ clearTimeout(limite); AUDIO_LL.sonando = false; audioLlSiguiente(); };
+  // The Brave extension (Salón Men · Llamados) ducks the music while the call plays: it needs the start and the end.
+  window.postMessage({ sm: 'llamado', estado: 'inicio', id: id, duracion_ms: 8000 }, location.origin);
+  var fin = function(){ clearTimeout(limite); AUDIO_LL.sonando = false; window.postMessage({ sm: 'llamado', estado: 'fin', id: id }, location.origin); audioLlSiguiente(); };
   reproducirLl(silencioUrl(), 1000, function(){
     reproducirLl('sounds/llamado.wav', 3000, function(){
       vozLlamadoPc(id, fin);
