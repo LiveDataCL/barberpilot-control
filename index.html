@@ -3,7 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>Sistema de Control</title>
+<title>Salón Men · Panel</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1a1916">
 <style>
   /* fuentes del sistema — sin dependencia de red */
 
@@ -658,7 +660,7 @@
 
 <div id="panelLoginOverlay">
   <div class="panel-login-card">
-    <h2>Sistema de Control</h2>
+    <h2>Salón Men · Panel</h2>
     <p class="plc-sub" id="plcSub"></p>
     <input class="panel-inp" id="panelEmailInput" type="email" placeholder="Correo electrónico"
       autocomplete="username" onkeydown="if(event.key==='Enter')panelLogin()">
@@ -1387,7 +1389,7 @@
 var BP = window.BP_CONFIG;
 if (!BP || !BP.apiUrl || !BP.nombre || !BP.locale || !BP.timeZone || !BP.codigoPais || !BP.telLocalMax) { document.body.innerHTML = '<p style="font-family:sans-serif;padding:24px">Falta la configuración de este negocio (config.js). Avisa a quien instaló el sistema.</p>'; throw new Error('config.js ausente o incompleto'); }
 var BP_TZ = BP.timeZone;   // BP_LOCALE: defined once, in reportes-api.js (loaded before this script)
-document.title = 'Sistema de Control · ' + BP.nombre;
+document.title = BP.nombre + ' · Panel';
 // Agenda (agenda-admin.html) exists only where config.js says agenda: true; without the key its tab and header link stay hidden and nothing opens it
 var AGENDA_ON = (BP.agenda === true);
 if (!AGENDA_ON) document.addEventListener('DOMContentLoaded', function(){ var t=document.getElementById('tabAgenda'); if(t) t.style.display='none'; var l=document.querySelectorAll('[onclick*="pAgenda"]'); for(var i=0;i<l.length;i++) l[i].style.display='none'; });
