@@ -1,0 +1,14 @@
+{
+  "name": "Salón Men · Panel",
+  "short_name": "Salón Men",
+  "description": "Panel de control de Salón Men",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#1a1916",
+  "theme_color": "#1a1916",
+  "lang": "es-CL",
+  "icons": [
+    { "src": "brand/monograma-salonmen.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
