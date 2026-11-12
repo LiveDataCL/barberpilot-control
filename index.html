@@ -1207,6 +1207,21 @@
           <div id="staffTokenStatus" style="margin-top:6px;font-size:11px;color:var(--text3)">Sin token — gestión de barberos deshabilitada</div>
         </div>
 
+        <!-- Pronunciación de nombres: solo la voz de los llamados -->
+        <div class="s1-29" style="margin-bottom:18px">
+          <div class="staff-section-hdr"><span>Pronunciación de nombres (solo la voz de los llamados)</span></div>
+          <div class="staff-note" style="margin:-4px 0 8px">Cómo debe sonar un nombre en la voz. No cambia cómo se escribe en pantalla.</div>
+          <div id="pronLista"></div>
+          <div id="pronForm" style="display:none;margin-top:10px;flex-wrap:wrap;gap:8px">
+            <input id="pronEscrito" type="text" placeholder="Nombre escrito (ej. Steven)" style="padding:6px 8px;font-size:13px">
+            <input id="pronSuena" type="text" placeholder="Cómo debe sonar (ej. Estíven)" style="padding:6px 8px;font-size:13px">
+            <button onclick="guardarPron()">Guardar</button>
+          </div>
+          <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+            <input id="pronPrueba" type="text" placeholder="Frase de prueba (ej. Steven te está esperando.)" style="padding:6px 8px;font-size:13px;min-width:260px">
+            <button onclick="escucharPronPrueba()">▶ Escuchar</button>
+          </div>
+        </div>
         <!-- Personal (from API) -->
         <div class="s1-29">
           <div class="staff-section-hdr">
@@ -3609,7 +3624,7 @@ function _alAbrirPestana(id){
     },100);
   }
   if(id==='pKpis')renderKpis();
-  if(id==='pConfig'){ cargarAvatares(); cargarEstaciones().then(renderStaffBB); }
+  if(id==='pConfig'){ cargarAvatares(); cargarEstaciones().then(renderStaffBB); cargarPronunciacion(); }
   if(id==='pStaff') renderStaffPanel();
   if(id==='pClientes') renderClientesPanel();
   if(id==='pAgenda'){
@@ -7328,6 +7343,60 @@ function salaLlamar(qid){
 }
 function llamadoRepetir(){
   llamadoEnviar('/api/llamados/repetir',{},function(l){ return '🔁 Repetido: '+(l.nombre||'cliente')+(l.estacion!=null?' · Estación '+estNum(l.estacion):''); });
+}
+
+// ═══ PRONUNCIACIÓN DE NOMBRES (solo la voz de los llamados; nunca cambia la pantalla) ═══
+var PRON = { entradas: [] };
+function puedeEditarPron(){ return _panelRole === 'admin'; }
+function cargarPronunciacion(){
+  var el = document.getElementById('pronLista');
+  if (!el || !API_URL || !sesionToken()) return;
+  fetch(API_URL + '/api/pronunciacion', { headers: { Authorization: 'Bearer ' + sesionToken() }, cache: 'no-store' })
+    .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(j){ PRON.entradas = j.entradas || []; pintarPronunciacion(); })
+    .catch(function(){ el.innerHTML = '<div class="muted">No se pudo cargar la pronunciación.</div>'; });
+}
+function pintarPronunciacion(){
+  var el = document.getElementById('pronLista');
+  if (!el) return;
+  var admin = puedeEditarPron();
+  el.innerHTML = PRON.entradas.map(function(e){
+    return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap">'
+      + '<span style="min-width:120px;font-weight:600">' + escHtml(e.escrito) + '</span><span>→</span>'
+      + '<span style="min-width:120px">' + escHtml(e.suena) + '</span>'
+      + '<button onclick="escucharPron(\'' + escJsAttr(e.escrito) + '\')">▶ Escuchar</button>'
+      + (admin ? '<button onclick="quitarPron(\'' + escJsAttr(e.escrito) + '\')">Quitar</button>' : '')
+      + '</div>';
+  }).join('') || '<div class="muted">Sin entradas.</div>';
+  var f = document.getElementById('pronForm'); if (f) f.style.display = admin ? '' : 'none';
+}
+function reproducirPron(texto){
+  fetch(API_URL + '/api/pronunciacion/escuchar', { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders()), body: JSON.stringify({ texto: texto }) })
+    .then(function(r){ if (r.status === 204) throw new Error('la voz no está lista'); if (!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); })
+    .then(function(b){ var u = URL.createObjectURL(b); var a = new Audio(u); a.onended = function(){ URL.revokeObjectURL(u); }; return a.play(); })
+    .catch(function(e){ toast('No se pudo escuchar: ' + e.message); });
+}
+function escucharPron(escrito){ reproducirPron(escrito + ' te está esperando.'); }
+function escucharPronPrueba(){
+  var t = (document.getElementById('pronPrueba').value || '').trim() || 'Steven te está esperando.';
+  reproducirPron(t);
+}
+function guardarPron(){
+  var a = (document.getElementById('pronEscrito').value || '').trim(), b = (document.getElementById('pronSuena').value || '').trim();
+  if (!a || !b) { toast('Escribe el nombre y cómo debe sonar.'); return; }
+  fetch(API_URL + '/api/pronunciacion', { method: 'PUT', headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders()), body: JSON.stringify({ escrito: a, suena: b }) })
+    .then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
+    .then(function(x){
+      if (!x.ok) { toast((x.j && x.j.mensaje) || 'No se pudo guardar.'); return; }
+      toast('Pronunciación guardada'); cargarPronunciacion();
+    })
+    .catch(function(){ toast('Sin conexión: no se guardó.'); });
+}
+function quitarPron(escrito){
+  if (!confirm('¿Quitar ' + escrito + ' de la pronunciación?')) return;
+  fetch(API_URL + '/api/pronunciacion', { method: 'DELETE', headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders()), body: JSON.stringify({ escrito: escrito }) })
+    .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); toast('Quitado'); cargarPronunciacion(); })
+    .catch(function(){ toast('No se pudo quitar.'); });
 }
 
 // ═══ SONIDO DE LLAMADOS EN ESTE EQUIPO (recepción) ═══
