@@ -737,7 +737,7 @@
     <div id="secProductoSale" style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
       <button onclick="toggleProductos()" id="btnToggleProd"
         style="width:100%;padding:10px 14px;background:var(--surface2);border:1.5px solid var(--border);border-radius:var(--r);color:var(--text2);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer;text-align:left;display:flex;align-items:center;gap:8px;transition:border-color .12s">
-        <span>Ceras</span><span>Venta de Producto</span><span id="prodArrow" style="margin-left:auto;font-size:10px;opacity:.5">▼</span>
+        <span>Productos</span><span>Venta de Producto</span><span id="prodArrow" style="margin-left:auto;font-size:10px;opacity:.5">▼</span>
       </button>
       <div id="prodPanel" style="display:none;padding-top:10px">
         <div class="slbl">Barbero <span style="font-weight:400;opacity:.5;font-size:10px">(opcional — sin barbero = sin comision)</span></div>
@@ -1110,9 +1110,6 @@
         <div class="s1-11">
           <button class="s1-12" onclick="testSheetsConnection()">
             🔗 Probar conexión
-          </button>
-          <button class="s1-12" onclick="migrarHistoricoNube()">
-            ☁ Migrar datos a la nube
           </button>
         </div>
 
@@ -2173,7 +2170,7 @@ function cargarRegistrosDia(){
           if(el) el.textContent = cnt+' svc';
         });
         if(apiRegs.length > 0){
-          toast('☁ '+apiRegs.length+' servicios cargados desde la nube');
+          toast('☁ '+apiRegs.length+(apiRegs.length===1?' servicio cargado':' servicios cargados')+' desde la nube');
         }
       }
   });
@@ -2198,7 +2195,7 @@ function forzarSyncNube(){
       guardar();
       renderAll();
       updCnts();
-      toast('✓ '+regs.length+' servicios cargados desde la nube');
+      toast('✓ '+regs.length+(regs.length===1?' servicio cargado':' servicios cargados')+' desde la nube');
   }).then(function(){
       if(btn){btn.textContent='🔄 Desde nube';btn.disabled=false;}
   });
@@ -3625,7 +3622,7 @@ function _alAbrirPestana(id){
   }
   if(id==='pKpis')renderKpis();
   if(id==='pConfig'){ cargarAvatares(); cargarEstaciones().then(renderStaffBB); cargarPronunciacion(); }
-  if(id==='pStaff') renderStaffPanel();
+  if(id==='pStaff'){ renderStaffPanel(); cargarPronunciacion(); }
   if(id==='pClientes') renderClientesPanel();
   if(id==='pAgenda'){
     var fr=document.getElementById('agendaIframe');
@@ -6273,6 +6270,7 @@ function cargarAvatares(){
   var esAdmin = tvRolActual()==='admin';
   var h = '';
   BB.forEach(function(b){
+    if (!/^b\d+$/.test(String(b.id))) return;   // barbers only (bid b1, b2, ...): never staff or admin accounts
     if(!b.active && !esAdmin) return;
     h += celdaAvatar(b.id, b.nombre, !b.active);
   });
