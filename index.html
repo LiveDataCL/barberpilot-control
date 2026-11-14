@@ -4715,6 +4715,9 @@ function renderCaja(){
   renderResumenFinal();
 }
 
+// Propinas cobradas en EFECTIVO del día: el dinero está en el cajón (el barbero se lo lleva al pagarle al final del día).
+// Las propinas por tarjeta o transferencia van a la cuenta / Mercado Pago y no entran al cajón.
+function propinasEfectivo(rs){ var t=0; for(var i=0;i<rs.length;i++){ if(rs[i].pago==='efectivo') t+=(rs[i].propina||0); } return t; }
 function renderResumenFinal(){
   var el=document.getElementById('resumenFinalCaja');
   if(!el)return;
@@ -4743,7 +4746,8 @@ function renderResumenFinal(){
   }
 
   // Caja final
-  var cajaFinal = BASE_CAJA + totEfectivo - totalPagoEfectivo - totalGastos;
+  var propEf = propinasEfectivo(regs);
+  var cajaFinal = BASE_CAJA + totEfectivo + propEf - totalPagoEfectivo - totalGastos;
   var aDepositar = cajaFinal - BASE_MINIMA;  // siempre dejar BASE_MINIMA ($50.000) en caja
   var fecha = new Date().toLocaleDateString(BP_LOCALE);
 
@@ -4773,6 +4777,7 @@ function renderResumenFinal(){
 
     // Detalle de acciones
     +'<div style="display:flex;flex-direction:column;gap:6px">'
+    +(propEf>0?'<div class="caja-row"><span class="caja-lbl">🪙 Propinas en efectivo (suman al cajón)</span><span class="caja-val">+ $'+fmt(propEf)+'</span></div>':'')
     +'<div class="caja-row"><span class="caja-lbl">💵 Total físico en caja</span><span class="caja-val">$'+fmt(cajaFinal)+'</span></div>'
     +'<div class="caja-row"><span class="caja-lbl">📦 Base que queda en caja</span><span class="caja-val" style="color:var(--text2)">$'+fmt(BASE_MINIMA)+'</span></div>'
     +'<div class="caja-row" style="background:var(--ok-soft);border:1.5px solid var(--ok);border-radius:var(--r);padding:8px 10px;margin-top:2px">'
@@ -4806,7 +4811,7 @@ function textoCierreWhatsapp(){
     totalPagoEfectivoW+=liq.efectivo;
   }
 
-  var cajaFinalW = BASE_CAJA + totE - totalPagoEfectivoW - totalGastosW;
+  var cajaFinalW = BASE_CAJA + totE + propinasEfectivo(regs) - totalPagoEfectivoW - totalGastosW;
   var aDepositarW = cajaFinalW - BASE_MINIMA;
 
   var lineas=[];
@@ -4926,7 +4931,7 @@ function printCaja(){
       +(pend>0?'<div style="display:flex;justify-content:space-between;padding-left:10px"><span>Pendiente:</span><b>$'+fmt(pend)+'</b></div>':'<div style="font-size:9px;padding-left:10px;color:#555">✓ Pagado completo</div>');
   }
 
-  var cajaFinal=BASE_CAJA+totE-totalPagoEfectivo-totalGastosPrint;
+  var cajaFinal=BASE_CAJA+totE+propinasEfectivo(regs)-totalPagoEfectivo-totalGastosPrint;
 
   var h='<center><b>'+escHtml(BP.nombre.toUpperCase())+'</b></center>'
     +'<center>'+escHtml(BP.ticketCorto||BP.direccion||'')+'</center>'
@@ -5120,7 +5125,8 @@ function printCajaA4Directo(modo){   // modo 'pdf' → descarga <día>_<DD><MES>
       +'</tr>';
   }
 
-  var cajaFinal = BASE_CAJA+totE-totalPagoEf-totalGastosPrint;
+  var propEfA4 = propinasEfectivo(regs);
+  var cajaFinal = BASE_CAJA+totE+propEfA4-totalPagoEf-totalGastosPrint;
   var negocioTotal = totalFact - totalCorresponde;
   var utilidad = negocioTotal - totalGastosPrint;
 
@@ -5197,6 +5203,7 @@ function printCajaA4Directo(modo){   // modo 'pdf' → descarga <día>_<DD><MES>
     +(totE>0?'<tr><td><strong style="color:#1a6b3a">💰 Cobros efectivo ('+cntE+' svc)</strong></td><td style="text-align:right;font-family:monospace;color:#1a6b3a;font-weight:700">+ $'+fmt(totE)+'</td></tr>':'')
     +'<tr><td><strong style="color:#c0392b">💸 Pago barberos en efectivo</strong></td><td style="text-align:right;font-family:monospace;color:#c0392b;font-weight:700">− $'+fmt(totalPagoEf)+'</td></tr>'
     +(totalGastosPrint>0?gastos.map(function(g){return '<tr><td><strong style="color:#c0392b">💸 '+escHtml(g.desc)+'</strong></td><td style="text-align:right;font-family:monospace;color:#c0392b;font-weight:700">− $'+fmt(g.monto)+'</td></tr>';}).join(''):'')
+    +(propEfA4>0?'<tr><td><strong style="color:#1a6b3a">🪙 Propinas en efectivo</strong></td><td style="text-align:right;font-family:monospace;color:#1a6b3a;font-weight:700">+ $'+fmt(propEfA4)+'</td></tr>':'')
     +'<tr style="border-top:2px solid #1a1916"><td style="padding-top:8px;font-weight:700">Saldo físico en caja</td><td style="text-align:right;font-family:monospace;font-weight:700;padding-top:8px;'+(cajaFinal>=BASE_MINIMA?'background:#e8f5e9;color:#1a6b3a':'background:#fde8e8;color:#c0392b')+'">$'+fmt(cajaFinal)+'</td></tr>'
     +'<tr><td style="color:#9c9a93;font-size:9pt">Base que queda en caja (fija)</td><td style="text-align:right;font-family:monospace;color:#9c9a93;font-size:9pt">$'+fmt(BASE_MINIMA)+'</td></tr>'
     +'<tr><td style="font-weight:700;color:'+(cajaFinal-BASE_MINIMA>0?'#1a6b3a':cajaFinal-BASE_MINIMA<0?'#c0392b':'#1a1916')+'">'+(cajaFinal-BASE_MINIMA>0?'Retirar y depositar':cajaFinal-BASE_MINIMA<0?'Reponer en caja':'Caja en equilibrio')+'</td><td style="text-align:right;font-family:monospace;font-weight:700;color:'+(cajaFinal-BASE_MINIMA>0?'#1a6b3a':cajaFinal-BASE_MINIMA<0?'#c0392b':'#1a1916')+'">'+(cajaFinal-BASE_MINIMA<0?'− ':'')+'$'+fmt(Math.abs(cajaFinal-BASE_MINIMA))+'</td></tr>'
