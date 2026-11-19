@@ -8196,7 +8196,7 @@ function renderSillas(){
     fetch(API_URL+'/queue/control',{headers:getAuthHeaders()}).then(function(r){return r.json();}),
     cargarPeriodoApi(fechaHoy,fechaHoy,{registros:true}),
     fetch(API_URL+'/horarios/'+fechaHoy).then(function(r){return r.json();}).catch(function(){return {ok:false};}),
-    fetch(API_URL+'/appointments/proximity?fecha='+fechaHoy).then(function(r){return r.json();}).catch(function(){return {ok:false};})
+    fetch(API_URL+'/appointments/proximity?fecha='+fechaHoy,{headers:getAuthHeaders()}).then(function(r){return r.json();}).catch(function(){return {ok:false};})
   ]).then(function(res){
     var queue=res[0]; var regRes=res[1]; var horData=res[2]; var citasRes=res[3];
     if(!queue.ok) throw new Error(queue.error||'Error cola');
@@ -10086,7 +10086,7 @@ function _llegadaDismissKey(id){ return 'agenda_llegada_dismissed_'+id; }
 
 function checkProximidadCitas(){
   if(!API_URL) return;
-  fetch(API_URL+'/appointments/proximity?fecha='+fechaStr(new Date()))
+  fetch(API_URL+'/appointments/proximity?fecha='+fechaStr(new Date()),{headers:getAuthHeaders()})
     .then(function(r){ return r.json(); })
     .then(function(j){
       if(!j || !j.ok || !Array.isArray(j.appointments)) return;
