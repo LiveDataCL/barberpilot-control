@@ -618,8 +618,11 @@ function setFilter(bid) {
 }
 
 // ── Fetch ─────────────────────────────────────────────────────
+// The agenda needs a panel session (TD-024 batch 2): the panel token from this tab's sessionStorage.
+function agendaHeaders(){ try{ var t=sessionStorage.getItem('panelJwt'); return t?{Authorization:'Bearer '+t}:{}; }catch(e){ return {}; } }
 async function fetchDay(dateStr) {
-  const r=await fetch(`${API}/appointments?fecha=${dateStr}`);
+  if(!agendaHeaders().Authorization) throw new Error('Sin sesión de panel en esta pestaña: abre el panel e inicia sesión, luego abre la agenda desde ahí.');
+  const r=await fetch(`${API}/appointments?fecha=${dateStr}`,{headers:agendaHeaders()});
   if(!r.ok) throw new Error(`HTTP ${r.status}`);
   const j=await r.json();
   return Array.isArray(j)?j:(j.appointments||j.data||[]);
