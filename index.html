@@ -6999,7 +6999,7 @@ function _resolverPrimerDisponible(callback){
 
 function _doCheckin(nombre, bid, svc, tel, bebida, bebidaEsOtro){
   fetch(API_URL+'/queue/control/checkin',{
-    method:'POST',headers:{'Content-Type':'application/json'},
+    method:'POST',headers:getJsonAuthHeaders(),
     body:JSON.stringify({client_name:nombre,phone:tel||null,bid:bid,service:svc,bebida:bebida||null,bebida_es_otro:!!bebidaEsOtro})
   }).then(function(r){return r.json();})
     .then(function(j){
@@ -7680,7 +7680,7 @@ function renderSala(){
 function salaAsignarDePool(queue_id, bid){
   if(!API_URL) return;
   fetch(API_URL+'/queue/control/assign',{
-    method:'POST',headers:{'Content-Type':'application/json'},
+    method:'POST',headers:getJsonAuthHeaders(),
     body:JSON.stringify({queue_id:queue_id,bid:bid})
   }).then(function(r){return r.json();})
     .then(function(j){
@@ -8612,7 +8612,7 @@ function salaGuardarCliente(){
     body={client_name:nombre,phone:tel||null};
   }
   fetch(url,{
-    method:'PUT',headers:{'Content-Type':'application/json'},
+    method:'PUT',headers:getJsonAuthHeaders(),
     body:JSON.stringify(body)
   }).then(function(r){return r.json();})
     .then(function(j){
@@ -8633,7 +8633,7 @@ function salaActualizarServicio(){
   if(!svc){toast('Elige el servicio');return;}
   var servicioAntes=(_salaEditorData[_editorQueueId]||{}).service;
   fetch(API_URL+'/queue/'+_editorQueueId,{
-    method:'PUT',headers:{'Content-Type':'application/json'},
+    method:'PUT',headers:getJsonAuthHeaders(),
     body:JSON.stringify({service:svc})
   }).then(function(r){return r.json();})
     .then(function(j){
