@@ -3150,7 +3150,7 @@ function renderCierre(){
 // ═══ TABS & FILTROS ══════════════════════════════════════
 function cargarPendientes(){
   if(!API_URL) return;
-  fetch(API_URL+'/pendientes')
+  fetch(API_URL+'/pendientes',{headers:getAuthHeaders()})
     .then(function(r){return r.json();})
     .then(function(json){
       var pend = json.pendientes||[];
@@ -3257,7 +3257,7 @@ function rechazar(id){
 }
 
 function verComprobante(regId){
-  fetch(API_URL+'/comprobantes/'+regId)
+  fetch(API_URL+'/comprobantes/'+regId,{headers:getAuthHeaders()})
     .then(function(r){return r.json();})
     .then(function(json){
       if(!json.ok || !json.comprobante){
@@ -3636,7 +3636,7 @@ function _alAbrirPestana(id){
     var el=document.getElementById('aprobContent');
     if(el) el.innerHTML='<div class="empty"><div class="empty-ico">⟳</div><div>Cargando…</div></div>';
     setTimeout(function(){
-      fetch(API_URL+'/pendientes').then(function(r){return r.json();})
+      fetch(API_URL+'/pendientes',{headers:getAuthHeaders()}).then(function(r){return r.json();})
         .then(function(j){ renderAprobaciones(j.pendientes||[]); })
         .catch(function(){});
     },100);
