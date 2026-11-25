@@ -5278,7 +5278,7 @@ function cargarHorariosDesdeRailway(callback){
   if(!API_URL){ _horCargados=false; _horError='Sin servidor configurado.'; cargarHorarios(); if(callback) callback(); return; }
   var jwt = sessionStorage.getItem('panelJwt');
   var url = jwt ? API_URL+'/api/v2/asistencia/hoy' : API_URL+'/horarios/'+fechaHoy;
-  fetch(url, jwt ? {headers:getAuthHeaders()} : undefined)
+  fetch(url, {headers:getAuthHeaders()})
     .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
     .then(function(json){
       if(!json.ok) throw new Error(json.detalle||json.error||'error');
@@ -6963,7 +6963,7 @@ function _resolverPrimerDisponible(callback){
   Promise.all([
     fetch(API_URL+'/queue/control',{headers:getAuthHeaders()}).then(function(r){return r.json();}),
     cargarPeriodoApi(fechaHoy,fechaHoy,{registros:true}),
-    fetch(API_URL+'/horarios/'+fechaHoy).then(function(r){return r.json();}).catch(function(){return {ok:false};})
+    fetch(API_URL+'/horarios/'+fechaHoy,{headers:getAuthHeaders()}).then(function(r){return r.json();}).catch(function(){return {ok:false};})
   ]).then(function(res){
     var queue=res[0]; var regRes=res[1]; var horData=res[2];
     if(!regRes.ok){
@@ -8195,7 +8195,7 @@ function renderSillas(){
   Promise.all([
     fetch(API_URL+'/queue/control',{headers:getAuthHeaders()}).then(function(r){return r.json();}),
     cargarPeriodoApi(fechaHoy,fechaHoy,{registros:true}),
-    fetch(API_URL+'/horarios/'+fechaHoy).then(function(r){return r.json();}).catch(function(){return {ok:false};}),
+    fetch(API_URL+'/horarios/'+fechaHoy,{headers:getAuthHeaders()}).then(function(r){return r.json();}).catch(function(){return {ok:false};}),
     fetch(API_URL+'/appointments/proximity?fecha='+fechaHoy,{headers:getAuthHeaders()}).then(function(r){return r.json();}).catch(function(){return {ok:false};})
   ]).then(function(res){
     var queue=res[0]; var regRes=res[1]; var horData=res[2]; var citasRes=res[3];
