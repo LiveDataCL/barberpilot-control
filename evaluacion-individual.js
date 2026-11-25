@@ -34,6 +34,9 @@
     + '.evi-det{font-size:13px;color:var(--text2);display:block;margin-top:2px}'
     + '.evi-tend{font-weight:600;white-space:nowrap}'
     + '.evi-tend.up{color:var(--ok)}.evi-tend.down{color:var(--err)}.evi-tend.flat{color:var(--text2)}.evi-tend.insufficient{color:var(--text3);font-weight:500}'
+    + '.evi-meta-local{margin:0 0 14px}.evi-meta-txt{font-size:15px;color:var(--text);margin-bottom:6px}'
+    + '.evi-bar{height:10px;border-radius:999px;background:var(--surface2);border:1px solid var(--border);overflow:hidden}'
+    + '.evi-bar span{display:block;height:100%;background:var(--warn)}.evi-bar.ok span{background:var(--ok)}'
     + '.evi-proy{background:var(--surface2);border:1px dashed var(--border2);border-radius:var(--rl);padding:12px 14px;margin-bottom:14px;font-size:15px}'
     + '.evi-proy small{display:block;color:var(--text2);font-size:13px}'
     + '.evi-hint{margin:0;padding-left:20px}.evi-hint li{margin-bottom:6px}'
@@ -107,6 +110,8 @@ function evalIndFecha(iso){
   }catch(e){ return String(iso || ''); }
 }
 function evalIndPct(x){ return String(x).replace('.', ',') + ' %'; }
+// a whole percentage from the DTO, clamped to 0..100 (the DTO already sends integers)
+function evalIndEntero(x){ var n = Math.floor(Number(x)); return isFinite(n) ? Math.max(0, Math.min(100, n)) : 0; }
 // conduct averages: always two decimals, a comma as the decimal mark ("4,00", "8,52")
 function evalIndDos(x){ return Number(x).toFixed(2).replace('.', ','); }
 // the days without a clock-in / clock-out mark, with the neutral wording the App shows too; empty when there are none
@@ -142,7 +147,13 @@ function evalIndRender(d){
     h += '<div class="evi-bono">Sin bono este mes<small>Se paga solo si la meta del grupo se cumple.</small></div>';
   }
   h += '</div>';
-  h += '<div class="evi-meta"><span>' + (d.groupGoalStatus === 'met' ? 'Meta del grupo: cumplida' : 'Meta del grupo: aún no cumplida') + '</span></div>';
+  // the local's billing goal: percentages only (owner decision). No goal configured → no block.
+  if(d.metaLocal){
+    var ml = d.metaLocal, cum = evalIndEntero(ml.cumplidaPct), fal = evalIndEntero(ml.faltantePct);
+    var txtMeta = ml.cumplida ? 'Meta cumplida · ' + fal + ' % faltante' : 'Meta del local: ' + cum + ' % cumplida · ' + fal + ' % faltante';
+    h += '<div class="evi-meta-local"><div class="evi-meta-txt">' + _escHtml(txtMeta) + '</div>'
+      + '<div class="evi-bar ' + (ml.cumplida ? 'ok' : 'pend') + '" role="progressbar" aria-label="' + _escHtml(txtMeta) + '" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + cum + '"><span style="width:' + cum + '%"></span></div></div>';
+  }
 
   if(d.disqualified && d.disqualified.active){
     h += '<div class="evi-disq" role="status">' + _escHtml(d.disqualified.reason || 'Descalificado este mes') + '</div>';
