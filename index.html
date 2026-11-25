@@ -352,7 +352,9 @@
   .kpi-alert{background:#fcebeb;border:1px solid #f5c0c0;border-radius:var(--rl);padding:11px 14px;margin-bottom:14px;font-size:13px;color:#791f1f}
   .kpi-alert strong{display:block;margin-bottom:3px}
   .kpi-eval-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:18px}
-  .kpi-eval-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden}
+  /* position+z-index: at ≤900px the Configuration sidebar (.pl) stacks above the active pane and its Servicio list overlapped these cards
+     (and their "Vista individual" button). Stopgap, scoped to the KPI cards; the structural fix is logged in TECH_DEBT. */
+  .kpi-eval-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;position:relative;z-index:1}
   .kpi-eval-head{padding:11px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
   .kpi-eval-name{font-weight:700;font-size:14px}
   .kpi-eval-body{padding:12px 14px}
@@ -1407,6 +1409,7 @@
 <script src="texto-seguro.js"></script>
 <script src="reportes-api.js"></script>
 <script src="conducta-diaria.js"></script>
+<script src="evaluacion-individual.js"></script>
 <script>
 // ═══ DEPLOYMENT CONFIG (config.js): API URL, business name, address, locale, time zone. One file per deployment; nothing of another business is a default in this code.
 var BP = window.BP_CONFIG;
