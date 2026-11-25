@@ -107,6 +107,15 @@ function evalIndFecha(iso){
   }catch(e){ return String(iso || ''); }
 }
 function evalIndPct(x){ return String(x).replace('.', ',') + ' %'; }
+// conduct averages: always two decimals, a comma as the decimal mark ("4,00", "8,52")
+function evalIndDos(x){ return Number(x).toFixed(2).replace('.', ','); }
+// the days without a clock-in / clock-out mark, with the neutral wording the App shows too; empty when there are none
+function evalIndSinMarca(det){
+  var partes = [];
+  if(det.diasSinEntrada > 0) partes.push((det.diasSinEntrada === 1 ? 'Día' : 'Días') + ' sin marca de entrada: ' + det.diasSinEntrada);
+  if(det.diasSinSalida > 0) partes.push((det.diasSinSalida === 1 ? 'Día' : 'Días') + ' sin marca de salida: ' + det.diasSinSalida);
+  return partes.length ? '<br>' + _escHtml(partes.join(' · ')) : '';
+}
 var EVI_TENDENCIA = {
   up: '▲ sube', flat: '● estable', down: '▼ baja', insufficient: 'sin tendencia aún'
 };
@@ -125,10 +134,9 @@ function evalIndRender(d){
 
   h += '<div class="evi-score"><div class="evi-total">' + _escHtml(String(d.totalScore).replace('.', ','))
     + '<small> / ' + maxTotal + ' pts</small></div>'
-    + '<div class="evi-tier">' + _escHtml(d.tier) + '</div>';
+    + '<div class="evi-tier">' + _escHtml(d.tierNombre ? d.tier + ' · ' + d.tierNombre : d.tier) + '</div>';
   if(d.bonusPct != null){
-    var tierTxt = /^tier/i.test(String(d.bonusTier)) ? d.bonusTier : 'Tier ' + d.bonusTier;
-    h += '<div class="evi-bono">' + _escHtml(tierTxt + ' · ' + evalIndPct(d.bonusPct))
+    h += '<div class="evi-bono">' + _escHtml('Estrato ' + d.bonusTier + ' · ' + evalIndPct(d.bonusPct))
       + '<small>Se paga solo si la meta del grupo se cumple.</small></div>';
   } else {
     h += '<div class="evi-bono">Sin bono este mes<small>Se paga solo si la meta del grupo se cumple.</small></div>';
@@ -150,7 +158,8 @@ function evalIndRender(d){
   h += '<div class="evi-bloque"><h3>Puntaje por componente</h3><table class="evi-t"><thead><tr><th>Componente</th><th class="n">Puntos</th></tr></thead><tbody>'
     + '<tr><td>Producción<span class="evi-det">' + comp.production.detail.servicios + ' servicios · meta individual de servicios ' + comp.production.detail.metaServicios + '</span></td><td class="n">' + evalIndPts(comp.production) + '</td></tr>'
     + '<tr><td>Conducta diaria</td><td class="n">' + evalIndPts(comp.conduct) + '</td></tr>'
-    + '<tr><td>Puntualidad<span class="evi-det">bloques de atraso o salida anticipada: ' + comp.punctuality.detail.lateBlocks + '</span></td><td class="n">' + evalIndPts(comp.punctuality) + '</td></tr>'
+    + '<tr><td>Puntualidad<span class="evi-det">bloques de atraso o salida anticipada: ' + comp.punctuality.detail.lateBlocks
+      + evalIndSinMarca(comp.punctuality.detail) + '</span></td><td class="n">' + evalIndPts(comp.punctuality) + '</td></tr>'
     + '<tr><td>Venta adicional<span class="evi-det">' + comp.upselling.detail.conProducto + ' de ' + comp.upselling.detail.servicios + ' servicios con producto (umbral ' + comp.upselling.detail.umbralPct + ' %)</span></td><td class="n">' + evalIndPts(comp.upselling) + '</td></tr>'
     + '<tr><td>Propinas</td><td class="n">' + evalIndPts(comp.tips) + '</td></tr>'
     + '</tbody></table></div>';
@@ -159,7 +168,7 @@ function evalIndRender(d){
   if(d.conductRows && d.conductRows.length){
     h += '<table class="evi-t"><thead><tr><th>Indicador</th><th class="n">Promedio</th><th>Tendencia</th></tr></thead><tbody>';
     d.conductRows.forEach(function(r){
-      h += '<tr><td>' + _escHtml(r.label) + '</td><td class="n">' + _escHtml(String(r.monthlyAvg).replace('.', ',')) + '</td>'
+      h += '<tr><td>' + _escHtml(r.label) + '</td><td class="n">' + _escHtml(evalIndDos(r.monthlyAvg)) + '</td>'
         + '<td><span class="evi-tend ' + _escHtml(r.trend) + '">' + _escHtml(EVI_TENDENCIA[r.trend] || '') + '</span></td></tr>';
     });
     h += '</tbody></table>';
