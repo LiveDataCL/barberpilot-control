@@ -349,8 +349,11 @@ function kpiConductaV2Tarjetas(k, periodo){
     + '<div class="kpi-eval-grid">';
   bs.forEach(function(b){
     var d = b.detalle || {}, inds = d.conducta_indicadores;
+    // "Vista individual" only for the admin (the server refuses everyone else on the same data); see evaluacion-individual.js
+    var verIndividual = (typeof _panelRole !== 'undefined' && _panelRole === 'admin')
+      ? '<button type="button" class="evi-abrir" data-bid="' + _cdEsc(b.bid) + '" onclick="evalIndAbrir(this.dataset.bid)">👁 Vista individual</button>' : '';
     h += '<div class="kpi-eval-card kpi-eval-solo-lectura" data-bid="' + _cdEsc(b.bid) + '"><div class="kpi-eval-head"><div><div class="kpi-eval-name">' + _cdEsc(b.nombre) + '</div>'
-      + '<div style="font-size:11px;color:var(--text2);font-weight:600">Conducta ' + coma(b.puntos ? b.puntos.conducta : 0) + ' / ' + r.conducta.pts + ' pts · nota ' + String(d.nota_conducta == null ? '—' : d.nota_conducta).replace('.', ',') + ' / ' + esc + '</div></div></div><div class="kpi-eval-body">';
+      + '<div style="font-size:11px;color:var(--text2);font-weight:600">Conducta ' + coma(b.puntos ? b.puntos.conducta : 0) + ' / ' + r.conducta.pts + ' pts · nota ' + String(d.nota_conducta == null ? '—' : d.nota_conducta).replace('.', ',') + ' / ' + esc + '</div></div>' + verIndividual + '</div><div class="kpi-eval-body">';
     if(!inds) h += '<div style="font-size:12px;color:var(--text3)">Este servidor aún no entrega el detalle por indicador.</div>';
     else inds.forEach(function(i){
       h += '<div class="kpi-eval-row"><div class="kpi-eval-label">' + _cdEsc(i.nombre) + '<sup style="font-size:9px;color:var(--text3)"> ×' + i.peso + '</sup></div>'
