@@ -37,6 +37,9 @@
     + '.evi-meta-local{margin:0 0 14px}.evi-meta-txt{font-size:15px;color:var(--text);margin-bottom:6px}'
     + '.evi-bar{height:10px;border-radius:999px;background:var(--surface2);border:1px solid var(--border);overflow:hidden}'
     + '.evi-bar span{display:block;height:100%;background:var(--warn)}.evi-bar.ok span{background:var(--ok)}'
+    + '.evi-barwrap{position:relative}'
+    + '.evi-ritmo{position:absolute;top:-4px;bottom:-4px;width:3px;margin-left:-1.5px;background:var(--text);border-radius:2px}'
+    + '.evi-ritmo-txt{font-size:13px;font-weight:600;color:var(--text);margin-top:8px}.evi-ritmo-nota{font-size:13px;color:var(--text2);margin-top:2px}'
     + '.evi-proy{background:var(--surface2);border:1px dashed var(--border2);border-radius:var(--rl);padding:12px 14px;margin-bottom:14px;font-size:15px}'
     + '.evi-proy small{display:block;color:var(--text2);font-size:13px}'
     + '.evi-hint{margin:0;padding-left:20px}.evi-hint li{margin-bottom:6px}'
@@ -140,19 +143,28 @@ function evalIndRender(d){
   h += '<div class="evi-score"><div class="evi-total">' + _escHtml(String(d.totalScore).replace('.', ','))
     + '<small> / ' + maxTotal + ' pts</small></div>'
     + '<div class="evi-tier">' + _escHtml(d.tierNombre ? d.tier + ' · ' + d.tierNombre : d.tier) + '</div>';
+  // tiers B, C, D and X have no bonus: the owner-approved sentence; S and A keep the current one (the App uses the same rule)
+  var notaBono = ['B','C','D','X'].indexOf(String(d.bonusTier).toUpperCase()) >= 0
+    ? 'Este estrato no genera bono. Los estratos S y A sí, si se cumple la meta del grupo.'
+    : 'Se paga solo si la meta del grupo se cumple.';
   if(d.bonusPct != null){
     h += '<div class="evi-bono">' + _escHtml('Estrato ' + d.bonusTier + ' · ' + evalIndPct(d.bonusPct))
-      + '<small>Se paga solo si la meta del grupo se cumple.</small></div>';
+      + '<small>' + _escHtml(notaBono) + '</small></div>';
   } else {
-    h += '<div class="evi-bono">Sin bono este mes<small>Se paga solo si la meta del grupo se cumple.</small></div>';
+    h += '<div class="evi-bono">Sin bono este mes<small>' + _escHtml(notaBono) + '</small></div>';
   }
   h += '</div>';
   // the local's billing goal: percentages only (owner decision). No goal configured → no block.
   if(d.metaLocal){
     var ml = d.metaLocal, cum = evalIndEntero(ml.cumplidaPct), fal = evalIndEntero(ml.faltantePct);
     var txtMeta = ml.cumplida ? 'Meta cumplida · ' + fal + ' % faltante' : 'Meta del local: ' + cum + ' % cumplida · ' + fal + ' % faltante';
+    // the expected pace: an integer 0..100, or nothing (null or undefined from an old server → no tick, no caption)
+    var rp = ml.ritmoEsperadoPct, ritmoOk = Number.isInteger(rp) && rp >= 0 && rp <= 100;
     h += '<div class="evi-meta-local"><div class="evi-meta-txt">' + _escHtml(txtMeta) + '</div>'
-      + '<div class="evi-bar ' + (ml.cumplida ? 'ok' : 'pend') + '" role="progressbar" aria-label="' + _escHtml(txtMeta) + '" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + cum + '"><span style="width:' + cum + '%"></span></div></div>';
+      + '<div class="evi-barwrap"><div class="evi-bar ' + (ml.cumplida ? 'ok' : 'pend') + '" role="progressbar" aria-label="' + _escHtml(txtMeta) + '" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + cum + '"><span style="width:' + cum + '%"></span></div>'
+      + (ritmoOk ? '<span class="evi-ritmo" style="left:' + rp + '%" aria-hidden="true"></span>' : '') + '</div>'
+      + (ritmoOk ? '<div class="evi-ritmo-txt">' + _escHtml('Ritmo esperado a hoy: ' + rp + ' %') + '</div><div class="evi-ritmo-nota">' + _escHtml('Según los días de trabajo transcurridos del mes.') + '</div>' : '')
+      + '</div>';
   }
 
   if(d.disqualified && d.disqualified.active){
