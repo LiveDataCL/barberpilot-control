@@ -114,6 +114,17 @@ function evalIndFecha(iso){
 }
 function evalIndPct(x){ return String(x).replace('.', ',') + ' %'; }
 // a whole percentage from the DTO, clamped to 0..100 (the DTO already sends integers)
+// Projection for the end of the month: X = round(cumplidaPct × 100 / ritmoEsperadoPct), shown capped ("100 % o más").
+// Hidden (null) when the pace is null/undefined/not an integer, 0 or above 100, the elapsed days are unknown or below 3, or the goal % is not a number.
+function evalIndProyeccionFin(x){
+  var r = x.ritmoEsperadoPct, dias = x.diasTranscurridos, c = x.cumplidaPct;
+  if(!Number.isInteger(r) || r <= 0 || r > 100) return null;
+  if(!Number.isInteger(dias) || dias < 3) return null;
+  if(typeof c !== 'number' || !isFinite(c) || c < 0) return null;
+  var v = Math.round(c * 100 / r);
+  return { pct: Math.min(v, 100), texto: v >= 100 ? 'Proyección para fin de mes: 100 % o más' : 'Proyección para fin de mes: ' + v + ' %',
+    nota: 'Si mantienes el ritmo actual. Es una estimación y no cambia el puntaje oficial.' };
+}
 function evalIndEntero(x){ var n = Math.floor(Number(x)); return isFinite(n) ? Math.max(0, Math.min(100, n)) : 0; }
 // conduct averages: always two decimals, a comma as the decimal mark ("4,00", "8,52")
 function evalIndDos(x){ return Number(x).toFixed(2).replace('.', ','); }
@@ -160,10 +171,13 @@ function evalIndRender(d){
     var txtMeta = ml.cumplida ? 'Meta cumplida · ' + fal + ' % faltante' : 'Meta del local: ' + cum + ' % cumplida · ' + fal + ' % faltante';
     // the expected pace: an integer 0..100, or nothing (null or undefined from an old server → no tick, no caption)
     var rp = ml.ritmoEsperadoPct, ritmoOk = Number.isInteger(rp) && rp >= 0 && rp <= 100;
+    // the month-end projection: the same rule as the App (src/services/evaluacion.js proyeccionFinMes); hidden without the elapsed days
+    var proyFin = evalIndProyeccionFin({ cumplidaPct: cum, ritmoEsperadoPct: rp, diasTranscurridos: d.productionProjection ? d.productionProjection.basisDays : null });
     h += '<div class="evi-meta-local"><div class="evi-meta-txt">' + _escHtml(txtMeta) + '</div>'
       + '<div class="evi-barwrap"><div class="evi-bar ' + (ml.cumplida ? 'ok' : 'pend') + '" role="progressbar" aria-label="' + _escHtml(txtMeta) + '" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + cum + '"><span style="width:' + cum + '%"></span></div>'
       + (ritmoOk ? '<span class="evi-ritmo" style="left:' + rp + '%" aria-hidden="true"></span>' : '') + '</div>'
-      + (ritmoOk ? '<div class="evi-ritmo-txt">' + _escHtml('Ritmo esperado a hoy: ' + rp + ' %') + '</div><div class="evi-ritmo-nota">' + _escHtml('Según los días de trabajo transcurridos del mes.') + '</div>' : '')
+      + (ritmoOk ? '<div class="evi-ritmo-txt">' + _escHtml('Marca: avance del mes ' + rp + ' %') + '</div>' : '')
+      + (proyFin ? '<div class="evi-ritmo-txt" style="margin-top:10px">' + _escHtml(proyFin.texto) + '</div><div class="evi-ritmo-nota">' + _escHtml(proyFin.nota) + '</div>' : '')
       + '</div>';
   }
 
